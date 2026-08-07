@@ -837,6 +837,119 @@ h1 {
   color: var(--ink);
 }
 
+/* Header Stockman User Pill */
+.user-pill-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 5px 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.user-pill-container:hover {
+  border-color: var(--amber);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.1);
+}
+
+.user-avatar-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #d97706;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-info-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.user-auth-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: 2px;
+}
+
+.user-auth-btn:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.user-auth-btn.logout {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.user-auth-btn.logout:hover {
+  background: #fecaca;
+  color: #b91c1c;
+}
+
+.user-auth-btn.login {
+  background: #d97706;
+  border-color: #b45309;
+  color: #ffffff;
+}
+
+.user-auth-btn.login:hover {
+  background: #b45309;
+}
+
+/* Quick Stockman Selection Chips in Login Modal */
+.quick-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.quick-user-chip:hover {
+  border-color: var(--amber);
+  background: #fffbe6;
+}
+
+.quick-user-chip .qu-name {
+  font-weight: 600;
+}
+
+.quick-user-chip .qu-role {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
 .recent-item .riloc {
   font-family: var(--mono);
   font-size: 11px;

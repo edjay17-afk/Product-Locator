@@ -21,9 +21,12 @@
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div class="tag-stamp" id="skuStamp">Loading database…</div>
-      <div id="userBadge" style="font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel);padding:4px 10px;border-radius:20px;border:1px solid var(--line);display:flex;align-items:center;gap:6px;">
-        <span id="userNameDisplay">👤 Guest</span>
-        <button id="authBtn" style="background:none;border:none;color:var(--amber);cursor:pointer;font-weight:700;padding:0;font-size:12px;">[Login]</button>
+      <div class="user-pill-container" id="userBadge">
+        <div class="user-avatar-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <span class="user-name" id="userNameDisplay">Guest</span>
+        <button id="authBtn" class="user-auth-btn login" type="button">Sign In</button>
       </div>
     </div>
   </header>
@@ -252,11 +255,34 @@
 <!-- LOGIN MODAL OVERLAY -->
 <div id="loginOverlay" class="modal-overlay">
   <div class="form-panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <h2>Stockman Login</h2>
-      <button id="closeLoginModal" type="button" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);">&times;</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:#fef3c7;color:#d97706;display:flex;align-items:center;justify-content:center;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div>
+          <h2>Stockman Sign In</h2>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);">Warehouse Accountability Access</div>
+        </div>
+      </div>
+      <button id="closeLoginModal" type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted);">&times;</button>
     </div>
-    <p class="form-sub">Sign in to record your stockman activity when updating shelf positions or adding new products.</p>
+    <p class="form-sub" style="margin-bottom:14px;">Sign in with your stockman profile to take responsibility for shelf location updates.</p>
+
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+      <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);">Quick Select Stockman Profile:</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div class="quick-user-chip" id="chipStockman1">
+          <div class="qu-name">Juan Dela Cruz</div>
+          <div class="qu-role">Stockman 1</div>
+        </div>
+        <div class="quick-user-chip" id="chipStockman2">
+          <div class="qu-name">Pedro Santos</div>
+          <div class="qu-role">Stockman 2</div>
+        </div>
+      </div>
+    </div>
+
     <form id="loginForm">
       <div class="field">
         <label for="loginUsername">Username</label>
@@ -268,15 +294,9 @@
       </div>
       <div id="loginFormError" class="form-error" style="display:none;color:#ef4444;font-size:12px;margin-bottom:10px;">Invalid username or password.</div>
       <div style="margin-top:16px;display:flex;gap:8px;">
-        <button type="submit" class="submit-btn" style="flex:1;">Sign In</button>
+        <button type="submit" class="submit-btn" style="flex:1;">Sign In as Stockman</button>
       </div>
     </form>
-    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.6;">
-      <div style="font-weight:700;margin-bottom:4px;">Default Stockman Accounts:</div>
-      <div>• Stockman 1: <b>stockman1</b> / <b>password123</b></div>
-      <div>• Stockman 2: <b>stockman2</b> / <b>password123</b></div>
-      <div>• Admin: <b>admin</b> / <b>adminpassword</b></div>
-    </div>
   </div>
 </div>
 

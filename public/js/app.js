@@ -17,11 +17,13 @@ function updateUserUI() {
   const userNameDisplay = document.getElementById('userNameDisplay');
   const authBtn = document.getElementById('authBtn');
   if (currentUser) {
-    userNameDisplay.textContent = `👤 ${currentUser.full_name}`;
-    authBtn.textContent = '[Logout]';
+    userNameDisplay.textContent = currentUser.full_name;
+    authBtn.textContent = 'Log Out';
+    authBtn.className = 'user-auth-btn logout';
   } else {
-    userNameDisplay.textContent = '👤 Guest';
-    authBtn.textContent = '[Login]';
+    userNameDisplay.textContent = 'Guest Stockman';
+    authBtn.textContent = 'Sign In';
+    authBtn.className = 'user-auth-btn login';
   }
 }
 
@@ -713,6 +715,22 @@ document.getElementById('authBtn').addEventListener('click', () => {
 document.getElementById('closeLoginModal').addEventListener('click', () => {
   document.getElementById('loginOverlay').classList.remove('show');
 });
+
+const chip1 = document.getElementById('chipStockman1');
+if (chip1) {
+  chip1.addEventListener('click', () => {
+    document.getElementById('loginUsername').value = 'stockman1';
+    document.getElementById('loginPassword').value = 'password123';
+  });
+}
+
+const chip2 = document.getElementById('chipStockman2');
+if (chip2) {
+  chip2.addEventListener('click', () => {
+    document.getElementById('loginUsername').value = 'stockman2';
+    document.getElementById('loginPassword').value = 'password123';
+  });
+}
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
