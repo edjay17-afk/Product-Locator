@@ -11,6 +11,26 @@ let activeProduct = null;
 
 // Initialize app data from server database API
 async function initApp() {
+  let hasActiveCard = false;
+
+  // Instant restoration of scanned product card from cache
+  try {
+    const savedActive = localStorage.getItem('wh_active_product');
+    if (savedActive) {
+      const activeP = JSON.parse(savedActive);
+      if (activeP) {
+        renderProduct(activeP);
+        hasActiveCard = true;
+      }
+    }
+  } catch (e) {}
+
+  if (!hasActiveCard) {
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('skeletonState').style.display = 'flex';
+    document.getElementById('emptyPrompt').style.display = 'none';
+  }
+
   try {
     const [statsRes, productsRes] = await Promise.all([
       fetch('/api/stats').then(r => r.json()),
@@ -30,16 +50,12 @@ async function initApp() {
     console.warn('Network or API unavailable, operating in offline fallback mode if cached data exists.', err);
     document.getElementById('skuStamp').textContent = `Offline mode`;
   }
-  renderRecent();
 
-  // Restore active scanned product card across page refreshes
-  try {
-    const savedActive = localStorage.getItem('wh_active_product');
-    if (savedActive) {
-      const activeP = JSON.parse(savedActive);
-      if (activeP) renderProduct(activeP);
-    }
-  } catch (e) {}
+  document.getElementById('skeletonState').style.display = 'none';
+  if (!hasActiveCard && !activeProduct) {
+    document.getElementById('emptyPrompt').style.display = 'flex';
+  }
+  renderRecent();
 }
 
 function rebuildIndex() {
@@ -247,7 +263,9 @@ document.getElementById('clearRecent').addEventListener('click', () => {
     localStorage.removeItem('wh_active_product');
   } catch (e) {}
   document.getElementById('tagCard').classList.remove('show');
-  document.getElementById('emptyState').style.display = 'flex';
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('skeletonState').style.display = 'none';
+  document.getElementById('emptyPrompt').style.display = 'flex';
   renderRecent();
 });
 

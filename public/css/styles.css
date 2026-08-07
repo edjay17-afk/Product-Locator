@@ -95,6 +95,38 @@ h1 {
   font-weight: 700;
 }
 
+/* Skeleton / Lazy Loader Shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-text {
+  height: 16px;
+  width: 80%;
+  margin-bottom: 8px;
+}
+
+.skeleton-title {
+  height: 24px;
+  width: 60%;
+  margin-bottom: 12px;
+}
+
+.skeleton-box {
+  height: 48px;
+  width: 100%;
+  border-radius: 8px;
+}
+
 /* Search / scan controls */
 .controls {
   background: var(--panel);

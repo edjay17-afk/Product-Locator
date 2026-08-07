@@ -45,9 +45,21 @@
   </div>
 
   <div id="emptyState" class="empty">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/></svg>
-    <div class="e1">No product looked up yet</div>
-    <div class="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add a New Product" to save it and its shelf location.</div>
+    <div id="skeletonState" style="display:flex;flex-direction:column;gap:12px;width:100%;padding:16px 0;">
+      <div class="skeleton skeleton-title"></div>
+      <div class="skeleton skeleton-text" style="width:45%;"></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;">
+        <div class="skeleton skeleton-box"></div>
+        <div class="skeleton skeleton-box"></div>
+        <div class="skeleton skeleton-box"></div>
+        <div class="skeleton skeleton-box"></div>
+      </div>
+    </div>
+    <div id="emptyPrompt" style="display:none;flex-direction:column;align-items:center;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/></svg>
+      <div class="e1">No product looked up yet</div>
+      <div class="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add Product" to save it and its shelf location.</div>
+    </div>
   </div>
 
   <!-- LOCATION TAG CARD (Punch holes removed) -->
