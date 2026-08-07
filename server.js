@@ -10,7 +10,7 @@ const os = require('os');
 const selfsigned = require('selfsigned');
 const multer = require('multer');
 const XLSX = require('xlsx');
-const upload = multer({ dest: path.join(__dirname, 'db', 'tmp_uploads') });
+const upload = multer({ storage: multer.memoryStorage() });
 
 const db = require('./db/supabase');
 
@@ -38,11 +38,11 @@ app.get('/api/seed-supabase', async (req, res) => {
 // Excel upload endpoint
 app.post('/api/upload-excel', upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No Excel file uploaded.' });
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ success: false, error: 'No Excel file buffer received.' });
     }
 
-    const workbook = XLSX.readFile(req.file.path);
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
@@ -95,10 +95,12 @@ app.post('/api/upload-excel', upload.single('file'), async (req, res) => {
       });
     }
 
-    const importedCount = await db.bulkCreateProducts(itemsToInsert);
-    fs.unlink(req.file.path, () => {});
-
-    res.json({ success: true, count: importedCount, message: `Successfully imported ${importedCount} products!` });
+    const result = await db.bulkCreateProducts(itemsToInsert);
+    if (result && result.error) {
+      return res.status(400).json({ success: false, error: result.error, message: result.message });
+    }
+    const count = typeof result === 'object' ? (result.count || 0) : result;
+    res.json({ success: true, count, message: `Successfully imported ${count} products!` });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
