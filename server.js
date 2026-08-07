@@ -8,7 +8,11 @@ const https = require('https');
 const net = require('net');
 const os = require('os');
 const selfsigned = require('selfsigned');
-const db = require('./db/database');
+const multer = require('multer');
+const XLSX = require('xlsx');
+const upload = multer({ dest: path.join(__dirname, 'db', 'tmp_uploads') });
+
+const db = require('./db/supabase');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002', 10);
@@ -19,10 +23,91 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- REST API ENDPOINTS ---
 
-// Get stats
-app.get('/api/stats', (req, res) => {
+// Explicit seed endpoint
+app.get('/api/seed-supabase', async (req, res) => {
   try {
-    const stats = db.getStats();
+    const raw = fs.readFileSync(path.join(__dirname, 'seed-data.json'), 'utf8');
+    const items = JSON.parse(raw);
+    const result = await db.bulkCreateProducts(items);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Excel upload endpoint
+app.post('/api/upload-excel', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No Excel file uploaded.' });
+    }
+
+    const workbook = XLSX.readFile(req.file.path);
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    const extractNum = (str) => {
+      if (typeof str === 'number') return String(str);
+      if (!str) return '';
+      const m = String(str).match(/(\d+)/);
+      if (!m) return '';
+      return m[1].length === 1 ? '0' + m[1] : m[1];
+    };
+
+    const cleanHtml = (str) => {
+      if (!str) return '';
+      return String(str).replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+    };
+
+    const itemsToInsert = [];
+    for (const r of rows) {
+      const barcode = r[0] ? String(r[0]).trim() : '';
+      const stock = r[1] ? String(r[1]).trim() : '';
+      const name = cleanHtml(r[2] ? String(r[2]).trim() : '');
+      if (!name || name === 'Unnamed Item') continue;
+
+      const category = cleanHtml(r[3] ? String(r[3]).trim() : '');
+      const subcategory = cleanHtml(r[4] ? String(r[4]).trim() : '');
+      const locFull = r[5] ? cleanHtml(String(r[5]).trim()) : '';
+      const floor = r[6] ? extractNum(r[6]).replace(/^0+/, '') : '';
+      const batch = r[7] ? extractNum(r[7]) : '';
+      const shelf = r[8] ? extractNum(r[8]) : '';
+      const level = r[9] ? extractNum(r[9]) : '';
+      const qty = typeof r[10] === 'number' ? r[10] : (parseInt(r[10], 10) || 0);
+      const status = r[16] ? String(r[16]).trim() : '';
+
+      const loc = (floor || batch || shelf) ? `${floor}-${batch}-${shelf}-${level || '00'}` : '';
+
+      itemsToInsert.push({
+        barcode,
+        stock_code: stock,
+        name,
+        category,
+        subcategory,
+        floor,
+        batch,
+        shelf,
+        level: level || '00',
+        loc,
+        loc_full: locFull || loc,
+        qty,
+        status
+      });
+    }
+
+    const importedCount = await db.bulkCreateProducts(itemsToInsert);
+    fs.unlink(req.file.path, () => {});
+
+    res.json({ success: true, count: importedCount, message: `Successfully imported ${importedCount} products!` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get stats
+app.get('/api/stats', async (req, res) => {
+  try {
+    const stats = await db.getStats();
     res.json({ success: true, ...stats });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -30,15 +115,15 @@ app.get('/api/stats', (req, res) => {
 });
 
 // Search or list products
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   try {
     const query = req.query.q || '';
     const limit = parseInt(req.query.limit || '20', 10);
     if (!query) {
-      const stats = db.getStats();
+      const stats = await db.getStats();
       return res.json({ success: true, count: stats.total, products: [] });
     }
-    const products = db.searchProducts(query, limit);
+    const products = await db.searchProducts(query, limit);
     res.json({ success: true, count: products.length, products });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -46,9 +131,9 @@ app.get('/api/products', (req, res) => {
 });
 
 // Get all products (for offline sync)
-app.get('/api/products/all', (req, res) => {
+app.get('/api/products/all', async (req, res) => {
   try {
-    const products = db.getAllProducts();
+    const products = await db.getAllProducts();
     res.json({ success: true, count: products.length, products });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -56,9 +141,9 @@ app.get('/api/products/all', (req, res) => {
 });
 
 // Get product by exact barcode or stock code
-app.get('/api/products/lookup/:code', (req, res) => {
+app.get('/api/products/lookup/:code', async (req, res) => {
   try {
-    const product = db.getProductByBarcodeOrStock(req.params.code);
+    const product = await db.getProductByBarcodeOrStock(req.params.code);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -69,9 +154,9 @@ app.get('/api/products/lookup/:code', (req, res) => {
 });
 
 // Get single product by ID
-app.get('/api/products/:id', (req, res) => {
+app.get('/api/products/:id', async (req, res) => {
   try {
-    const product = db.getProductById(req.params.id);
+    const product = await db.getProductById(req.params.id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -82,7 +167,7 @@ app.get('/api/products/:id', (req, res) => {
 });
 
 // Add new product
-app.post('/api/products', (req, res) => {
+app.post('/api/products', async (req, res) => {
   try {
     const { name, floor, batch, shelf } = req.body;
     if (!name || !batch || !shelf) {
@@ -106,7 +191,7 @@ app.post('/api/products', (req, res) => {
     const floorLabel = fl === '1' ? 'First Floor' : (fl === '2' ? 'Second Floor' : 'Third Floor');
     const loc_full = `${loc} ${floorLabel} - Row ${row} - Shelves ${sh} - Level ${lev}`;
 
-    const newProduct = db.createProduct({
+    const newProduct = await db.createProduct({
       ...req.body,
       floor: fl,
       batch: row,
@@ -123,9 +208,9 @@ app.post('/api/products', (req, res) => {
 });
 
 // Update product
-app.put('/api/products/:id', (req, res) => {
+app.put('/api/products/:id', async (req, res) => {
   try {
-    const updated = db.updateProduct(req.params.id, req.body);
+    const updated = await db.updateProduct(req.params.id, req.body);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
@@ -136,9 +221,9 @@ app.put('/api/products/:id', (req, res) => {
 });
 
 // Delete product
-app.delete('/api/products/:id', (req, res) => {
+app.delete('/api/products/:id', async (req, res) => {
   try {
-    const deleted = db.deleteProduct(req.params.id);
+    const deleted = await db.deleteProduct(req.params.id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }

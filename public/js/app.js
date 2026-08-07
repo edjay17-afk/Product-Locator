@@ -14,7 +14,7 @@ async function initApp() {
 
     if (statsRes.success) {
       document.getElementById('skuStamp').textContent = `${statsRes.total} SKUs mapped`;
-      document.getElementById('footerText').textContent = `SQLite Database Backend · ${statsRes.total} SKUs mapped`;
+      document.getElementById('footerText').textContent = `Database Connected · ${statsRes.total} SKUs mapped`;
     }
 
     if (productsRes.success && Array.isArray(productsRes.products)) {
@@ -215,7 +215,7 @@ function renderMatches(matches) {
   rl.classList.add('show');
 }
 
-// Event Listeners for Search
+// Event Listeners for Search & Upload
 document.getElementById('searchInput').addEventListener('input', e => doSearch(e.target.value));
 document.getElementById('searchInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') doSearch(e.target.value);
@@ -224,6 +224,37 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 document.getElementById('clearRecent').addEventListener('click', () => {
   recent = [];
   renderRecent();
+});
+
+// Excel Upload Handler
+document.getElementById('uploadExcelBtn').addEventListener('click', () => {
+  document.getElementById('excelFileInput').click();
+});
+
+document.getElementById('excelFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  showToast('Uploading and parsing Excel file...');
+  try {
+    const res = await fetch('/api/upload-excel', {
+      method: 'POST',
+      body: formData
+    }).then(r => r.json());
+
+    if (res.success) {
+      showToast(`Success! ${res.message || 'Imported products.'}`);
+      initApp();
+    } else {
+      alert('Upload error: ' + (res.error || 'Failed to parse Excel file.'));
+    }
+  } catch (err) {
+    console.error('Upload failed:', err);
+    alert('Server error uploading Excel file.');
+  }
 });
 
 // --- SCANNER LOGIC ---
