@@ -1,0 +1,29 @@
+{
+  "name": "product-locator-v2",
+  "version": "2.0.0",
+  "description": "Warehouse Product Locator with SQLite Database Backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "build": "echo 'Build complete'",
+    "share": "npx localtunnel --port 3002"
+  },
+  "keywords": [
+    "product-locator",
+    "store",
+    "inventory",
+    "sqlite",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^11.1.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "selfsigned": "^5.5.0",
+    "serverless-http": "^4.0.0"
+  }
+}

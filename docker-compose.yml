@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  product-locator:
+    build: .
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./db:/usr/src/app/db
+    restart: always
+    environment:
+      - PORT=3002
+      - NODE_ENV=production

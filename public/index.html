@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Warehouse Product Locator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brand-eyebrow">Warehouse Product Locator</div>
+      <h1>Product&nbsp;Locator</h1>
+      <div class="sub">Find where a product goes, or add a new one</div>
+    </div>
+    <div class="tag-stamp" id="skuStamp">Loading database…</div>
+  </header>
+
+  <div class="controls">
+    <div class="search-row">
+      <input id="searchInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Type a barcode, item code, or product name…">
+      <button id="scanBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+        Scan
+      </button>
+    </div>
+    <div id="resultsList" class="results-list"></div>
+    <div class="add-row">
+      <button id="addProductBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add a New Product
+      </button>
+    </div>
+  </div>
+
+  <div id="emptyState" class="empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/></svg>
+    <div class="e1">No product looked up yet</div>
+    <div class="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add a New Product" to save it and its shelf location.</div>
+  </div>
+
+  <!-- LOCATION TAG CARD (Punch holes removed) -->
+  <div id="tagCard" class="tagcard">
+    <div class="tagcard-top">
+      <p class="pname" id="pName">—</p>
+      <div class="pmeta">
+        <span id="pCat">—</span>
+        <span id="pSub">—</span>
+      </div>
+    </div>
+    <div class="grid4">
+      <div class="cell"><div class="clabel">Floor</div><div class="cval" id="cFloor">–</div></div>
+      <div class="cell"><div class="clabel">Row</div><div class="cval" id="cRow">–</div></div>
+      <div class="cell"><div class="clabel">Shelf</div><div class="cval" id="cShelf">–</div></div>
+      <div class="cell"><div class="clabel">Level</div><div class="cval" id="cLevel">–</div></div>
+    </div>
+    <div class="tagcard-bottom">
+      <span class="fulltext" id="pFull">—</span>
+      <span class="badge neutral" id="pStatus">—</span>
+    </div>
+  </div>
+  <div class="extra-row" id="extraRow" style="display:none;">
+    <div class="extra-pill"><div class="pl">Barcode</div><div class="pv" id="pBarcode">—</div></div>
+    <div class="extra-pill"><div class="pl">On hand</div><div class="pv" id="pQty">—</div></div>
+  </div>
+  <div class="card-actions" id="cardActions" style="display:none;">
+    <button id="editProductBtn" class="card-action-btn" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      Edit Location / Details
+    </button>
+  </div>
+
+  <div class="recent-head">
+    <h2>Recent lookups</h2>
+    <button id="clearRecent" type="button">clear</button>
+  </div>
+  <div class="recent-strip" id="recentStrip"></div>
+
+  <footer id="footerText">SQLite Database Backend Connected</footer>
+</div>
+
+<!-- ADD PRODUCT MODAL OVERLAY -->
+<div id="addOverlay" class="modal-overlay">
+  <div class="form-panel">
+    <h2>Add a New Product</h2>
+    <div class="form-sub">Fill this in for a product that isn't in the system yet. Tell us its name and exactly where it sits on the shelf — that's what shows up next time someone searches for it.</div>
+
+    <div class="field">
+      <label>Barcode number</label>
+      <div class="hint">Scan it or type the numbers printed under the barcode. Leave blank if the item has no barcode.</div>
+      <div class="field-scan-row">
+        <input id="fBarcode" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 100002109790">
+        <button id="scanForAddBtn" type="button">Scan</button>
+      </div>
+    </div>
+
+    <div class="field field-required">
+      <label>Product name</label>
+      <div class="hint">What is it? Write it the way you'd say it out loud, e.g. "16oz plastic tumbler".</div>
+      <input id="fName" type="text" autocomplete="off" placeholder="e.g. Balloon stick color/white 50cm">
+    </div>
+
+    <div class="field">
+      <label>Item / stock code (optional)</label>
+      <div class="hint">The short code printed on the price tag, if it has one.</div>
+      <input id="fStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
+    </div>
+
+    <div class="field">
+      <label>Category (optional)</label>
+      <input id="fCategory" type="text" autocomplete="off" placeholder="e.g. Household Supplies">
+    </div>
+
+    <div class="field">
+      <label>Sub-category (optional)</label>
+      <input id="fSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
+    </div>
+
+    <div class="field field-required">
+      <label>Where is it stored?</label>
+      <div class="hint">This is what tells the next person exactly where to find it on the shelf.</div>
+      <div class="loc-grid">
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Floor</div>
+          <select id="fFloor">
+            <option value="1">1st Floor</option>
+            <option value="2">2nd Floor</option>
+            <option value="3">3rd Floor</option>
+          </select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Row number</div>
+          <input id="fRow" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 02">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Shelf number</div>
+          <input id="fShelf" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 01">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Level (0 = bottom)</div>
+          <input id="fLevel" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 03">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>How many are on hand? (optional)</label>
+      <input id="fQty" type="number" inputmode="numeric" autocomplete="off" placeholder="e.g. 20">
+    </div>
+
+    <div id="formError" class="form-error">Please enter a product name, and at least the Row and Shelf so we know where to find it.</div>
+
+    <div class="form-actions">
+      <button id="cancelAddBtn" class="btn-cancel" type="button">Cancel</button>
+      <button id="saveProductBtn" class="btn-save" type="button">Save Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PRODUCT MODAL OVERLAY -->
+<div id="editOverlay" class="modal-overlay">
+  <div class="form-panel">
+    <h2>Edit Product Location</h2>
+    <div class="form-sub">Update shelf position or details for this item in the database.</div>
+    <input id="efId" type="hidden">
+
+    <div class="field field-required">
+      <label>Product name</label>
+      <input id="efName" type="text" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>Barcode</label>
+      <input id="efBarcode" type="text" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>Stock Code</label>
+      <input id="efStock" type="text" autocomplete="off">
+    </div>
+
+    <div class="field field-required">
+      <label>Where is it stored?</label>
+      <div class="loc-grid">
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Floor</div>
+          <select id="efFloor">
+            <option value="1">1st Floor</option>
+            <option value="2">2nd Floor</option>
+            <option value="3">3rd Floor</option>
+          </select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Row number</div>
+          <input id="efRow" type="text" inputmode="numeric" autocomplete="off">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Shelf number</div>
+          <input id="efShelf" type="text" inputmode="numeric" autocomplete="off">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;">Level</div>
+          <input id="efLevel" type="text" inputmode="numeric" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>On Hand Quantity</label>
+      <input id="efQty" type="number" inputmode="numeric" autocomplete="off">
+    </div>
+
+    <div id="editFormError" class="form-error">Please fill in Product Name, Row, and Shelf.</div>
+
+    <div class="form-actions">
+      <button id="cancelEditBtn" class="btn-cancel" type="button">Cancel</button>
+      <button id="saveEditBtn" class="btn-save" type="button">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<div id="successToast"></div>
+
+<div id="scannerOverlay">
+  <div class="scanner-head">
+    <span>● Scanning for barcode</span>
+    <button id="closeScan" type="button">Close</button>
+  </div>
+  <div id="reader"></div>
+  <div class="scan-hint">Hold the item's barcode steady inside the frame, a few inches from the camera. Works with UPC / EAN / CODE128 barcodes.</div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
