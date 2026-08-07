@@ -7,6 +7,13 @@ let memoryProducts = [];
 let isConnectedToSupabase = false;
 let supabase = null;
 
+// Default Stockmen Accounts for initial setup / fallback
+let memoryUsers = [
+  { id: 1, username: 'stockman1', password: 'password123', full_name: 'Juan Dela Cruz', role: 'stockman' },
+  { id: 2, username: 'stockman2', password: 'password123', full_name: 'Pedro Santos', role: 'stockman' },
+  { id: 3, username: 'admin', password: 'adminpassword', full_name: 'Warehouse Supervisor', role: 'admin' }
+];
+
 function loadSeedData() {
   if (fs.existsSync(seedPath)) {
     try {
@@ -27,7 +34,8 @@ function loadSeedData() {
         loc_full: p.locFull || '',
         qty: typeof p.qty === 'number' ? p.qty : 0,
         status: p.status || '',
-        custom: p.custom ? true : false
+        custom: p.custom ? true : false,
+        last_modified_by: p.last_modified_by || 'System Import'
       }));
     } catch (e) {
       console.warn('Could not read seed-data.json:', e);
@@ -53,11 +61,36 @@ function initSupabase() {
     isConnectedToSupabase = true;
     console.log('⚡ Connected to Supabase PostgreSQL successfully!');
     seedSupabaseIfEmpty();
+    seedUsersIfEmpty();
     return true;
   } catch (err) {
     console.warn('Failed to initialize Supabase client:', err.message);
     isConnectedToSupabase = false;
     return false;
+  }
+}
+
+async function seedUsersIfEmpty() {
+  if (!supabase) return;
+  try {
+    const { count, error } = await supabase.from('users').select('*', { count: 'exact', head: true });
+    if (error) {
+      console.warn('Users table check (Make sure `users` table exists in Supabase):', error.message);
+      return;
+    }
+
+    if (count === 0) {
+      console.log('Seeding default stockmen accounts into Supabase...');
+      await supabase.from('users').insert(memoryUsers.map(u => ({
+        username: u.username,
+        password: u.password,
+        full_name: u.full_name,
+        role: u.role
+      })));
+      console.log('🎉 Stockmen accounts seeded into Supabase users table!');
+    }
+  } catch (err) {
+    console.warn('Users seeding note:', err.message);
   }
 }
 
@@ -71,7 +104,7 @@ async function seedSupabaseIfEmpty() {
     }
 
     if (count === 0) {
-      console.log('Seeding initial 940 products into Supabase PostgreSQL...');
+      console.log('Seeding initial products into Supabase PostgreSQL...');
       const seedItems = memoryProducts.map(p => ({
         barcode: p.barcode,
         stock_code: p.stock_code,
@@ -86,16 +119,16 @@ async function seedSupabaseIfEmpty() {
         loc_full: p.loc_full,
         qty: p.qty,
         status: p.status,
-        custom: p.custom
+        custom: p.custom,
+        last_modified_by: 'System Import'
       }));
 
-      // Insert in chunks of 200
       const chunkSize = 200;
       for (let i = 0; i < seedItems.length; i += chunkSize) {
         const chunk = seedItems.slice(i, i + chunkSize);
         await supabase.from('products').insert(chunk);
       }
-      console.log(`🎉 Supabase successfully seeded with 940 products!`);
+      console.log(`🎉 Supabase successfully seeded with products!`);
     }
   } catch (err) {
     console.error('Supabase seeding error:', err);
@@ -105,6 +138,69 @@ async function seedSupabaseIfEmpty() {
 initSupabase();
 
 module.exports = {
+  // Authentication & Users API
+  loginUser: async (username, password) => {
+    const cleanUser = (username || '').trim().toLowerCase();
+    const cleanPass = (password || '').trim();
+
+    if (isConnectedToSupabase && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, username, full_name, role, password')
+          .eq('username', cleanUser)
+          .single();
+
+        if (!error && data && data.password === cleanPass) {
+          const { password, ...userWithoutPass } = data;
+          return userWithoutPass;
+        }
+      } catch (e) {
+        console.warn('Supabase user lookup error:', e.message);
+      }
+    }
+
+    const found = memoryUsers.find(u => u.username.toLowerCase() === cleanUser && u.password === cleanPass);
+    if (found) {
+      const { password, ...userWithoutPass } = found;
+      return userWithoutPass;
+    }
+    return null;
+  },
+  getUsers: async () => {
+    if (isConnectedToSupabase && supabase) {
+      const { data, error } = await supabase.from('users').select('id, username, full_name, role, created_at');
+      if (!error && data) return data;
+    }
+    return memoryUsers.map(({ password, ...u }) => u);
+  },
+  createUser: async (data) => {
+    const cleanUser = (data.username || '').trim().toLowerCase();
+    const cleanPass = (data.password || '').trim();
+    const fullName = (data.full_name || '').trim();
+    const role = data.role || 'stockman';
+
+    if (isConnectedToSupabase && supabase) {
+      const { data: newUser, error } = await supabase
+        .from('users')
+        .insert([{ username: cleanUser, password: cleanPass, full_name: fullName, role }])
+        .select('id, username, full_name, role, created_at')
+        .single();
+
+      if (!error && newUser) return newUser;
+    }
+
+    const newUser = {
+      id: memoryUsers.length + 1,
+      username: cleanUser,
+      full_name: fullName,
+      role
+    };
+    memoryUsers.push({ ...newUser, password: cleanPass });
+    return newUser;
+  },
+
+  // Products API
   getAllProducts: async () => {
     if (isConnectedToSupabase && supabase) {
       const { data, error } = await supabase.from('products').select('*').order('id', { ascending: true });
@@ -156,29 +252,7 @@ module.exports = {
     return memoryProducts.find(p => String(p.id) === String(id));
   },
   createProduct: async (data) => {
-    if (isConnectedToSupabase && supabase) {
-      const payload = {
-        barcode: data.barcode || '',
-        stock_code: data.stock_code || '',
-        name: data.name,
-        category: data.category || 'Uncategorized',
-        subcategory: data.subcategory || '',
-        floor: data.floor || '1',
-        batch: data.batch || '',
-        shelf: data.shelf || '',
-        level: data.level || '00',
-        loc: data.loc || '',
-        loc_full: data.loc_full || '',
-        qty: parseInt(data.qty || 0, 10),
-        status: data.status || 'DONE',
-        custom: true
-      };
-      const { data: inserted, error } = await supabase.from('products').insert([payload]).select().single();
-      if (!error && inserted) return inserted;
-    }
-
-    const newProduct = {
-      id: memoryProducts.length + 1,
+    const payload = {
       barcode: data.barcode || '',
       stock_code: data.stock_code || '',
       name: data.name,
@@ -192,7 +266,18 @@ module.exports = {
       loc_full: data.loc_full || '',
       qty: parseInt(data.qty || 0, 10),
       status: data.status || 'DONE',
-      custom: true
+      custom: true,
+      last_modified_by: data.last_modified_by || 'Unassigned Stockman'
+    };
+
+    if (isConnectedToSupabase && supabase) {
+      const { data: inserted, error } = await supabase.from('products').insert([payload]).select().single();
+      if (!error && inserted) return inserted;
+    }
+
+    const newProduct = {
+      id: memoryProducts.length + 1,
+      ...payload
     };
     memoryProducts.push(newProduct);
     return newProduct;
@@ -201,7 +286,10 @@ module.exports = {
     if (isConnectedToSupabase && supabase) {
       const { data: updated, error } = await supabase
         .from('products')
-        .update(data)
+        .update({
+          ...data,
+          last_modified_by: data.last_modified_by || data.modifiedBy || 'Stockman'
+        })
         .eq('id', id)
         .select()
         .single();
@@ -212,6 +300,7 @@ module.exports = {
     const item = memoryProducts.find(p => String(p.id) === String(id));
     if (item) {
       Object.assign(item, data);
+      if (data.last_modified_by) item.last_modified_by = data.last_modified_by;
     }
     return item;
   },
@@ -247,7 +336,8 @@ module.exports = {
       loc_full: data.loc_full || '',
       qty: parseInt(data.qty || 0, 10),
       status: data.status || 'DONE',
-      custom: true
+      custom: true,
+      last_modified_by: data.last_modified_by || 'System Import'
     }));
 
     const chunkSize = 500;

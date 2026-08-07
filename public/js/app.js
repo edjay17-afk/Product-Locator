@@ -7,10 +7,29 @@ try {
   if (saved) recent = JSON.parse(saved);
 } catch (e) { recent = []; }
 
+let currentUser = null;
+try {
+  const savedUser = localStorage.getItem('wh_current_user');
+  if (savedUser) currentUser = JSON.parse(savedUser);
+} catch (e) { currentUser = null; }
+
+function updateUserUI() {
+  const userNameDisplay = document.getElementById('userNameDisplay');
+  const authBtn = document.getElementById('authBtn');
+  if (currentUser) {
+    userNameDisplay.textContent = `👤 ${currentUser.full_name}`;
+    authBtn.textContent = '[Logout]';
+  } else {
+    userNameDisplay.textContent = '👤 Guest';
+    authBtn.textContent = '[Login]';
+  }
+}
+
 let activeProduct = null;
 
 // Initialize app data from server database API
 async function initApp() {
+  updateUserUI();
   let hasActiveCard = false;
 
   // Instant restoration of scanned product card from cache
@@ -121,6 +140,7 @@ function renderProduct(p) {
   const stockCode = p.stock_code || p.s;
   document.getElementById('pBarcode').textContent = barcode || (stockCode ? ('#' + stockCode) : '—');
   document.getElementById('pQty').textContent = (p.qty !== undefined && p.qty !== null ? p.qty : '—');
+  document.getElementById('pStockman').textContent = p.last_modified_by || p.modifiedBy || 'System Import';
 
   if (navigator.vibrate) navigator.vibrate(60);
 
@@ -537,7 +557,8 @@ async function saveNewProduct() {
     shelf,
     level: level || '00',
     qty: qtyRaw === '' ? 0 : parseInt(qtyRaw, 10),
-    status: 'DONE'
+    status: 'DONE',
+    last_modified_by: currentUser ? currentUser.full_name : 'Guest Stockman'
   };
 
   try {
@@ -623,7 +644,8 @@ async function saveEditProduct() {
     level,
     loc,
     loc_full,
-    qty: qtyRaw === '' ? 0 : parseInt(qtyRaw, 10)
+    qty: qtyRaw === '' ? 0 : parseInt(qtyRaw, 10),
+    last_modified_by: currentUser ? currentUser.full_name : 'Guest Stockman'
   };
 
   if (!id) {
@@ -674,6 +696,53 @@ function showToast(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 3800);
 }
+
+// --- AUTHENTICATION EVENT LISTENERS ---
+document.getElementById('authBtn').addEventListener('click', () => {
+  if (currentUser) {
+    currentUser = null;
+    localStorage.removeItem('wh_current_user');
+    updateUserUI();
+    showToast('Logged out.');
+  } else {
+    document.getElementById('loginFormError').style.display = 'none';
+    document.getElementById('loginOverlay').classList.add('show');
+  }
+});
+
+document.getElementById('closeLoginModal').addEventListener('click', () => {
+  document.getElementById('loginOverlay').classList.remove('show');
+});
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const u = document.getElementById('loginUsername').value.trim();
+  const p = document.getElementById('loginPassword').value.trim();
+  const errEl = document.getElementById('loginFormError');
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p })
+    }).then(r => r.json());
+
+    if (res.success && res.user) {
+      currentUser = res.user;
+      localStorage.setItem('wh_current_user', JSON.stringify(currentUser));
+      updateUserUI();
+      document.getElementById('loginOverlay').classList.remove('show');
+      showToast(`Welcome, ${currentUser.full_name}! Accountable for changes.`);
+    } else {
+      errEl.textContent = res.error || 'Invalid username or password.';
+      errEl.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('Login error:', err);
+    errEl.textContent = 'Server connection error during login.';
+    errEl.style.display = 'block';
+  }
+});
 
 // Start app on DOM ready
 document.addEventListener('DOMContentLoaded', initApp);

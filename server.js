@@ -23,6 +23,49 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // --- REST API ENDPOINTS ---
 
+// --- AUTHENTICATION & USER ENDPOINTS ---
+
+// Login Endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'Username and password are required.' });
+    }
+    const user = await db.loginUser(username, password);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Invalid username or password.' });
+    }
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// List Stockmen / Users
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await db.getUsers();
+    res.json({ success: true, users });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Create New Stockman Account
+app.post('/api/users', async (req, res) => {
+  try {
+    const { username, password, full_name, role } = req.body;
+    if (!username || !password || !full_name) {
+      return res.status(400).json({ success: false, error: 'Username, password, and full name are required.' });
+    }
+    const user = await db.createUser({ username, password, full_name, role });
+    res.status(201).json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Explicit seed endpoint
 app.get('/api/seed-supabase', async (req, res) => {
   try {
