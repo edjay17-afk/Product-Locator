@@ -31,6 +31,15 @@ async function initApp() {
     document.getElementById('skuStamp').textContent = `Offline mode`;
   }
   renderRecent();
+
+  // Restore active scanned product card across page refreshes
+  try {
+    const savedActive = localStorage.getItem('wh_active_product');
+    if (savedActive) {
+      const activeP = JSON.parse(savedActive);
+      if (activeP) renderProduct(activeP);
+    }
+  } catch (e) {}
 }
 
 function rebuildIndex() {
@@ -105,6 +114,7 @@ function renderProduct(p) {
   recent = recent.slice(0, 20); // Store up to 20 recent items
   try {
     localStorage.setItem('wh_recent_lookups', JSON.stringify(recent));
+    localStorage.setItem('wh_active_product', JSON.stringify(p));
   } catch (e) {}
 
   renderRecent();
@@ -231,9 +241,13 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 
 document.getElementById('clearRecent').addEventListener('click', () => {
   recent = [];
+  activeProduct = null;
   try {
     localStorage.removeItem('wh_recent_lookups');
+    localStorage.removeItem('wh_active_product');
   } catch (e) {}
+  document.getElementById('tagCard').classList.remove('show');
+  document.getElementById('emptyState').style.display = 'flex';
   renderRecent();
 });
 
