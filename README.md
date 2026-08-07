@@ -7,7 +7,7 @@ A fast, responsive, mobile-friendly web application for store staff and customer
 ## 🌟 Key Features
 
 1. **SQLite Database Integration**
-   - Automatically initializes and seeds all **940 initial store SKUs** into a local SQLite database (`db/product_locator.db`).
+   - Automatically initializes and seeds all  SKUs into a Supabase database.
    - Supports full CRUD operations (Create, Read, Update, Delete) via Express REST API.
    - WAL (Write-Ahead Logging) mode enabled for high performance and concurrent access.
 
