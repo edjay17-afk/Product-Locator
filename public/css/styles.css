@@ -379,6 +379,44 @@ h1 {
   color: #ffffff;
 }
 
+/* Premium Sign In as Stockman Button */
+.submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  color: #ffffff;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.submit-btn:hover {
+  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: translateY(-1.5px);
+}
+
+.submit-btn:active {
+  transform: translateY(0.5px);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.3);
+}
+
+.submit-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+}
+
 .btn-save:hover {
   background: var(--go-hover);
 }
