@@ -14,16 +14,24 @@ try {
 } catch (e) { currentUser = null; }
 
 function updateUserUI() {
+  const userBadge = document.getElementById('userBadge');
   const userNameDisplay = document.getElementById('userNameDisplay');
   const authBtn = document.getElementById('authBtn');
+  const closeLoginModal = document.getElementById('closeLoginModal');
+  const loginOverlay = document.getElementById('loginOverlay');
+
   if (currentUser) {
+    userBadge.style.display = 'flex';
     userNameDisplay.textContent = currentUser.full_name;
-    authBtn.textContent = 'Log Out';
+    authBtn.textContent = 'Logout';
     authBtn.className = 'user-auth-btn logout';
+    closeLoginModal.style.display = 'block';
+    loginOverlay.classList.remove('show');
   } else {
-    userNameDisplay.textContent = 'Guest Stockman';
-    authBtn.textContent = 'Sign In';
-    authBtn.className = 'user-auth-btn login';
+    userBadge.style.display = 'none';
+    closeLoginModal.style.display = 'none';
+    document.getElementById('loginFormError').style.display = 'none';
+    loginOverlay.classList.add('show');
   }
 }
 
@@ -32,25 +40,10 @@ let activeProduct = null;
 // Initialize app data from server database API
 async function initApp() {
   updateUserUI();
-  let hasActiveCard = false;
 
-  // Instant restoration of scanned product card from cache
-  try {
-    const savedActive = localStorage.getItem('wh_active_product');
-    if (savedActive) {
-      const activeP = JSON.parse(savedActive);
-      if (activeP) {
-        renderProduct(activeP);
-        hasActiveCard = true;
-      }
-    }
-  } catch (e) {}
-
-  if (!hasActiveCard) {
-    document.getElementById('emptyState').style.display = 'block';
-    document.getElementById('skeletonState').style.display = 'flex';
-    document.getElementById('emptyPrompt').style.display = 'none';
-  }
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('skeletonState').style.display = 'flex';
+  document.getElementById('emptyPrompt').style.display = 'none';
 
   try {
     const [statsRes, productsRes] = await Promise.all([
@@ -73,7 +66,7 @@ async function initApp() {
   }
 
   document.getElementById('skeletonState').style.display = 'none';
-  if (!hasActiveCard && !activeProduct) {
+  if (!activeProduct) {
     document.getElementById('emptyPrompt').style.display = 'flex';
   }
   renderRecent();
@@ -152,7 +145,6 @@ function renderProduct(p) {
   recent = recent.slice(0, 20); // Store up to 20 recent items
   try {
     localStorage.setItem('wh_recent_lookups', JSON.stringify(recent));
-    localStorage.setItem('wh_active_product', JSON.stringify(p));
   } catch (e) {}
 
   renderRecent();
