@@ -35,6 +35,25 @@ app.get('/api/seed-supabase', async (req, res) => {
   }
 });
 
+// Batch create products endpoint
+app.post('/api/products/batch', async (req, res) => {
+  try {
+    const products = req.body.products;
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ success: false, error: 'No products array provided.' });
+    }
+
+    const result = await db.bulkCreateProducts(products);
+    if (result && result.error) {
+      return res.status(400).json({ success: false, error: result.error, message: result.message });
+    }
+    const count = typeof result === 'object' ? (result.count || 0) : result;
+    res.json({ success: true, count });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Excel upload endpoint
 app.post('/api/upload-excel', upload.single('file'), async (req, res) => {
   try {

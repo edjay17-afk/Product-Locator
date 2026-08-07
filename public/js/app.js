@@ -235,25 +235,103 @@ document.getElementById('excelFileInput').addEventListener('change', async (e) =
   const file = e.target.files[0];
   if (!file) return;
 
-  const formData = new FormData();
-  formData.append('file', file);
+  showToast('Reading Excel file in browser...');
 
-  showToast('Uploading and parsing Excel file...');
   try {
-    const res = await fetch('/api/upload-excel', {
-      method: 'POST',
-      body: formData
-    }).then(r => r.json());
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        if (typeof XLSX === 'undefined') {
+          alert('XLSX library not loaded. Please refresh the page and try again.');
+          return;
+        }
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    if (res.success) {
-      showToast(`Success! ${res.message || 'Imported products.'}`);
-      initApp();
-    } else {
-      alert('Upload error: ' + (res.error || 'Failed to parse Excel file.'));
-    }
+        const extractNum = (str) => {
+          if (typeof str === 'number') return String(str);
+          if (!str) return '';
+          const m = String(str).match(/(\d+)/);
+          if (!m) return '';
+          return m[1].length === 1 ? '0' + m[1] : m[1];
+        };
+
+        const cleanHtml = (str) => {
+          if (!str) return '';
+          return String(str).replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+        };
+
+        const itemsToInsert = [];
+        for (const r of rows) {
+          const barcode = r[0] ? String(r[0]).trim() : '';
+          const stock = r[1] ? String(r[1]).trim() : '';
+          const name = cleanHtml(r[2] ? String(r[2]).trim() : '');
+          if (!name || name === 'Unnamed Item') continue;
+
+          const category = cleanHtml(r[3] ? String(r[3]).trim() : '');
+          const subcategory = cleanHtml(r[4] ? String(r[4]).trim() : '');
+          const locFull = r[5] ? cleanHtml(String(r[5]).trim()) : '';
+          const floor = r[6] ? extractNum(r[6]).replace(/^0+/, '') : '';
+          const batch = r[7] ? extractNum(r[7]) : '';
+          const shelf = r[8] ? extractNum(r[8]) : '';
+          const level = r[9] ? extractNum(r[9]) : '';
+          const qty = typeof r[10] === 'number' ? r[10] : (parseInt(r[10], 10) || 0);
+          const status = r[16] ? String(r[16]).trim() : '';
+
+          const loc = (floor || batch || shelf) ? `${floor}-${batch}-${shelf}-${level || '00'}` : '';
+
+          itemsToInsert.push({
+            barcode,
+            stock_code: stock,
+            name,
+            category,
+            subcategory,
+            floor,
+            batch,
+            shelf,
+            level: level || '00',
+            loc,
+            loc_full: locFull || loc,
+            qty,
+            status
+          });
+        }
+
+        showToast(`Parsed ${itemsToInsert.length} items! Uploading to database...`);
+
+        const chunkSize = 500;
+        let uploaded = 0;
+
+        for (let i = 0; i < itemsToInsert.length; i += chunkSize) {
+          const chunk = itemsToInsert.slice(i, i + chunkSize);
+          const res = await fetch('/api/products/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ products: chunk })
+          }).then(r => r.json());
+
+          if (!res.success) {
+            alert('Upload error: ' + (res.error || res.message || 'Batch insert failed'));
+            return;
+          }
+
+          uploaded += (res.count || chunk.length);
+          showToast(`Uploaded ${uploaded} / ${itemsToInsert.length} products...`);
+        }
+
+        showToast(`🎉 Success! Uploaded ${uploaded} products to database!`);
+        initApp();
+      } catch (err) {
+        console.error('Parsing error:', err);
+        alert('Failed to parse Excel file: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
   } catch (err) {
-    console.error('Upload failed:', err);
-    alert('Server error uploading Excel file.');
+    console.error('File reading error:', err);
+    alert('Failed to read file.');
   }
 });
 
