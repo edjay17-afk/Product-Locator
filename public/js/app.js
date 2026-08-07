@@ -506,6 +506,7 @@ function openAddForm() {
   document.getElementById('fShelf').value = '';
   document.getElementById('fLevel').value = '';
   document.getElementById('fQty').value = '';
+  document.getElementById('fStockman').value = currentUser ? currentUser.full_name : '';
   formError.classList.remove('show');
   addOverlay.classList.add('show');
   hideResults();
@@ -533,6 +534,7 @@ async function saveNewProduct() {
   const shelf = pad2(document.getElementById('fShelf').value);
   const level = pad2(document.getElementById('fLevel').value);
   const qtyRaw = document.getElementById('fQty').value.trim();
+  const stockmanRaw = document.getElementById('fStockman').value.trim();
 
   if (!name || !row || !shelf) {
     formError.classList.add('show');
@@ -552,7 +554,7 @@ async function saveNewProduct() {
     level: level || '00',
     qty: qtyRaw === '' ? 0 : parseInt(qtyRaw, 10),
     status: 'DONE',
-    last_modified_by: currentUser ? currentUser.full_name : 'Guest Stockman'
+    last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
   };
 
   try {
@@ -598,6 +600,7 @@ function openEditForm() {
   document.getElementById('efShelf').value = activeProduct.shelf || '';
   document.getElementById('efLevel').value = activeProduct.level || '00';
   document.getElementById('efQty').value = activeProduct.qty !== undefined ? activeProduct.qty : 0;
+  document.getElementById('efStockman').value = activeProduct.last_modified_by || activeProduct.modifiedBy || (currentUser ? currentUser.full_name : '');
 
   editFormError.classList.remove('show');
   editOverlay.classList.add('show');
@@ -617,6 +620,7 @@ async function saveEditProduct() {
   const shelf = pad2(document.getElementById('efShelf').value);
   const level = pad2(document.getElementById('efLevel').value) || '00';
   const qtyRaw = document.getElementById('efQty').value.trim();
+  const stockmanRaw = document.getElementById('efStockman').value.trim();
 
   if (!name || !row || !shelf) {
     editFormError.classList.add('show');
@@ -639,7 +643,7 @@ async function saveEditProduct() {
     loc,
     loc_full,
     qty: qtyRaw === '' ? 0 : parseInt(qtyRaw, 10),
-    last_modified_by: currentUser ? currentUser.full_name : 'Guest Stockman'
+    last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
   };
 
   if (!id) {
