@@ -2,6 +2,11 @@ let PRODUCTS = [];
 let byBarcode = {};
 let byStock = {};
 let recent = [];
+try {
+  const saved = localStorage.getItem('wh_recent_lookups');
+  if (saved) recent = JSON.parse(saved);
+} catch (e) { recent = []; }
+
 let activeProduct = null;
 
 // Initialize app data from server database API
@@ -94,12 +99,15 @@ function renderProduct(p) {
 
   if (navigator.vibrate) navigator.vibrate(60);
 
-  // push to recent
+  // push to persistent recent lookups
   recent = recent.filter(r => (r.id ? r.id !== p.id : (r.barcode || r.b) !== (p.barcode || p.b)));
   recent.unshift(p);
-  recent = recent.slice(0, 8);
-  renderRecent();
+  recent = recent.slice(0, 20); // Store up to 20 recent items
+  try {
+    localStorage.setItem('wh_recent_lookups', JSON.stringify(recent));
+  } catch (e) {}
 
+  renderRecent();
   hideResults();
 }
 
@@ -107,7 +115,7 @@ function renderRecent() {
   const strip = document.getElementById('recentStrip');
   strip.innerHTML = '';
   if (recent.length === 0) {
-    strip.innerHTML = '<div class="no-results" style="text-align:left;padding:2px;">Nothing looked up yet this session.</div>';
+    strip.innerHTML = '<div class="no-results" style="text-align:left;padding:2px;">Nothing looked up yet.</div>';
     return;
   }
   recent.forEach(p => {
@@ -223,6 +231,9 @@ document.getElementById('searchInput').addEventListener('keydown', e => {
 
 document.getElementById('clearRecent').addEventListener('click', () => {
   recent = [];
+  try {
+    localStorage.removeItem('wh_recent_lookups');
+  } catch (e) {}
   renderRecent();
 });
 
