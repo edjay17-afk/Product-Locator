@@ -69,7 +69,11 @@ const TRANSLATIONS = {
     floor2: "2nd Floor",
     floor3: "3rd Floor",
     e1: "No product looked up yet",
-    e2: "Tap \"Scan\" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap \"Add Product\" to save it and its shelf location."
+    e2: "Tap \"Scan\" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap \"Add Product\" to save it and its shelf location.",
+    scanBarcodeBtn: "Scan Barcode",
+    scanQrBtn: "Scan QR",
+    newProductFieldsTitle: "🆕 NEW PRODUCT DETAILS",
+    orManualLoc: "OR ENTER COORDINATES MANUALLY:"
   },
   zh: {
     brandEyebrow: "仓库商品定位系统",
@@ -141,7 +145,11 @@ const TRANSLATIONS = {
     floor2: "2楼",
     floor3: "3楼",
     e1: "暂无查询记录",
-    e2: "点击“扫码”使用相机，或在上方输入条码、货号、名称。如果商品不存在，点击“添加商品”保存商品及其货架位置。"
+    e2: "点击“扫码”使用相机，或在上方输入条码、货号、名称。如果商品不存在，点击“添加商品”保存商品及其货架位置。",
+    scanBarcodeBtn: "扫商品条码",
+    scanQrBtn: "扫库位码",
+    newProductFieldsTitle: "🆕 新商品详情",
+    orManualLoc: "或手动输入库位："
   }
 };
 
@@ -776,6 +784,13 @@ function onScanSuccess(code) {
     document.getElementById('rfLocation').focus();
   } else if (scanTarget === 'rapid_location_qr') {
     document.getElementById('rfLocation').value = code;
+    const parsed = parseLocationQR(code);
+    if (parsed) {
+      if (document.getElementById('rfFloor')) document.getElementById('rfFloor').value = parsed.floor;
+      if (document.getElementById('rfRow')) document.getElementById('rfRow').value = parsed.row;
+      if (document.getElementById('rfShelf')) document.getElementById('rfShelf').value = parsed.shelf;
+      if (document.getElementById('rfLevel')) document.getElementById('rfLevel').value = parsed.level;
+    }
     document.getElementById('rfQty').focus();
   } else {
     document.getElementById('searchInput').value = code;
@@ -1453,9 +1468,17 @@ window.openEditFormForProductIndex = function(index) {
 // --- RAPID LOCATION LOGGER LOGIC ---
 const rapidOverlay = document.getElementById('rapidOverlay');
 const rfBarcode = document.getElementById('rfBarcode');
-const rfNameField = document.getElementById('rfNameField');
+const rapidNewProductFields = document.getElementById('rapidNewProductFields');
 const rfName = document.getElementById('rfName');
+const rfStock = document.getElementById('rfStock');
+const rfCategory = document.getElementById('rfCategory');
+const rfSubcategory = document.getElementById('rfSubcategory');
 const rfLocation = document.getElementById('rfLocation');
+const rapidManualCoordinates = document.getElementById('rapidManualCoordinates');
+const rfFloor = document.getElementById('rfFloor');
+const rfRow = document.getElementById('rfRow');
+const rfShelf = document.getElementById('rfShelf');
+const rfLevel = document.getElementById('rfLevel');
 const rfQty = document.getElementById('rfQty');
 const rapidFormError = document.getElementById('rapidFormError');
 const rapidLogList = document.getElementById('rapidLogList');
@@ -1466,14 +1489,40 @@ document.getElementById('rapidLoggerBtn').addEventListener('click', openRapidLog
 document.getElementById('closeRapidBtn').addEventListener('click', closeRapidLogger);
 document.getElementById('saveRapidBtn').addEventListener('click', saveRapidEntry);
 
+document.getElementById('scanForRapidBarcodeBtn').addEventListener('click', () => startScanner('rapid_barcode'));
 document.getElementById('scanForRapidLocBtn').addEventListener('click', () => startScanner('rapid_location_qr'));
+
+// Sync manual coordinate fields with the location field
+['rfFloor', 'rfRow', 'rfShelf', 'rfLevel'].forEach(id => {
+  document.getElementById(id).addEventListener('input', syncManualCoordinates);
+  document.getElementById(id).addEventListener('change', syncManualCoordinates);
+});
+
+function syncManualCoordinates() {
+  const fl = rfFloor.value;
+  const row = rfRow.value.trim();
+  const shelf = rfShelf.value.trim();
+  const lev = rfLevel.value.trim() || '00';
+  if (row && shelf) {
+    rfLocation.value = `${fl}-${row}-${shelf}-${lev}`;
+  }
+}
 
 function openRapidLogger() {
   rfBarcode.value = '';
   rfName.value = '';
+  rfStock.value = '';
+  rfCategory.value = '';
+  rfSubcategory.value = '';
   rfLocation.value = '';
+  rfFloor.value = '1';
+  rfRow.value = '';
+  rfShelf.value = '';
+  rfLevel.value = '';
   rfQty.value = '1';
-  rfNameField.style.display = 'none';
+  
+  rapidNewProductFields.style.display = 'none';
+  rapidManualCoordinates.style.display = 'none';
   document.getElementById('rapidProductPreview').style.display = 'none';
   rapidFormError.classList.remove('show');
   rapidOverlay.classList.add('show');
@@ -1491,7 +1540,8 @@ rfBarcode.addEventListener('input', () => {
 
   if (!val) {
     previewEl.style.display = 'none';
-    rfNameField.style.display = 'none';
+    rapidNewProductFields.style.display = 'none';
+    rapidManualCoordinates.style.display = 'none';
     return;
   }
 
@@ -1506,21 +1556,27 @@ rfBarcode.addEventListener('input', () => {
     matchedNameEl.textContent = found.name || found.n;
     previewEl.style.display = 'block';
     previewEl.style.color = '#10b981';
-    rfNameField.style.display = 'none';
+    rapidNewProductFields.style.display = 'none';
+    rapidManualCoordinates.style.display = 'none';
     rfName.value = '';
+    rfStock.value = '';
+    rfCategory.value = '';
+    rfSubcategory.value = '';
   } else {
-    matchedNameEl.textContent = CURRENT_LANG === 'en' ? 'New Product (Name Optional)' : '新商品（可选择录入商品名称）';
+    matchedNameEl.textContent = CURRENT_LANG === 'en' ? 'New Product (Please enter details)' : '新商品（请输入商品基本信息）';
     previewEl.style.display = 'block';
     previewEl.style.color = '#3b82f6';
-    rfNameField.style.display = 'block';
+    rapidNewProductFields.style.display = 'block';
+    rapidManualCoordinates.style.display = 'block';
+    rfStock.value = val.slice(0, 8); // Pre-fill stock code with barcode prefix
   }
 });
 
-// Pressing enter in inputs transitions focus
+// Key transitions mapping
 rfBarcode.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    if (rfNameField.style.display !== 'none') {
+    if (rapidNewProductFields.style.display !== 'none') {
       rfName.focus();
     } else {
       rfLocation.focus();
@@ -1528,10 +1584,16 @@ rfBarcode.addEventListener('keydown', (e) => {
   }
 });
 rfName.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    rfLocation.focus();
-  }
+  if (e.key === 'Enter') { e.preventDefault(); rfStock.focus(); }
+});
+rfStock.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); rfCategory.focus(); }
+});
+rfCategory.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); rfSubcategory.focus(); }
+});
+rfSubcategory.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); rfLocation.focus(); }
 });
 rfLocation.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -1550,12 +1612,23 @@ async function saveRapidEntry() {
   const barcode = rfBarcode.value.trim();
   const locCode = rfLocation.value.trim();
   const qtyRaw = rfQty.value.trim();
-  const customName = rfName.value.trim();
 
-  if (!barcode || !locCode || !qtyRaw) {
-    rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please fill in all fields.' : '请填写所有必填字段。';
-    rapidFormError.classList.add('show');
-    return;
+  // If new product, validate name and stock code are populated
+  const isNew = rapidNewProductFields.style.display !== 'none';
+  if (isNew) {
+    const customName = rfName.value.trim();
+    const customStock = rfStock.value.trim();
+    if (!barcode || !locCode || !qtyRaw || !customName || !customStock) {
+      rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please fill in barcode, name, stock code, location, and quantity.' : '请填写条码、商品名称、货号、库位和库存数。';
+      rapidFormError.classList.add('show');
+      return;
+    }
+  } else {
+    if (!barcode || !locCode || !qtyRaw) {
+      rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please fill in barcode, location, and quantity.' : '请填写条码、库位和库存数。';
+      rapidFormError.classList.add('show');
+      return;
+    }
   }
 
   const parsed = parseLocationQR(locCode);
@@ -1575,22 +1648,12 @@ async function saveRapidEntry() {
     return (b && b === barcode.toLowerCase()) || (s && s === barcode.toLowerCase());
   });
 
-  // Decide product name
-  let nameToUse = `Product ${barcode}`;
-  if (existing) {
-    nameToUse = existing.name || existing.n;
-  } else if (customName) {
-    nameToUse = customName;
-  } else {
-    nameToUse = CURRENT_LANG === 'en' ? `New Product (${barcode})` : `新登记商品 (${barcode})`;
-  }
-
   const payload = {
     barcode: existing ? (existing.barcode || existing.b) : barcode,
-    stock_code: existing ? (existing.stock_code || existing.s) : barcode.slice(0, 8),
-    name: nameToUse,
-    category: existing ? (existing.category || existing.c || 'Uncategorized') : 'Uncategorized',
-    subcategory: existing ? (existing.subcategory || existing.sc || '') : '',
+    stock_code: existing ? (existing.stock_code || existing.s) : rfStock.value.trim(),
+    name: existing ? (existing.name || existing.n) : rfName.value.trim(),
+    category: existing ? (existing.category || existing.c || 'Uncategorized') : (rfCategory.value.trim() || 'Uncategorized'),
+    subcategory: existing ? (existing.subcategory || existing.sc || '') : rfSubcategory.value.trim(),
     floor: parsed.floor,
     batch: parsed.row,
     shelf: parsed.shelf,
@@ -1636,9 +1699,18 @@ async function saveRapidEntry() {
       // Reset logger fields and focus barcode for next item
       rfBarcode.value = '';
       rfName.value = '';
+      rfStock.value = '';
+      rfCategory.value = '';
+      rfSubcategory.value = '';
       rfLocation.value = '';
+      rfFloor.value = '1';
+      rfRow.value = '';
+      rfShelf.value = '';
+      rfLevel.value = '';
       rfQty.value = '1';
-      rfNameField.style.display = 'none';
+      
+      rapidNewProductFields.style.display = 'none';
+      rapidManualCoordinates.style.display = 'none';
       document.getElementById('rapidProductPreview').style.display = 'none';
       rfBarcode.focus();
     } else {

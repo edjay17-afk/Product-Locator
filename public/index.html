@@ -361,31 +361,83 @@
 <!-- RAPID LOGGER OVERLAY -->
 <div id="rapidOverlay" class="modal-overlay">
   <div class="form-panel" style="max-width: 520px;">
-    <h2 data-i18n="rapidTitle">⚡ Rapid Location Logger</h2>
+    <h2 data-i18n="rapidTitle">Rapid Location Logger</h2>
     <div class="form-sub" data-i18n="rapidSub">Quickly scan a product, scan its location QR, and save. Repeat for high-speed mapping.</div>
 
+    <!-- 1. Barcode field with Scan Barcode button -->
     <div class="field field-required">
       <label data-i18n="rapidBarcodeLabel">1. Scan / Type Product Barcode</label>
-      <input id="rfBarcode" type="text" autocomplete="off" placeholder="e.g. 100002109790">
+      <div class="field-scan-row">
+        <input id="rfBarcode" type="text" autocomplete="off" placeholder="e.g. 100002109790">
+        <button id="scanForRapidBarcodeBtn" type="button" class="btn-save" style="margin-top:0; padding:10px 15px; font-size:13px; min-height:40px;" data-i18n="scanBarcodeBtn">Scan Barcode</button>
+      </div>
       <div id="rapidProductPreview" style="margin-top: 6px; font-weight:600; color: #10b981; display: none;">
         Matched: <span id="rfMatchedName">...</span>
       </div>
     </div>
 
-    <!-- Optional name field when barcode is new -->
-    <div id="rfNameField" class="field" style="display: none;">
-      <label data-i18n="prodNameLabelOptional">Product Name (Optional)</label>
-      <input id="rfName" type="text" autocomplete="off" placeholder="e.g. Blue Plastic Cup">
+    <!-- 2. Dynamic New Product Fields Group (Hidden by default) -->
+    <div id="rapidNewProductFields" style="display: none; border: 1px dashed var(--line); padding: 12px; border-radius: 8px; margin-bottom: 12px; background: #faf5ff;">
+      <div style="font-family: var(--mono); font-size: 11px; font-weight: 700; color: #7c3aed; margin-bottom: 10px;" data-i18n="newProductFieldsTitle">🆕 NEW PRODUCT DETAILS</div>
+      
+      <div class="field field-required">
+        <label data-i18n="prodNameLabel">Product name</label>
+        <input id="rfName" type="text" autocomplete="off" placeholder="e.g. Blue Plastic Cup">
+      </div>
+      
+      <div class="field field-required">
+        <label data-i18n="itemCodeLabel">Item / stock code</label>
+        <input id="rfStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
+      </div>
+
+      <div class="field">
+        <label data-i18n="categoryLabel">Category (optional)</label>
+        <input id="rfCategory" type="text" autocomplete="off" placeholder="e.g. Household Supplies">
+      </div>
+
+      <div class="field">
+        <label data-i18n="subcategoryLabel">Sub-category (optional)</label>
+        <input id="rfSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
+      </div>
     </div>
 
+    <!-- 3. Location fields (Scan QR always shown; Manual coordinates shown only if new product) -->
     <div class="field field-required">
       <label data-i18n="rapidLocLabel">2. Scan / Type Location (e.g. 1-02-01-03)</label>
       <div class="field-scan-row">
         <input id="rfLocation" type="text" autocomplete="off" placeholder="e.g. 1-02-01-03">
-        <button id="scanForRapidLocBtn" type="button" class="btn-save" style="margin-top:0; padding:10px 15px; font-size:13px; min-height:40px; background: #d97706;" data-i18n="scanBtn">Scan QR</button>
+        <button id="scanForRapidLocBtn" type="button" class="btn-save" style="margin-top:0; padding:10px 15px; font-size:13px; min-height:40px; background: #d97706;" data-i18n="scanQrBtn">Scan QR</button>
       </div>
     </div>
 
+    <!-- Manual Coordinates fields (shown only if new product) -->
+    <div id="rapidManualCoordinates" style="display: none; margin-bottom: 12px;">
+      <div style="font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 6px;" data-i18n="orManualLoc">OR ENTER COORDINATES MANUALLY:</div>
+      <div class="loc-grid">
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
+          <select id="rfFloor">
+            <option value="1" data-i18n="floor1">1st Floor</option>
+            <option value="2" data-i18n="floor2">2nd Floor</option>
+            <option value="3" data-i18n="floor3">3rd Floor</option>
+          </select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
+          <input id="rfRow" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 02">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
+          <input id="rfShelf" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 01">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
+          <input id="rfLevel" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 03">
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Quantity field -->
     <div class="field field-required">
       <label data-i18n="rapidQtyLabel">3. Quantity On Hand</label>
       <input id="rfQty" type="number" inputmode="numeric" autocomplete="off" placeholder="e.g. 20">

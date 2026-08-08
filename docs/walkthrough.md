@@ -1,28 +1,43 @@
-# 🚶‍♂️ Walkthrough: Search Keyboard & Rapid Logger Scanner Optimizations
+# 🚶‍♂️ Walkthrough: Rapid Logger Overlays & Dual-Scanning Layout
 
-I have restored full text/alphabet search functionality on mobile devices, removed the barcode camera scan option from the Rapid Location Logger, and clarified the scanner button for location QR code entry.
+I have fixed the camera scanner overlap z-index and optimized the **Rapid Location Logger** to offer a smart dual-scanning layout (for both product barcodes and location QR codes) while supporting both existing and new products.
 
 ---
 
 ## 🛠️ Summary of Work
 
-### 1. Restored Full Keyboard Search
-* **Search Input Field (`index.html`):** Removed `inputmode="numeric"` from the main search bar `#searchInput`.
-* **The Impact:** On mobile devices, this allows the full alpha-numeric keyboard to load by default, restoring the ability to type and search by product names (letters) alongside barcodes and stock codes.
+### 1. Z-Index Overlap Fix
+* **Overlay Layering (`styles.css`):** Increased `#scannerOverlay`'s `z-index` to `100` (which is higher than the modals' `z-index: 60`).
+* **The Impact:** Scanning from any input field inside the Rapid Location Logger modal now correctly overlays the scanner viewport on top of the active modal rather than rendering behind it.
 
-### 2. Streamlined Rapid Logger Scanner
-* **Barcode Scan Button Removed (`index.html` & `app.js`):** Removed the camera scanner button from the barcode field inside the **Rapid Location Logger** modal.
-* **The Impact:** Barcode entries are exclusively handled by physical scanner guns (simulating keyboard input) or manual typing. This prevents accidental camera triggers during scanning.
-* **Location QR Scan Button Retained & Relabeled:** The location scanner button is retained and labeled **"Scan QR"** to clearly indicate its purpose for capturing Coordinate QR code labels.
+### 2. Dual Scanner Support in Rapid Logger
+* **Two Camera Triggers (`index.html` & `app.js`):**
+  * **Product Barcode Scanner:** Added back the "Scan Barcode" button (`#scanForRapidBarcodeBtn`) next to the barcode field (uses a 260x150 rectangle capture size).
+  * **Location QR Scanner:** Kept the "Scan QR" button (`#scanForRapidLocBtn`) next to the coordinates field (uses a 250x250 square capture size).
+
+### 3. Dynamic Field Toggling based on Barcode
+* **Minimal View (Existing Product):** If the scanned or typed barcode exists in the database, only the Barcode field, Location QR field, and Quantity field are displayed.
+* **Expanded View (New Product):** If the barcode does not exist, the logger dynamically expands to show additional text fields to register the new item's details:
+  1. Product Name
+  2. Item / Stock Code
+  3. Category
+  4. Subcategory
+  5. **Manual Coordinates Option:** Floor dropdown, Row input, Shelf input, and Level input.
+
+### 4. Interactive Coordinates Synchronization
+* **Two-Way Binding (`app.js`):**
+  * Scanning a Location QR code (e.g. `1-02-01-03`) automatically splits and populates the manual coordinates inputs (Floor: 1st, Row: 02, Shelf: 01, Level: 03).
+  * Manually typing coordinates in the Floor/Row/Shelf/Level fields dynamically updates the main Location text field.
 
 ---
 
 ## 🔍 Verification Details
 
-1. **Verify Search Keyboard:**
-   * Open the app on a mobile device or inspect under mobile responsive view in browser.
-   * Click on the search bar. Observe that the regular keyboard with letters appears, allowing you to search by name.
-2. **Verify Rapid Logger Form Layout:**
-   * Sign in as stockman and open the **Rapid Logger**.
-   * Observe that the first input field (Product Barcode) is a clean input without a "Scan" button.
-   * Observe that the second input field (Location Coordinates) has a "Scan QR" button that opens the 250x250 square camera frame.
+1. **Verify Camera Overlap:**
+   * Open the **Rapid Logger** (signed in as stockman).
+   * Click **Scan QR** next to the location field. The camera scanner overlay now correctly renders on top of the modal.
+2. **Verify Dynamic Fields:**
+   * Enter an existing barcode (e.g. `100002109790`). The modal remains minimal, matching "Wedding card".
+   * Clear it and enter a new barcode. The modal expands, prompting for name, stock code, category, and manual coordinate dropdowns.
+3. **Verify Coordinates Sync:**
+   * In expanded mode, change the shelf number to `15` and level to `02`. Observe the main Location text field updates to `1-02-15-02` in real-time.
