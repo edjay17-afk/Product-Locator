@@ -1,37 +1,28 @@
-# 🚶‍♂️ Walkthrough: Bilingual Support, Rapid Logger Naming, & Square QR Scanner
+# 🚶‍♂️ Walkthrough: Search Keyboard & Rapid Logger Scanner Optimizations
 
-I have optimized the **⚡ Rapid Logger** interface to support optional naming for new items, updated the QR scanner to use a square capture grid, and removed duplicate emojis.
+I have restored full text/alphabet search functionality on mobile devices, removed the barcode camera scan option from the Rapid Location Logger, and clarified the scanner button for location QR code entry.
 
 ---
 
 ## 🛠️ Summary of Work
 
-### 1. Optional Naming in Rapid Logger
-* **Dynamic Optional Name Input (`index.html` & `app.js`):**
-  * When a stockman enters a barcode in the **Rapid Logger**, the system checks the database in real-time.
-  * If the product **already exists**, it displays the matched name in green and hides the name input field, keeping the mapping fast.
-  * If the barcode is **new**, a `Product Name (Optional)` text input appears dynamically.
-  * The stockman can type a custom name (e.g. *Blue Plastic Cup*) or leave it blank to auto-generate a descriptive placeholder name (*New Product (<barcode>)*).
-  * **Focus flow adjustments:** Autofocus transitions from Barcode &rarr; Name (if visible) &rarr; Location &rarr; Quantity &rarr; Save.
+### 1. Restored Full Keyboard Search
+* **Search Input Field (`index.html`):** Removed `inputmode="numeric"` from the main search bar `#searchInput`.
+* **The Impact:** On mobile devices, this allows the full alpha-numeric keyboard to load by default, restoring the ability to type and search by product names (letters) alongside barcodes and stock codes.
 
-### 2. Square QR Code Scanner Frame
-* **Dynamic Grid Size (`app.js`):**
-  * Tapping a QR-specific scan action (like scanning coordinates QR) triggers a 250x250 square scanning box (`{ width: 250, height: 250 }`).
-  * Normal barcode scanning actions retain the 260x150 rectangular box to frame traditional barcodes easily.
-
-### 3. Cleanup of Double Icons
-* Removed the duplicate lightning bolt emoji `⚡` from translation definitions for buttons and titles since the interface already includes custom SVG lightning icons.
+### 2. Streamlined Rapid Logger Scanner
+* **Barcode Scan Button Removed (`index.html` & `app.js`):** Removed the camera scanner button from the barcode field inside the **Rapid Location Logger** modal.
+* **The Impact:** Barcode entries are exclusively handled by physical scanner guns (simulating keyboard input) or manual typing. This prevents accidental camera triggers during scanning.
+* **Location QR Scan Button Retained & Relabeled:** The location scanner button is retained and labeled **"Scan QR"** to clearly indicate its purpose for capturing Coordinate QR code labels.
 
 ---
 
 ## 🔍 Verification Details
 
-1. **Verify Square QR Scanner:**
-   * Open details for a product and tap **"Scan QR for New Location"** (or open the **Rapid Logger** and tap **Scan Location**).
-   * Observe that the camera viewport frame is a perfect square.
-2. **Verify Naming Workflow:**
-   * Open the **Rapid Logger**.
-   * Scan or type a new barcode (e.g. `999999999999`).
-   * Observe that the `Product Name (Optional)` field appears immediately.
-   * Type *Test Product ABC* and hit Enter. The cursor will focus the Location field automatically.
-   * Map to location `1-02-03-04` and save. The session log will reflect *Test Product ABC*.
+1. **Verify Search Keyboard:**
+   * Open the app on a mobile device or inspect under mobile responsive view in browser.
+   * Click on the search bar. Observe that the regular keyboard with letters appears, allowing you to search by name.
+2. **Verify Rapid Logger Form Layout:**
+   * Sign in as stockman and open the **Rapid Logger**.
+   * Observe that the first input field (Product Barcode) is a clean input without a "Scan" button.
+   * Observe that the second input field (Location Coordinates) has a "Scan QR" button that opens the 250x250 square camera frame.

@@ -1466,7 +1466,6 @@ document.getElementById('rapidLoggerBtn').addEventListener('click', openRapidLog
 document.getElementById('closeRapidBtn').addEventListener('click', closeRapidLogger);
 document.getElementById('saveRapidBtn').addEventListener('click', saveRapidEntry);
 
-document.getElementById('scanForRapidBarcodeBtn').addEventListener('click', () => startScanner('rapid_barcode'));
 document.getElementById('scanForRapidLocBtn').addEventListener('click', () => startScanner('rapid_location_qr'));
 
 function openRapidLogger() {
