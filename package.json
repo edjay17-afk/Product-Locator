@@ -20,16 +20,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@libsql/client": "^0.17.4",
     "@supabase/supabase-js": "^2.112.2",
-    "better-sqlite3": "^11.1.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "firebase-admin": "^14.2.0",
-    "mongoose": "^9.9.1",
     "multer": "^2.2.0",
-    "selfsigned": "^5.5.0",
     "serverless-http": "^4.0.0",
     "xlsx": "^0.18.5"
   }

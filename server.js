@@ -323,8 +323,10 @@ function getLocalIpAddresses() {
 // Generate or load SSL certificates for mobile HTTPS camera support
 async function getSslCertificates() {
   // These are local-only modules — safe to require inside this function
-  const https = require('https');
-  const selfsigned = require('selfsigned');
+  let selfsigned;
+  try { selfsigned = require('selfsigned'); } catch (e) {
+    throw new Error('selfsigned not installed — HTTPS skipped (run: npm i selfsigned)');
+  }
   const os = require('os');
 
   const certDir = path.join(__dirname, 'db', 'certs');
