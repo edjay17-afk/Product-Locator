@@ -59,6 +59,7 @@ async function initApp() {
     if (productsRes.success && Array.isArray(productsRes.products)) {
       PRODUCTS = productsRes.products;
       rebuildIndex();
+      updateCategoryDatalist();
     }
   } catch (err) {
     console.warn('Network or API unavailable, operating in offline fallback mode if cached data exists.', err);
@@ -186,7 +187,7 @@ function hideResults() {
   rl.innerHTML = '';
 }
 
-async function doSearch(q) {
+async function doSearch(q, isFinal = false) {
   q = q.trim().toLowerCase();
   if (!q) { hideResults(); return; }
 
@@ -232,6 +233,9 @@ async function doSearch(q) {
   }
 
   renderMatches([]);
+  if (isFinal) {
+    showNotFoundModal(document.getElementById('searchInput').value.trim());
+  }
 }
 
 function renderMatches(matches) {
@@ -264,9 +268,9 @@ function renderMatches(matches) {
 }
 
 // Event Listeners for Search & Upload
-document.getElementById('searchInput').addEventListener('input', e => doSearch(e.target.value));
+document.getElementById('searchInput').addEventListener('input', e => doSearch(e.target.value, false));
 document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doSearch(e.target.value);
+  if (e.key === 'Enter') doSearch(e.target.value, true);
 });
 
 document.getElementById('clearRecent').addEventListener('click', () => {
@@ -472,7 +476,7 @@ function onScanSuccess(code) {
     document.getElementById('fBarcode').value = code;
   } else {
     document.getElementById('searchInput').value = code;
-    doSearch(code);
+    doSearch(code, true);
   }
 }
 
@@ -499,17 +503,38 @@ function openAddForm() {
   document.getElementById('fBarcode').value = /^\d+$/.test(typed) ? typed : '';
   document.getElementById('fName').value = /^\d+$/.test(typed) ? '' : typed;
   document.getElementById('fStock').value = '';
-  document.getElementById('fCategory').value = '';
-  document.getElementById('fSubcategory').value = '';
-  document.getElementById('fFloor').value = '1';
-  document.getElementById('fRow').value = '';
-  document.getElementById('fShelf').value = '';
-  document.getElementById('fLevel').value = '';
+  
+  // Pre-populate category from active product context if available
+  const activeCat = (activeProduct && (activeProduct.category || activeProduct.c)) || '';
+  document.getElementById('fCategory').value = activeCat;
+  document.getElementById('fSubcategory').value = (activeProduct && (activeProduct.subcategory || activeProduct.sc)) || '';
+  
   document.getElementById('fQty').value = '';
   document.getElementById('fStockman').value = currentUser ? currentUser.full_name : '';
   formError.classList.remove('show');
   addOverlay.classList.add('show');
   hideResults();
+  
+  // Auto-fill coordinates and suggestions based on category
+  const suggested = suggestLocationForCategory(activeCat);
+  if (suggested) {
+    if (suggested.floor) document.getElementById('fFloor').value = suggested.floor;
+    if (suggested.row) document.getElementById('fRow').value = suggested.row;
+    if (suggested.shelf) document.getElementById('fShelf').value = suggested.shelf;
+    if (suggested.level) document.getElementById('fLevel').value = suggested.level;
+    updateAddLocationSuggestions();
+  } else {
+    document.getElementById('fFloor').value = '1';
+    document.getElementById('fRow').value = '';
+    document.getElementById('fShelf').value = '';
+    document.getElementById('fLevel').value = '';
+    document.getElementById('locSuggestions').style.display = 'none';
+    document.getElementById('locSuggestionsPills').innerHTML = '';
+  }
+  
+  document.getElementById('fCategoryDropdown').style.display = 'none';
+  document.getElementById('fCategoryDropdown').innerHTML = '';
+  
   setTimeout(() => document.getElementById('fName').focus(), 50);
 }
 
@@ -527,7 +552,9 @@ async function saveNewProduct() {
   const barcode = document.getElementById('fBarcode').value.trim();
   const name = document.getElementById('fName').value.trim();
   const stock_code = document.getElementById('fStock').value.trim();
+  
   const category = document.getElementById('fCategory').value.trim();
+  
   const subcategory = document.getElementById('fSubcategory').value.trim();
   const floor = document.getElementById('fFloor').value;
   const row = pad2(document.getElementById('fRow').value);
@@ -536,7 +563,7 @@ async function saveNewProduct() {
   const qtyRaw = document.getElementById('fQty').value.trim();
   const stockmanRaw = document.getElementById('fStockman').value.trim();
 
-  if (!name || !row || !shelf) {
+  if (!name || !stock_code || !row || !shelf || qtyRaw === '') {
     formError.classList.add('show');
     return;
   }
@@ -604,6 +631,7 @@ function openEditForm() {
 
   editFormError.classList.remove('show');
   editOverlay.classList.add('show');
+  updateEditLocationSuggestions();
 }
 
 function closeEditForm() {
@@ -622,7 +650,7 @@ async function saveEditProduct() {
   const qtyRaw = document.getElementById('efQty').value.trim();
   const stockmanRaw = document.getElementById('efStockman').value.trim();
 
-  if (!name || !row || !shelf) {
+  if (!name || !stock_code || !row || !shelf || qtyRaw === '') {
     editFormError.classList.add('show');
     return;
   }
@@ -756,6 +784,288 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     errEl.textContent = 'Server connection error during login.';
     errEl.style.display = 'block';
   }
+});
+
+// Dynamic Category & Shelf Overflow Helpers
+let ALL_CATEGORIES = [];
+function updateCategoryDatalist() {
+  const categories = new Set();
+  PRODUCTS.forEach(p => {
+    const cat = p.category || p.c;
+    if (cat) categories.add(cat.trim());
+  });
+  ALL_CATEGORIES = Array.from(categories).sort();
+}
+
+function suggestLocationForCategory(catName) {
+  if (!catName) return null;
+  const cleanCat = catName.trim().toLowerCase();
+
+  const matches = PRODUCTS.filter(p => {
+    const c = p.category || p.c || '';
+    return c.trim().toLowerCase() === cleanCat;
+  });
+
+  if (matches.length === 0) return null;
+
+  const frequencies = { floor: {}, row: {}, shelf: {}, level: {} };
+  matches.forEach(p => {
+    const fl = p.floor !== undefined ? String(p.floor) : '';
+    const rw = (p.batch || p.row || '').toString();
+    const sh = (p.shelf || '').toString();
+    const lv = (p.level || '').toString();
+
+    if (fl) frequencies.floor[fl] = (frequencies.floor[fl] || 0) + 1;
+    if (rw) frequencies.row[rw] = (frequencies.row[rw] || 0) + 1;
+    if (sh) frequencies.shelf[sh] = (frequencies.shelf[sh] || 0) + 1;
+    if (lv) frequencies.level[lv] = (frequencies.level[lv] || 0) + 1;
+  });
+
+  const getMode = (obj) => {
+    let modeKey = '';
+    let maxCount = 0;
+    for (const key in obj) {
+      if (obj[key] > maxCount) {
+        maxCount = obj[key];
+        modeKey = key;
+      }
+    }
+    return modeKey;
+  };
+
+  return {
+    floor: getMode(frequencies.floor),
+    row: getMode(frequencies.row),
+    shelf: getMode(frequencies.shelf),
+    level: getMode(frequencies.level)
+  };
+}
+
+function getNearbyLocations(floor, row, shelf, level) {
+  const f = parseInt(floor, 10) || 1;
+  const r = parseInt(row, 10) || 0;
+  const s = parseInt(shelf, 10) || 0;
+  const l = parseInt(level, 10) || 0;
+
+  const pad = (num) => String(num).padStart(2, '0');
+  const suggestions = [];
+
+  // 1. Next Shelf
+  suggestions.push({
+    label: `Shelf ${pad(s + 1)}`,
+    floor: String(f),
+    row: pad(r),
+    shelf: pad(s + 1),
+    level: pad(l)
+  });
+
+  // 2. Next Level
+  suggestions.push({
+    label: `Level ${pad(l + 1)}`,
+    floor: String(f),
+    row: pad(r),
+    shelf: pad(s),
+    level: pad(l + 1)
+  });
+
+  // 3. Previous Shelf (only if shelf > 1)
+  if (s > 1) {
+    suggestions.push({
+      label: `Shelf ${pad(s - 1)}`,
+      floor: String(f),
+      row: pad(r),
+      shelf: pad(s - 1),
+      level: pad(l)
+    });
+  }
+
+  // 4. Next Row
+  suggestions.push({
+    label: `Row ${pad(r + 1)}`,
+    floor: String(f),
+    row: pad(r + 1),
+    shelf: pad(s),
+    level: pad(l)
+  });
+
+  return suggestions;
+}
+
+function updateAddLocationSuggestions() {
+  const floor = document.getElementById('fFloor').value;
+  const row = document.getElementById('fRow').value.trim();
+  const shelf = document.getElementById('fShelf').value.trim();
+  const level = document.getElementById('fLevel').value.trim() || '00';
+
+  const container = document.getElementById('locSuggestions');
+  const pillsEl = document.getElementById('locSuggestionsPills');
+
+  if (!row || !shelf) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const suggestions = getNearbyLocations(floor, row, shelf, level);
+  pillsEl.innerHTML = '';
+  suggestions.forEach(s => {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'loc-pill';
+    pill.textContent = `${s.label} (${s.floor}-${s.row}-${s.shelf}-${s.level})`;
+    pill.onclick = () => {
+      document.getElementById('fFloor').value = s.floor;
+      document.getElementById('fRow').value = s.row;
+      document.getElementById('fShelf').value = s.shelf;
+      document.getElementById('fLevel').value = s.level;
+      updateAddLocationSuggestions();
+    };
+    pillsEl.appendChild(pill);
+  });
+  container.style.display = 'block';
+}
+
+function updateEditLocationSuggestions() {
+  const floor = document.getElementById('efFloor').value;
+  const row = document.getElementById('efRow').value.trim();
+  const shelf = document.getElementById('efShelf').value.trim();
+  const level = document.getElementById('efLevel').value.trim() || '00';
+
+  const container = document.getElementById('editLocSuggestions');
+  const pillsEl = document.getElementById('editLocSuggestionsPills');
+
+  if (!row || !shelf) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const suggestions = getNearbyLocations(floor, row, shelf, level);
+  pillsEl.innerHTML = '';
+  suggestions.forEach(s => {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = 'loc-pill';
+    pill.textContent = `${s.label} (${s.floor}-${s.row}-${s.shelf}-${s.level})`;
+    pill.onclick = () => {
+      document.getElementById('efFloor').value = s.floor;
+      document.getElementById('efRow').value = s.row;
+      document.getElementById('efShelf').value = s.shelf;
+      document.getElementById('efLevel').value = s.level;
+      updateEditLocationSuggestions();
+    };
+    pillsEl.appendChild(pill);
+  });
+  container.style.display = 'block';
+}
+
+function showLocationFullInfo() {
+  alert("⚠️ Shelf / Location Full Instructions:\n\nIf the assigned shelf slot or location is full, please place the newly arrived stock in a nearby position.\n\nTo make this simple:\n1. Look at the nearby suggestions row below (e.g., Next Shelf, Higher Level, or Neighboring Row).\n2. Place the physical product in that new location.\n3. Tap that suggestion pill in this app. The coordinates will auto-fill instantly!\n4. Click Save to complete the update.");
+}
+
+function showNotFoundModal(query) {
+  document.getElementById('notFoundMessage').textContent = `No product matching "${query}" was found in the database. Would you like to add it now?`;
+  document.getElementById('notFoundOverlay').classList.add('show');
+}
+
+document.getElementById('cancelNotFoundBtn').addEventListener('click', () => {
+  document.getElementById('notFoundOverlay').classList.remove('show');
+});
+
+document.getElementById('confirmNotFoundBtn').addEventListener('click', () => {
+  document.getElementById('notFoundOverlay').classList.remove('show');
+  openAddForm();
+});
+
+function renderCategoryDropdown(filterText = '') {
+  const cleanFilter = filterText.trim().toLowerCase();
+  const filtered = ALL_CATEGORIES.filter(cat => 
+    cat.toLowerCase().includes(cleanFilter)
+  );
+
+  const dropdown = document.getElementById('fCategoryDropdown');
+  if (!dropdown) return;
+
+  dropdown.innerHTML = '';
+  if (filtered.length === 0) {
+    dropdown.innerHTML = '<div style="padding: 10px 14px; font-size:12px; color:var(--muted); font-family:var(--mono);">No matches</div>';
+  } else {
+    filtered.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'combobox-item';
+      btn.textContent = cat;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        handleCategorySelection(cat);
+      };
+      dropdown.appendChild(btn);
+    });
+  }
+}
+
+function handleCategorySelection(cat) {
+  document.getElementById('fCategory').value = cat;
+  document.getElementById('fCategoryDropdown').style.display = 'none';
+
+  const suggested = suggestLocationForCategory(cat);
+  if (suggested) {
+    if (suggested.floor) document.getElementById('fFloor').value = suggested.floor;
+    if (suggested.row) document.getElementById('fRow').value = suggested.row;
+    if (suggested.shelf) document.getElementById('fShelf').value = suggested.shelf;
+    if (suggested.level) document.getElementById('fLevel').value = suggested.level;
+    updateAddLocationSuggestions();
+  }
+}
+
+function showCategoryDropdown() {
+  renderCategoryDropdown(document.getElementById('fCategory').value);
+  document.getElementById('fCategoryDropdown').style.display = 'block';
+}
+
+// Set up listeners for category autocomplete autofill and combobox toggles
+document.getElementById('fCategory').addEventListener('focus', showCategoryDropdown);
+document.getElementById('fCategory').addEventListener('input', (e) => {
+  const cat = e.target.value;
+  renderCategoryDropdown(cat);
+  document.getElementById('fCategoryDropdown').style.display = 'block';
+
+  const suggested = suggestLocationForCategory(cat);
+  if (suggested) {
+    if (suggested.floor) document.getElementById('fFloor').value = suggested.floor;
+    if (suggested.row) document.getElementById('fRow').value = suggested.row;
+    if (suggested.shelf) document.getElementById('fShelf').value = suggested.shelf;
+    if (suggested.level) document.getElementById('fLevel').value = suggested.level;
+    updateAddLocationSuggestions();
+  }
+});
+
+document.getElementById('fCategoryArrow').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const dropdown = document.getElementById('fCategoryDropdown');
+  if (dropdown.style.display === 'block') {
+    dropdown.style.display = 'none';
+  } else {
+    showCategoryDropdown();
+  }
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.combobox-container')) {
+    const dropdown = document.getElementById('fCategoryDropdown');
+    if (dropdown) dropdown.style.display = 'none';
+  }
+});
+
+// Coordinate change listeners for Add modal
+['fFloor', 'fRow', 'fShelf', 'fLevel'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateAddLocationSuggestions);
+  document.getElementById(id).addEventListener('change', updateAddLocationSuggestions);
+});
+
+// Coordinate change listeners for Edit modal
+['efFloor', 'efRow', 'efShelf', 'efLevel'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateEditLocationSuggestions);
+  document.getElementById(id).addEventListener('change', updateEditLocationSuggestions);
 });
 
 // Start app on DOM ready

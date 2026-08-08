@@ -21,11 +21,11 @@
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
       <div class="tag-stamp" id="skuStamp">Loading database…</div>
-      <div class="user-pill-container" id="userBadge">
-        <div class="user-avatar-icon">
+      <div class="user-pill-container" id="userBadge" style="background: none; border: none; padding: 0; box-shadow: none;">
+        <div class="user-avatar-icon" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
-        <span class="user-name" id="userNameDisplay">Guest</span>
+        <span class="user-name" id="userNameDisplay" style="display: none;">Guest</span>
         <button id="authBtn" class="user-auth-btn login" type="button">Sign In</button>
       </div>
     </div>
@@ -94,7 +94,7 @@
   <div class="extra-row" id="extraRow" style="display:none;flex-wrap:wrap;gap:8px;">
     <div class="extra-pill"><div class="pl">Barcode</div><div class="pv" id="pBarcode">—</div></div>
     <div class="extra-pill"><div class="pl">On hand</div><div class="pv" id="pQty">—</div></div>
-    <div class="extra-pill" style="flex:1.5;"><div class="pl">Responsible Stockman</div><div class="pv" id="pStockman">System Import</div></div>
+    <div class="extra-pill" style="flex:1.5; display: none;"><div class="pl">Responsible Stockman</div><div class="pv" id="pStockman">System Import</div></div>
   </div>
   <div class="card-actions" id="cardActions" style="display:none;">
     <button id="editProductBtn" class="card-action-btn" type="button">
@@ -133,15 +133,21 @@
       <input id="fName" type="text" autocomplete="off" placeholder="e.g. Balloon stick color/white 50cm">
     </div>
 
-    <div class="field">
-      <label>Item / stock code (optional)</label>
+    <div class="field field-required">
+      <label>Item / stock code</label>
       <div class="hint">The short code printed on the price tag, if it has one.</div>
       <input id="fStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
     </div>
 
     <div class="field">
       <label>Category (optional)</label>
-      <input id="fCategory" type="text" autocomplete="off" placeholder="e.g. Household Supplies">
+      <div class="combobox-container" style="position: relative;">
+        <input id="fCategory" type="text" autocomplete="off" placeholder="e.g. Household Supplies" style="padding-right: 32px;">
+        <button type="button" id="fCategoryArrow" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: flex; align-items: center; justify-content: center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="fCategoryDropdown" class="combobox-dropdown" style="display: none;"></div>
+      </div>
     </div>
 
     <div class="field">
@@ -174,10 +180,15 @@
           <input id="fLevel" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 03">
         </div>
       </div>
+      <div id="locSuggestions" style="margin-top: 10px; display: none;">
+        <span class="hint" style="font-size: 11px;">📍 Location full?</span>
+        <button type="button" class="loc-info-btn" onclick="showLocationFullInfo()">What to do?</button>
+        <div id="locSuggestionsPills" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;"></div>
+      </div>
     </div>
 
-    <div class="field">
-      <label>How many are on hand? (optional)</label>
+    <div class="field field-required">
+      <label>How many are on hand?</label>
       <input id="fQty" type="number" inputmode="numeric" autocomplete="off" placeholder="e.g. 20">
     </div>
 
@@ -186,7 +197,7 @@
       <input id="fStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz">
     </div>
 
-    <div id="formError" class="form-error">Please enter a product name, and at least the Row and Shelf so we know where to find it.</div>
+    <div id="formError" class="form-error">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
 
     <div class="form-actions">
       <button id="cancelAddBtn" class="btn-cancel" type="button">Cancel</button>
@@ -198,8 +209,8 @@
 <!-- EDIT PRODUCT MODAL OVERLAY -->
 <div id="editOverlay" class="modal-overlay">
   <div class="form-panel">
-    <h2>Edit Product Location</h2>
-    <div class="form-sub">Update shelf position or details for this item in the database.</div>
+    <h2>Product Details & Location</h2>
+    <div class="form-sub">View details or update shelf position for this item in the database.</div>
     <input id="efId" type="hidden">
 
     <div class="field field-required">
@@ -212,7 +223,7 @@
       <input id="efBarcode" type="text" autocomplete="off">
     </div>
 
-    <div class="field">
+    <div class="field field-required">
       <label>Stock Code</label>
       <input id="efStock" type="text" autocomplete="off">
     </div>
@@ -241,9 +252,14 @@
           <input id="efLevel" type="text" inputmode="numeric" autocomplete="off">
         </div>
       </div>
+      <div id="editLocSuggestions" style="margin-top: 10px; display: none;">
+        <span class="hint" style="font-size: 11px;">📍 Location full?</span>
+        <button type="button" class="loc-info-btn" onclick="showLocationFullInfo()">What to do?</button>
+        <div id="editLocSuggestionsPills" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;"></div>
+      </div>
     </div>
 
-    <div class="field">
+    <div class="field field-required">
       <label>On Hand Quantity</label>
       <input id="efQty" type="number" inputmode="numeric" autocomplete="off">
     </div>
@@ -253,7 +269,7 @@
       <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz">
     </div>
 
-    <div id="editFormError" class="form-error">Please fill in Product Name, Row, and Shelf.</div>
+    <div id="editFormError" class="form-error">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
 
     <div class="form-actions">
       <button id="cancelEditBtn" class="btn-cancel" type="button">Cancel</button>
@@ -310,6 +326,22 @@
         </button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- PRODUCT NOT FOUND MODAL -->
+<div id="notFoundOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width: 400px; text-align: center; padding: 24px;">
+    <div style="width: 48px; height: 48px; border-radius: 50%; background: #fef2f2; color: #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    </div>
+    <h2 style="margin-bottom: 8px;">Product Not Found</h2>
+    <p class="form-sub" id="notFoundMessage" style="margin-bottom: 20px;">The scanned barcode is not in the system yet.</p>
+    
+    <div style="display: flex; gap: 8px; justify-content: center;">
+      <button id="cancelNotFoundBtn" class="btn-cancel" style="margin-top:0; flex:1;" type="button">Cancel</button>
+      <button id="confirmNotFoundBtn" class="btn-save" style="margin-top:0; flex:1; background:var(--ink);" type="button">Add Product</button>
+    </div>
   </div>
 </div>
 
