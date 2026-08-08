@@ -4,13 +4,12 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
-const https = require('https');
-const net = require('net');
-const os = require('os');
-const selfsigned = require('selfsigned');
 const multer = require('multer');
-const XLSX = require('xlsx');
 const upload = multer({ storage: multer.memoryStorage() });
+
+// XLSX is still used server-side for any future import features
+let XLSX;
+try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 
 const db = require('./db/supabase');
 
@@ -323,6 +322,11 @@ function getLocalIpAddresses() {
 
 // Generate or load SSL certificates for mobile HTTPS camera support
 async function getSslCertificates() {
+  // These are local-only modules — safe to require inside this function
+  const https = require('https');
+  const selfsigned = require('selfsigned');
+  const os = require('os');
+
   const certDir = path.join(__dirname, 'db', 'certs');
   const keyPath = path.join(certDir, 'key.pem');
   const certPath = path.join(certDir, 'cert.pem');
@@ -358,6 +362,11 @@ async function getSslCertificates() {
 
 // Start Protocol-Multiplexed Server (Handles BOTH http:// and https:// on PORT 3002 seamlessly)
 async function startServer() {
+  // These are local-only modules — not needed in serverless environments
+  const https = require('https');
+  const net = require('net');
+  const os = require('os');
+
   const httpServer = http.createServer(app);
   let httpsServer = null;
 

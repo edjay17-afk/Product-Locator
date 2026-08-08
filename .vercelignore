@@ -1,0 +1,6 @@
+# Don't deploy these to Vercel
+db/certs
+*.pem
+seed-supabase.js
+.env
+netlify.toml
