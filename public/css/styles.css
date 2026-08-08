@@ -1155,5 +1155,51 @@ footer {
   margin-top: 10px;
 }
 
+/* Guest Mode overrides */
+body.guest-mode #addProductBtn,
+body.guest-mode #rapidLoggerBtn,
+body.guest-mode #showQrBoardBtn,
+body.guest-mode #authBtn,
+body.guest-mode #userBadge,
+body.guest-mode .card-actions,
+body.guest-mode .tagcard-bottom button {
+  display: none !important;
+}
+
+/* Print Media Styles */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #qrBoardOverlay,
+  #qrBoardOverlay *,
+  #qrPosterContent,
+  #qrPosterContent * {
+    visibility: visible;
+  }
+  #qrBoardOverlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: auto;
+    background: white !important;
+    box-shadow: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  #qrPosterContent {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+  }
+}
+
 
 

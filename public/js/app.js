@@ -26,10 +26,11 @@ const TRANSLATIONS = {
     prodNameLabel: "Product name",
     prodNameHint: "What is it? Write it the way you'd say it out loud, e.g. \"16oz plastic tumbler\".",
     prodNameLabelOptional: "Product Name (Optional)",
-    itemCodeLabel: "Item / stock code",
+    itemCodeLabel: "Stock No.",
     itemCodeHint: "The short code printed on the price tag, if it has one.",
     categoryLabel: "Category (optional)",
-    subcategoryLabel: "Sub-category (optional)",
+    departmentLabel: "Department (optional)",
+    subcategoryLabel: "Department (optional)",
     storedLabel: "Where is it stored?",
     storedHint: "This is what tells the next person exactly where to find it on the shelf.",
     floorLabel: "Floor",
@@ -80,7 +81,12 @@ const TRANSLATIONS = {
     cardLevel: "Level",
     cardStockman: "Stockman",
     cardLocationQty: "Location Qty",
-    cardEditBtn: "Edit"
+    cardEditBtn: "Edit",
+    quickSearchBoard: "Search Board QR",
+    qrBoardTitle: "Quick Search Display Board",
+    qrBoardSub: "Print this board and post it on your warehouse walls or doors. Customers and staff can scan it to instantly find product locations on their phones without logging in.",
+    qrBoardInstructions: "1. Scan the QR code below using your phone's camera.<br>2. Search by product name or scan a barcode to see its location immediately.",
+    printPoster: "Print Poster"
   },
   zh: {
     brandEyebrow: "仓库商品定位系统",
@@ -109,10 +115,11 @@ const TRANSLATIONS = {
     prodNameLabel: "商品名称",
     prodNameHint: "例如：\"16盎司塑料水杯\"，请使用通俗易懂的名称。",
     prodNameLabelOptional: "商品名称（可选）",
-    itemCodeLabel: "货号 / 库存编码",
+    itemCodeLabel: "货号 / Stock No.",
     itemCodeHint: "商品价格标签上印制的简短编码。",
     categoryLabel: "分类（可选）",
-    subcategoryLabel: "子分类（可选）",
+    departmentLabel: "部门（可选）",
+    subcategoryLabel: "部门（可选）",
     storedLabel: "存放位置",
     storedHint: "这将准确指引下一个人在哪个货架上找到该商品。",
     floorLabel: "楼层",
@@ -163,11 +170,17 @@ const TRANSLATIONS = {
     cardLevel: "层数",
     cardStockman: "负责理货员",
     cardLocationQty: "库位数量",
-    cardEditBtn: "编辑"
+    cardEditBtn: "编辑",
+    quickSearchBoard: "查询看板 QR",
+    qrBoardTitle: "自助查询引导看板",
+    qrBoardSub: "打印此看板并贴在仓库墙壁或通道门上。理货员或客户只需用手机扫描即可免登录自助查询商品货位。",
+    qrBoardInstructions: "1. 使用手机相机扫描下方二维码。<br>2. 输入商品名称或扫描商品条码，即可立即查看其架上位置。",
+    printPoster: "打印海报"
   }
 };
 
 let CURRENT_LANG = localStorage.getItem('wh_lang') || 'en';
+let isGuestMode = false;
 
 let PRODUCTS = [];
 let byBarcode = {};
@@ -249,6 +262,13 @@ function updateLanguageUI() {
     langBtn.textContent = lang === 'en' ? '🇨🇳 中文' : '🇬🇧 English';
   }
 
+  if (isGuestMode) {
+    const titleEl = document.getElementById('appTitle');
+    const subEl = document.getElementById('appSub');
+    if (titleEl) titleEl.textContent = lang === 'en' ? 'Product Finder' : '自助定位查找';
+    if (subEl) subEl.textContent = lang === 'en' ? 'Scan barcode or enter name to locate items.' : '扫描商品条形码或输入商品名称查找存放位置。';
+  }
+
   // Re-apply user UI so auth button (Logout/Sign In) is always correct
   // after the translation loop runs (translations must not overwrite dynamic state)
   updateUserUI();
@@ -263,6 +283,15 @@ let activeProduct = null;
 
 // Initialize app data from server database API
 async function initApp() {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('mode') === 'guest') {
+    isGuestMode = true;
+    document.body.classList.add('guest-mode');
+    setTimeout(() => {
+      startScanner();
+    }, 600);
+  }
+
   updateUserUI();
   updateLanguageUI();
   
@@ -433,18 +462,22 @@ async function renderProduct(p) {
         hasLoc,
         qty: parseInt(item.qty, 10) || 0,
         status: item.status,
-        last_modified_by: item.last_modified_by || item.modifiedBy || 'System Import',
+        last_modified_by: (item.last_modified_by && item.last_modified_by !== 'System Import') ? item.last_modified_by : '',
         custom: item.custom || p.custom
       });
     }
   });
 
-  window.currentLocs = uniqueLocs;
+  // Filter unmapped cards if at least one mapped location card exists
+  const mappedLocs = uniqueLocs.filter(item => item.hasLoc && (item.floor || item.batch || item.shelf));
+  const finalLocs = mappedLocs.length > 0 ? mappedLocs : uniqueLocs;
+
+  window.currentLocs = finalLocs;
 
   const locationsList = document.getElementById('locationsList');
   locationsList.innerHTML = '';
 
-  uniqueLocs.forEach((item, index) => {
+  finalLocs.forEach((item, index) => {
     const floor = item.floor;
     const batch = item.batch;
     const shelf = item.shelf;
@@ -453,7 +486,8 @@ async function renderProduct(p) {
 
     const st = statusInfo(item.status);
     const qtyVal = item.qty;
-    const stockmanVal = item.last_modified_by;
+    const rawStockman = item.last_modified_by || item.modifiedBy || '';
+    const stockmanVal = (rawStockman && rawStockman !== 'System Import' && rawStockman !== 'Guest Stockman' && rawStockman !== 'Staff Scanner' && rawStockman !== 'Rapid Logger') ? rawStockman : '';
 
     const cardEl = document.createElement('div');
     cardEl.className = 'tagcard';
@@ -1795,8 +1829,11 @@ async function saveRapidEntry() {
   };
 
   try {
-    const url = currentRapidExistingRow ? `/api/products/${currentRapidExistingRow.id}` : '/api/products';
-    const method = currentRapidExistingRow ? 'PUT' : 'POST';
+    const isUnmappedMaster = existingProduct && (!existingProduct.floor || String(existingProduct.floor).trim() === '' || !existingProduct.loc || String(existingProduct.loc).trim() === '');
+    const targetRow = currentRapidExistingRow || (isUnmappedMaster ? existingProduct : null);
+
+    const url = targetRow ? `/api/products/${targetRow.id}` : '/api/products';
+    const method = targetRow ? 'PUT' : 'POST';
 
     const res = await fetch(url, {
       method: method,
@@ -1884,6 +1921,69 @@ async function saveRapidEntry() {
   document.getElementById(id).addEventListener('input', updateEditLocationSuggestions);
   document.getElementById(id).addEventListener('change', updateEditLocationSuggestions);
 });
+
+// Quick Search QR Board logic
+const qrBoardOverlay = document.getElementById('qrBoardOverlay');
+const showQrBoardBtn = document.getElementById('showQrBoardBtn');
+const closeQrBoardBtn = document.getElementById('closeQrBoardBtn');
+const printQrBoardBtn = document.getElementById('printQrBoardBtn');
+const qrBoardCodeImg = document.getElementById('qrBoardCodeImg');
+const qrBoardUrlText = document.getElementById('qrBoardUrlText');
+
+if (showQrBoardBtn) {
+  showQrBoardBtn.addEventListener('click', async () => {
+    let guestUrl = `${window.location.origin}${window.location.pathname}?mode=guest`;
+    
+    // Substitute localhost/127.0.0.1 with local network IP for mobile device access
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      try {
+        const hostRes = await fetch('/api/host-info').then(r => r.json());
+        if (hostRes.success && hostRes.localIp && hostRes.localIp !== 'localhost') {
+          guestUrl = `${window.location.protocol}//${hostRes.localIp}:${hostRes.port}${window.location.pathname}?mode=guest`;
+        }
+      } catch (e) {
+        console.warn("Could not retrieve local host IP from server:", e);
+      }
+    }
+    
+    // Generate QR locally (works offline on the warehouse LAN);
+    // fall back to the remote API only if the vendored lib failed to load
+    const container = document.getElementById('qrBoardCodeContainer');
+    if (window.QRCode && container) {
+      container.innerHTML = '';
+      container.style.display = 'block';
+      qrBoardCodeImg.style.display = 'none';
+      new QRCode(container, {
+        text: guestUrl,
+        width: 250,
+        height: 250,
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } else {
+      if (container) container.style.display = 'none';
+      qrBoardCodeImg.style.display = 'block';
+      qrBoardCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(guestUrl)}`;
+    }
+    
+    // Display textual URL
+    qrBoardUrlText.textContent = guestUrl;
+    
+    // Open the overlay
+    qrBoardOverlay.classList.add('show');
+  });
+}
+
+if (closeQrBoardBtn) {
+  closeQrBoardBtn.addEventListener('click', () => {
+    qrBoardOverlay.classList.remove('show');
+  });
+}
+
+if (printQrBoardBtn) {
+  printQrBoardBtn.addEventListener('click', () => {
+    window.print();
+  });
+}
 
 // Start app on DOM ready
 document.addEventListener('DOMContentLoaded', initApp);

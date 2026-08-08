@@ -92,9 +92,17 @@ ALTER TABLE products DISABLE ROW LEVEL SECURITY;
   }
 
   console.log(`Current rows in Supabase "products" table: ${count || 0}`);
-  console.log('Uploading 16,866 records in batches of 500...');
+  console.log('🧹 Cleaning existing products table in Supabase...');
+  const { error: deleteErr } = await supabase.from('products').delete().gt('id', -1);
+  if (deleteErr) {
+    console.warn('⚠️ Warning clearing products table:', deleteErr.message);
+  } else {
+    console.log('✅ Database cleaned successfully!');
+  }
 
-  const chunkSize = 500;
+  console.log(`Uploading ${formattedItems.length} master product records in batches of 1,000...`);
+
+  const chunkSize = 1000;
   let insertedTotal = 0;
 
   for (let i = 0; i < formattedItems.length; i += chunkSize) {
@@ -114,7 +122,7 @@ ALTER TABLE products DISABLE ROW LEVEL SECURITY;
     }
   }
 
-  console.log(`\n\n🎉 SUCCESS! Uploaded ${insertedTotal} products to Supabase PostgreSQL!`);
+  console.log(`\n\n🎉 SUCCESS! Database cleaned and uploaded ${insertedTotal} master products to Supabase PostgreSQL!`);
 }
 
 runSeed();

@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="js/vendor/qrcode.min.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -20,7 +21,13 @@
       <div class="sub" data-i18n="appSub">Find where a product goes, or add a new one</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-      <button id="langToggleBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700;">🌐 EN / 中文</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="showQrBoardBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700; display: inline-flex; align-items: center; gap: 4px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
+          <span data-i18n="quickSearchBoard">Search Board QR</span>
+        </button>
+        <button id="langToggleBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700;">🌐 EN / 中文</button>
+      </div>
       <div class="user-pill-container" id="userBadge" style="background: none; border: none; padding: 0; box-shadow: none;">
         <div class="user-avatar-icon" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -79,7 +86,7 @@
   <div class="extra-row" id="extraRow" style="display:none;flex-wrap:wrap;gap:8px;">
     <div class="extra-pill"><div class="pl" data-i18n="barcode">Barcode</div><div class="pv" id="pBarcode">—</div></div>
     <div class="extra-pill"><div class="pl" data-i18n="onHand">On hand</div><div class="pv" id="pQty">—</div></div>
-    <div class="extra-pill" style="flex:1.5; display: none;"><div class="pl">Responsible Stockman</div><div class="pv" id="pStockman">System Import</div></div>
+    <div class="extra-pill" style="flex:1.5; display: none;"><div class="pl">Responsible Stockman</div><div class="pv" id="pStockman"></div></div>
   </div>
   <div class="card-actions" id="cardActions" style="display:none;">
     <button id="editProductBtn" class="card-action-btn" type="button">
@@ -120,8 +127,8 @@
     </div>
 
     <div class="field">
-      <label data-i18n="itemCodeLabel">Item / stock code <span style="font-weight:400; color: var(--muted); font-size:12px;">(optional)</span></label>
-      <input id="fStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
+      <label data-i18n="itemCodeLabel">Stock No. <span style="font-weight:400; color: var(--muted); font-size:12px;">(optional)</span></label>
+      <input id="fStock" type="text" autocomplete="off" placeholder="e.g. OR6868-5L">
     </div>
 
     <div class="field">
@@ -136,8 +143,8 @@
     </div>
 
     <div class="field">
-      <label data-i18n="subcategoryLabel">Sub-category (optional)</label>
-      <input id="fSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
+      <label data-i18n="departmentLabel">Department (optional)</label>
+      <input id="fSubcategory" type="text" autocomplete="off" placeholder="e.g. Sports & Outdoor">
     </div>
 
     <div class="field field-required">
@@ -208,7 +215,7 @@
     </div>
 
     <div class="field field-required">
-      <label data-i18n="itemCodeLabel">Stock Code</label>
+      <label data-i18n="itemCodeLabel">Stock No.</label>
       <input id="efStock" type="text" autocomplete="off">
     </div>
 
@@ -224,8 +231,8 @@
     </div>
 
     <div class="field">
-      <label data-i18n="subcategoryLabel">Sub-category (optional)</label>
-      <input id="efSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
+      <label data-i18n="departmentLabel">Department (optional)</label>
+      <input id="efSubcategory" type="text" autocomplete="off" placeholder="e.g. Sports & Outdoor">
     </div>
 
     <div class="field field-required">
@@ -388,8 +395,8 @@
       </div>
       
       <div class="field field-required" style="margin-bottom: 10px;">
-        <label data-i18n="itemCodeLabel">Item / stock code</label>
-        <input id="rfStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
+        <label data-i18n="itemCodeLabel">Stock No.</label>
+        <input id="rfStock" type="text" autocomplete="off" placeholder="e.g. OR6868-5L">
       </div>
 
       <div class="field" style="margin-bottom: 10px;">
@@ -398,8 +405,8 @@
       </div>
 
       <div class="field" style="margin-bottom: 0;">
-        <label data-i18n="subcategoryLabel">Sub-category (optional)</label>
-        <input id="rfSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
+        <label data-i18n="departmentLabel">Department (optional)</label>
+        <input id="rfSubcategory" type="text" autocomplete="off" placeholder="e.g. Sports & Outdoor">
       </div>
     </div>
 
@@ -421,6 +428,36 @@
       <div id="rapidLogList" style="display:flex; flex-direction:column; gap:6px; max-height: 120px; overflow-y:auto; font-size: 12px; font-family:'Poppins', sans-serif; color: var(--ink);">
         <!-- Last 5 logs go here -->
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- QR BOARD MODAL OVERLAY -->
+<div id="qrBoardOverlay" class="modal-overlay">
+  <div class="form-panel print-area" style="max-width: 550px; border-radius: 16px; overflow: hidden; padding: 0;">
+    <div id="qrPosterContent" style="padding: 30px; text-align: center; background: #ffffff;">
+      <div style="font-family:'Poppins',sans-serif; font-size:11px; font-weight:700; color:var(--safety); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:10px;" data-i18n="brandEyebrow">Warehouse Product Locator</div>
+      <h2 style="font-size:26px; margin: 0 0 10px 0; color:var(--ink); font-weight:700;" data-i18n="qrBoardTitle">Quick Search Display Board</h2>
+      <p style="font-size: 13px; color: var(--muted); margin: 0 auto 24px; line-height: 1.5; max-width: 420px;" class="no-print" data-i18n="qrBoardSub">Print this board and post it on your warehouse walls or doors. Customers and staff can scan it to instantly find product locations on their phones without logging in.</p>
+      
+      <div style="background: #faf5ff; border: 1px dashed #c084fc; padding: 16px; border-radius: 12px; font-size: 13px; text-align: left; margin-bottom: 24px; line-height: 1.6; color: #581c87;">
+        <div style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; color: #7e22ce;">Instructions / 使用说明:</div>
+        <div data-i18n="qrBoardInstructions">1. Scan the QR code below using your phone's camera.<br>2. Search by product name or scan a barcode to see its location immediately.</div>
+      </div>
+      
+      <div style="background: #ffffff; border: 2px solid var(--line); border-radius: 16px; padding: 20px; display: inline-block; box-shadow: 0 10px 25px -10px rgba(0,0,0,0.06); margin-bottom: 24px;">
+        <div id="qrBoardCodeContainer" style="width: 250px; height: 250px; margin: 0 auto;"></div>
+        <img id="qrBoardCodeImg" src="" alt="QR Code" style="width: 250px; height: 250px; display: none; margin: 0 auto;">
+      </div>
+      
+      <div style="font-family:'Poppins',monospace; font-size: 11.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 16px; margin-top: 8px;">
+        Web Access: <strong id="qrBoardUrlText" style="color: var(--ink);"></strong>
+      </div>
+    </div>
+    
+    <div class="form-actions no-print" style="padding: 16px 30px 24px; background: #fafafa; border-top: 1px solid var(--line); margin: 0;">
+      <button id="closeQrBoardBtn" class="btn-cancel" style="margin-top:0; flex:1;" type="button" data-i18n="cancel">Cancel</button>
+      <button id="printQrBoardBtn" class="btn-save" style="margin-top:0; flex:1; background:var(--ink) !important; color: white !important;" type="button" data-i18n="printPoster">Print Poster</button>
     </div>
   </div>
 </div>

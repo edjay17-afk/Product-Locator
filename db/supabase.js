@@ -35,7 +35,7 @@ function loadSeedData() {
         qty: typeof p.qty === 'number' ? p.qty : 0,
         status: p.status || '',
         custom: p.custom ? true : false,
-        last_modified_by: p.last_modified_by || 'System Import'
+        last_modified_by: (p.last_modified_by && p.last_modified_by !== 'System Import') ? p.last_modified_by : ''
       }));
     } catch (e) {
       console.warn('Could not read seed-data.json:', e);
@@ -120,7 +120,7 @@ async function seedSupabaseIfEmpty() {
         qty: p.qty,
         status: p.status,
         custom: p.custom,
-        last_modified_by: 'System Import'
+        last_modified_by: ''
       }));
 
       const chunkSize = 200;

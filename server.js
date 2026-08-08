@@ -12,6 +12,7 @@ let XLSX;
 try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 
 const db = require('./db/supabase');
+const os = require('os');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002', 10);
@@ -19,6 +20,32 @@ const PORT = parseInt(process.env.PORT || '3002', 10);
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+function getLocalIpAddress() {
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Error reading network interfaces:', e);
+  }
+  return 'localhost';
+}
+
+// Endpoint to fetch host and local IP address info
+app.get('/api/host-info', (req, res) => {
+  const localIp = getLocalIpAddress();
+  res.json({
+    success: true,
+    localIp,
+    port: PORT
+  });
+});
 
 // --- REST API ENDPOINTS ---
 
