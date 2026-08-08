@@ -38,7 +38,7 @@ const TRANSLATIONS = {
     levelLabel: "Level (0 = bottom)",
     qtyLabel: "How many are on hand?",
     stockmanLabel: "Responsible Stockman",
-    formError: "Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.",
+    formError: "Please fill in Product Name, Row, Shelf, and On Hand Quantity.",
     detailsTitle: "Product Details & Location",
     detailsSub: "View details or update shelf position for this item in the database.",
     barcode: "Barcode",
@@ -114,7 +114,7 @@ const TRANSLATIONS = {
     levelLabel: "层数 (0 = 底层)",
     qtyLabel: "现有库存数量",
     stockmanLabel: "负责理货员",
-    formError: "请填写商品名称、货号、通道号、货架号和现有库存数。",
+    formError: "请填写商品名称、通道号、货架号和现有库存数。",
     detailsTitle: "商品详情与库位",
     detailsSub: "在数据库中查看详情或更新商品货架位置。",
     barcode: "条形码",
@@ -488,7 +488,7 @@ async function doSearch(q, isFinal = false) {
   q = q.trim().toLowerCase();
   if (!q) { hideResults(); return; }
 
-  // 1. Instant local index lookup
+  // 1. Instant local index lookup — exact barcode or stock match → go straight to card
   if (byBarcode[q]) {
     renderProduct(byBarcode[q]);
     document.getElementById('searchInput').value = '';
@@ -500,29 +500,58 @@ async function doSearch(q, isFinal = false) {
     return;
   }
 
-  // Local substring search
+  // 2. Local substring search (name/partial barcode)
   const localMatches = PRODUCTS.filter(p => {
     const barcode = (p.barcode || p.b || '').toString().toLowerCase();
     const stockCode = (p.stock_code || p.s || '').toString().toLowerCase();
     const name = (p.name || p.n || '').toLowerCase();
     return barcode.includes(q) || stockCode.includes(q) || name.includes(q);
-  }).slice(0, 10);
+  });
 
-  if (localMatches.length > 0) {
-    renderMatches(localMatches);
+  // Deduplicate by barcode so multi-location products appear once in the list
+  const seen = new Set();
+  const dedupedMatches = [];
+  for (const p of localMatches) {
+    const key = (p.barcode || p.b || p.stock_code || p.s || p.name || p.n || '').toLowerCase();
+    if (!seen.has(key)) { seen.add(key); dedupedMatches.push(p); }
+    if (dedupedMatches.length >= 10) break;
+  }
+
+  if (dedupedMatches.length === 1) {
+    // Only one unique product — show card directly
+    renderProduct(dedupedMatches[0]);
+    document.getElementById('searchInput').value = '';
     return;
   }
 
-  // 2. Server API Search Fallback
+  if (dedupedMatches.length > 1) {
+    renderMatches(dedupedMatches);
+    return;
+  }
+
+  // 3. Server API Search Fallback
   try {
-    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=10`).then(r => r.json());
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=50`).then(r => r.json());
     if (res.success && res.products.length > 0) {
-      if (res.products.length === 1 && (res.products[0].barcode.toLowerCase() === q || res.products[0].stock_code.toLowerCase() === q)) {
-        renderProduct(res.products[0]);
+      // Check for exact barcode/stock match in server results → show card directly
+      const exactMatch = res.products.find(item =>
+        (item.barcode || '').toLowerCase() === q ||
+        (item.stock_code || '').toLowerCase() === q
+      );
+      if (exactMatch) {
+        renderProduct(exactMatch);
         document.getElementById('searchInput').value = '';
-      } else {
-        renderMatches(res.products);
+        return;
       }
+      // Otherwise show deduped list
+      const seenSrv = new Set();
+      const dedupedSrv = [];
+      for (const p of res.products) {
+        const key = (p.barcode || p.stock_code || p.name || '').toLowerCase();
+        if (!seenSrv.has(key)) { seenSrv.add(key); dedupedSrv.push(p); }
+        if (dedupedSrv.length >= 10) break;
+      }
+      renderMatches(dedupedSrv);
       return;
     }
   } catch (err) {
@@ -766,7 +795,10 @@ async function saveNewProduct() {
   const qtyRaw = document.getElementById('fQty').value.trim();
   const stockmanRaw = document.getElementById('fStockman').value.trim();
 
-  if (!name || !stock_code || !row || !shelf || qtyRaw === '') {
+  // stock_code is optional; if blank, use the barcode as fallback identifier
+  const effective_stock_code = stock_code || barcode || '';
+
+  if (!name || !row || !shelf || qtyRaw === '') {
     formError.classList.add('show');
     return;
   }
@@ -774,7 +806,7 @@ async function saveNewProduct() {
 
   const payload = {
     barcode,
-    stock_code,
+    stock_code: effective_stock_code,
     name,
     category: category || 'Uncategorized',
     subcategory,
@@ -1398,7 +1430,9 @@ function closeRapidLogger() {
 }
 
 // Function to handle barcode registration state change
-function handleRapidBarcodeScanned(barcode) {
+// Uses server-side exact lookup so products added via Rapid Logger (not in local cache)
+// are also correctly recognised as existing.
+async function handleRapidBarcodeScanned(barcode) {
   currentRapidBarcode = barcode.trim();
   if (!currentRapidBarcode) {
     rapidBarcodeBadge.style.display = 'none';
@@ -1406,35 +1440,53 @@ function handleRapidBarcodeScanned(barcode) {
     return;
   }
 
-  // Look in PRODUCTS array
-  const found = PRODUCTS.find(p => {
+  // Show a temporary searching state
+  rapidBarcodeBadgeVal.innerHTML = `${currentRapidBarcode} <br><span style="color:#64748b; font-size:12px;">Searching…</span>`;
+  rapidBarcodeBadge.style.display = 'block';
+  rapidBarcodeBadge.style.background = '#f8fafc';
+  rapidBarcodeBadge.style.borderColor = '#cbd5e1';
+  rapidBarcodeBadge.style.color = '#0f172a';
+
+  // 1. Check local cache first (fast path)
+  let found = PRODUCTS.find(p => {
     const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
     const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
     return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
   });
 
+  // 2. If not in local cache, ask the server (catches newly registered products)
+  if (!found) {
+    try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=5`).then(r => r.json());
+      if (res.success && res.products.length > 0) {
+        found = res.products.find(item =>
+          (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
+          (item.stock_code || '').toLowerCase() === currentRapidBarcode.toLowerCase()
+        );
+      }
+    } catch (e) {
+      console.warn('Server lookup failed during rapid barcode scan', e);
+    }
+  }
+
   if (found) {
     const name = found.name || found.n;
-    rapidBarcodeBadgeVal.innerHTML = `${currentRapidBarcode} <br><span style="color:#16a34a; font-size:12px;">Matched: ${name}</span>`;
-    rapidBarcodeBadge.style.display = 'block';
+    rapidBarcodeBadgeVal.innerHTML = `${currentRapidBarcode} <br><span style="color:#16a34a; font-size:12px;">✅ Matched: ${escapeHtml(name)}</span>`;
     rapidBarcodeBadge.style.background = '#f0fdf4';
     rapidBarcodeBadge.style.borderColor = '#bbf7d0';
     rapidBarcodeBadge.style.color = '#15803d';
-    
     rapidNewProductFields.style.display = 'none';
     rfName.value = '';
     rfStock.value = '';
     rfCategory.value = '';
     rfSubcategory.value = '';
   } else {
-    rapidBarcodeBadgeVal.innerHTML = `${currentRapidBarcode} <br><span style="color:#2563eb; font-size:12px;">${CURRENT_LANG === 'en' ? '🆕 New Product' : '🆕 新商品'}</span>`;
-    rapidBarcodeBadge.style.display = 'block';
+    rapidBarcodeBadgeVal.innerHTML = `${currentRapidBarcode} <br><span style="color:#2563eb; font-size:12px;">${CURRENT_LANG === 'en' ? '🆕 New Product — fill in details below' : '🆕 新商品 — 请填写以下资料'}</span>`;
     rapidBarcodeBadge.style.background = '#eff6ff';
     rapidBarcodeBadge.style.borderColor = '#bfdbfe';
     rapidBarcodeBadge.style.color = '#1d4ed8';
-    
     rapidNewProductFields.style.display = 'block';
-    rfStock.value = currentRapidBarcode.slice(0, 8); // Pre-fill stock code
+    rfStock.value = currentRapidBarcode.slice(0, 8);
     setTimeout(() => rfName.focus(), 150);
   }
 }

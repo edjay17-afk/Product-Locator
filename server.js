@@ -241,6 +241,11 @@ app.post('/api/products', async (req, res) => {
       });
     }
 
+    // stock_code is optional — default to barcode if not supplied
+    if (!req.body.stock_code) {
+      req.body.stock_code = req.body.barcode || '';
+    }
+
     const pad2 = (v) => {
       const s = (v || '').toString().trim();
       return s.length === 1 ? '0' + s : s;
