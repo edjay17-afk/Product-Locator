@@ -1,3 +1,150 @@
+const TRANSLATIONS = {
+  en: {
+    brandEyebrow: "Warehouse Product Locator",
+    appTitle: "Product Locator",
+    appSub: "Find where a product goes, or add a new one",
+    databaseConnected: "Database Connected",
+    skusMapped: "SKUs mapped",
+    loadingDb: "Loading database...",
+    searchPlaceholder: "Type a barcode, item code, or product name…",
+    scanBtn: "Scan",
+    addBtn: "Add Product",
+    rapidBtn: "⚡ Rapid Logger",
+    uploadExcelBtn: "Upload Excel",
+    recentHead: "Recent lookups",
+    clearRecent: "clear",
+    signIn: "Sign In",
+    logout: "Logout",
+    cancel: "Cancel",
+    save: "Save",
+    saveProduct: "Save Product",
+    saveChanges: "Save Changes",
+    addNewTitle: "Add a New Product",
+    addNewSub: "Fill this in for a product that isn't in the system yet. Tell us its name and exactly where it sits on the shelf — that's what shows up next time someone searches for it.",
+    barcodeLabel: "Barcode number",
+    barcodeHint: "Scan it or type the numbers printed under the barcode. Leave blank if the item has no barcode.",
+    prodNameLabel: "Product name",
+    prodNameHint: "What is it? Write it the way you'd say it out loud, e.g. \"16oz plastic tumbler\".",
+    itemCodeLabel: "Item / stock code",
+    itemCodeHint: "The short code printed on the price tag, if it has one.",
+    categoryLabel: "Category (optional)",
+    subcategoryLabel: "Sub-category (optional)",
+    storedLabel: "Where is it stored?",
+    storedHint: "This is what tells the next person exactly where to find it on the shelf.",
+    floorLabel: "Floor",
+    rowLabel: "Row number",
+    shelfLabel: "Shelf number",
+    levelLabel: "Level (0 = bottom)",
+    qtyLabel: "How many are on hand?",
+    stockmanLabel: "Responsible Stockman",
+    formError: "Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.",
+    detailsTitle: "Product Details & Location",
+    detailsSub: "View details or update shelf position for this item in the database.",
+    barcode: "Barcode",
+    onHand: "On hand",
+    editLocDetails: "Edit Location / Details",
+    scanNewLoc: "Scan QR for New Location",
+    rapidTitle: "⚡ Rapid Location Logger",
+    rapidSub: "Quickly scan a product, scan its location QR, and save. Repeat for high-speed mapping.",
+    rapidBarcodeLabel: "1. Scan / Type Product Barcode",
+    rapidLocLabel: "2. Scan / Type Location (e.g. 1-02-01-03)",
+    rapidQtyLabel: "3. Quantity On Hand",
+    rapidSubmit: "Register & Next",
+    rapidSuccessLog: "Last Registered Items (This Session)",
+    rapidLocError: "Invalid location format. Expected format like '1-02-01-03'.",
+    rapidSaved: "Location mapped successfully!",
+    notFoundTitle: "Product Not Found",
+    notFoundBtn: "Add Product",
+    loginTitle: "Stockman Sign In",
+    loginSub: "Warehouse Accountability Access",
+    loginTip: "Sign in with your stockman profile to take responsibility for shelf location updates.",
+    quickLoginTitle: "Quick Select Stockman Profile:",
+    stockmanRole1: "Stockman 1",
+    stockmanRole2: "Stockman 2",
+    usernameLabel: "Username",
+    passwordLabel: "Password",
+    signInBtn: "Sign In as Stockman",
+    floor1: "1st Floor",
+    floor2: "2nd Floor",
+    floor3: "3rd Floor",
+    e1: "No product looked up yet",
+    e2: "Tap \"Scan\" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap \"Add Product\" to save it and its shelf location."
+  },
+  zh: {
+    brandEyebrow: "仓库商品定位系统",
+    appTitle: "库位导航",
+    appSub: "查找商品存放位置，或登记新商品",
+    databaseConnected: "数据库已连接",
+    skusMapped: "已登记库位商品数",
+    loadingDb: "正在加载数据库...",
+    searchPlaceholder: "输入条形码、商品编码或商品名称...",
+    scanBtn: "扫码",
+    addBtn: "添加商品",
+    rapidBtn: "⚡ 快速登记",
+    uploadExcelBtn: "导入 Excel",
+    recentHead: "最近查询",
+    clearRecent: "清除历史",
+    signIn: "登录",
+    logout: "登出",
+    cancel: "取消",
+    save: "保存",
+    saveProduct: "保存商品",
+    saveChanges: "保存修改",
+    addNewTitle: "添加新商品",
+    addNewSub: "在此处登记系统中尚不存在的商品。输入商品名称及其准确存放库位，以便下次其他人可以轻松找到。",
+    barcodeLabel: "条形码编号",
+    barcodeHint: "扫描条码或手动输入条码下方的数字。若无条码则留空。",
+    prodNameLabel: "商品名称",
+    prodNameHint: "例如：\"16盎司塑料水杯\"，请使用通俗易懂的名称。",
+    itemCodeLabel: "货号 / 库存编码",
+    itemCodeHint: "商品价格标签上印制的简短编码。",
+    categoryLabel: "分类（可选）",
+    subcategoryLabel: "子分类（可选）",
+    storedLabel: "存放位置",
+    storedHint: "这将准确指引下一个人在哪个货架上找到该商品。",
+    floorLabel: "楼层",
+    rowLabel: "通道 / 排号",
+    shelfLabel: "货架号",
+    levelLabel: "层数 (0 = 底层)",
+    qtyLabel: "现有库存数量",
+    stockmanLabel: "负责理货员",
+    formError: "请填写商品名称、货号、通道号、货架号和现有库存数。",
+    detailsTitle: "商品详情与库位",
+    detailsSub: "在数据库中查看详情或更新商品货架位置。",
+    barcode: "条形码",
+    onHand: "现有库存",
+    editLocDetails: "编辑库位 / 详情",
+    scanNewLoc: "扫描二维码添加新位置",
+    rapidTitle: "⚡ 快速位置登记",
+    rapidSub: "快速扫描商品条码，扫描库位二维码并保存。适合批量高速库位登记。",
+    rapidBarcodeLabel: "1. 扫描 / 输入商品条形码",
+    rapidLocLabel: "2. 扫描 / 输入库位 (例如 1-02-01-03)",
+    rapidQtyLabel: "3. 现有库存数量",
+    rapidSubmit: "登记并继续",
+    rapidSuccessLog: "本次登记记录（最近5条）",
+    rapidLocError: "库位格式错误。应为 '楼层-排号-货架号-层数' 格式（如 1-02-01-03）。",
+    rapidSaved: "库位登记成功！",
+    notFoundTitle: "未找到商品",
+    notFoundBtn: "添加商品",
+    loginTitle: "理货员登录",
+    loginSub: "仓库责任制访问授权",
+    loginTip: "使用理货员账户登录以对更新货架库位承担责任。",
+    quickLoginTitle: "快速选择理货员账号:",
+    stockmanRole1: "理货员 1",
+    stockmanRole2: "理货员 2",
+    usernameLabel: "用户名",
+    passwordLabel: "密码",
+    signInBtn: "理货员登录",
+    floor1: "1楼",
+    floor2: "2楼",
+    floor3: "3楼",
+    e1: "暂无查询记录",
+    e2: "点击“扫码”使用相机，或在上方输入条码、货号、名称。如果商品不存在，点击“添加商品”保存商品及其货架位置。"
+  }
+};
+
+let CURRENT_LANG = localStorage.getItem('wh_lang') || 'en';
+
 let PRODUCTS = [];
 let byBarcode = {};
 let byStock = {};
@@ -19,19 +166,68 @@ function updateUserUI() {
   const authBtn = document.getElementById('authBtn');
   const closeLoginModal = document.getElementById('closeLoginModal');
   const loginOverlay = document.getElementById('loginOverlay');
+  const scanQrBtn = document.getElementById('scanLocationQrBtn');
+  const rapidBtn = document.getElementById('rapidLoggerBtn');
 
   if (currentUser) {
     userBadge.style.display = 'flex';
     userNameDisplay.textContent = currentUser.full_name;
-    authBtn.textContent = 'Logout';
+    authBtn.textContent = CURRENT_LANG === 'en' ? 'Logout' : '登出';
     authBtn.className = 'user-auth-btn logout';
     closeLoginModal.style.display = 'block';
     loginOverlay.classList.remove('show');
+    if (activeProduct && scanQrBtn) {
+      scanQrBtn.style.display = 'inline-flex';
+    }
+    if (rapidBtn) {
+      rapidBtn.style.display = 'inline-flex';
+    }
   } else {
     userBadge.style.display = 'none';
     closeLoginModal.style.display = 'none';
     document.getElementById('loginFormError').style.display = 'none';
     loginOverlay.classList.add('show');
+    if (scanQrBtn) {
+      scanQrBtn.style.display = 'none';
+    }
+    if (rapidBtn) {
+      rapidBtn.style.display = 'none';
+    }
+  }
+}
+
+function updateLanguageUI() {
+  const lang = CURRENT_LANG;
+  const dict = TRANSLATIONS[lang];
+  if (!dict) return;
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (dict[key]) {
+      let textNode = Array.from(el.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+      if (textNode) {
+        textNode.textContent = dict[key];
+      } else {
+        el.textContent = dict[key];
+      }
+    }
+  });
+
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-i18n-placeholder');
+    if (dict[key]) {
+      el.placeholder = dict[key];
+    }
+  });
+
+  const langBtn = document.getElementById('langToggleBtn');
+  if (langBtn) {
+    langBtn.textContent = lang === 'en' ? '🇨🇳 中文' : '🇬🇧 English';
+  }
+
+  // Update dynamic lists
+  if (activeProduct) {
+    renderProduct(activeProduct);
   }
 }
 
@@ -39,6 +235,14 @@ let activeProduct = null;
 
 // Initialize app data from server database API
 async function initApp() {
+  updateUserUI();
+  updateLanguageUI();
+  
+  document.getElementById('langToggleBtn').addEventListener('click', () => {
+    CURRENT_LANG = CURRENT_LANG === 'en' ? 'zh' : 'en';
+    localStorage.setItem('wh_lang', CURRENT_LANG);
+    updateLanguageUI();
+  });
   updateUserUI();
 
   document.getElementById('emptyState').style.display = 'block';
@@ -97,7 +301,51 @@ function statusInfo(status) {
   return { cls: 'neutral', label: status };
 }
 
-function renderProduct(p) {
+function getLocationsForProduct(product) {
+  const barcode = (product.barcode || product.b || '').toString().trim().toLowerCase();
+  const stockCode = (product.stock_code || product.s || '').toString().trim().toLowerCase();
+  
+  if (!barcode && !stockCode) return [product];
+  
+  const matched = PRODUCTS.filter(p => {
+    const pBarcode = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const pStock = (p.stock_code || p.s || '').toString().trim().toLowerCase();
+    
+    if (barcode && pBarcode && barcode === pBarcode) return true;
+    if (stockCode && pStock && stockCode === pStock) return true;
+    return false;
+  });
+  
+  return matched.length > 0 ? matched : [product];
+}
+
+async function fetchLocationsForProduct(product) {
+  const barcode = (product.barcode || product.b || '').toString().trim().toLowerCase();
+  const stockCode = (product.stock_code || product.s || '').toString().trim().toLowerCase();
+  const q = barcode || stockCode;
+
+  if (!q) return [product];
+
+  try {
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=50`).then(r => r.json());
+    if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+      const exact = res.products.filter(item => {
+        const itemBarcode = (item.barcode || '').toString().trim().toLowerCase();
+        const itemStock = (item.stock_code || '').toString().trim().toLowerCase();
+        if (barcode && itemBarcode === barcode) return true;
+        if (stockCode && itemStock === stockCode) return true;
+        return false;
+      });
+      if (exact.length > 0) return exact;
+    }
+  } catch (e) {
+    console.warn("Failed to fetch fresh locations, falling back to local cache:", e);
+  }
+
+  return getLocationsForProduct(product);
+}
+
+async function renderProduct(p) {
   activeProduct = p;
   document.getElementById('emptyState').style.display = 'none';
   const card = document.getElementById('tagCard');
@@ -113,30 +361,69 @@ function renderProduct(p) {
   document.getElementById('pCat').textContent = category;
   document.getElementById('pSub').textContent = subcategory + (p.custom ? '  •  Added by staff' : '');
 
-  const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
-  const batch = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row || '');
-  const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
-  const level = p.level !== undefined && p.level !== null ? String(p.level) : '';
-
-  const hasLoc = floor !== '';
-  document.getElementById('cFloor').textContent = hasLoc ? floor : '–';
-  document.getElementById('cRow').textContent = hasLoc ? batch : '–';
-  document.getElementById('cShelf').textContent = hasLoc ? shelf : '–';
-  document.getElementById('cLevel').textContent = hasLoc ? level : '–';
-
-  const locFull = p.loc_full || p.locFull || (hasLoc ? `${floor}-${batch}-${shelf}-${level}` : 'Location not yet assigned');
-  document.getElementById('pFull').textContent = locFull;
-
-  const st = statusInfo(p.status);
-  const badge = document.getElementById('pStatus');
-  badge.textContent = st.label;
-  badge.className = 'badge ' + st.cls;
-
   const barcode = p.barcode || p.b;
   const stockCode = p.stock_code || p.s;
   document.getElementById('pBarcode').textContent = barcode || (stockCode ? ('#' + stockCode) : '—');
-  document.getElementById('pQty').textContent = (p.qty !== undefined && p.qty !== null ? p.qty : '—');
-  document.getElementById('pStockman').textContent = p.last_modified_by || p.modifiedBy || 'System Import';
+
+  // Multi-location rendering (fresh fetch from DB)
+  const locs = await fetchLocationsForProduct(p);
+  const totalQty = locs.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+  document.getElementById('pQty').textContent = totalQty;
+
+  const locationsList = document.getElementById('locationsList');
+  locationsList.innerHTML = '';
+
+  locs.forEach((item, index) => {
+    const floor = item.floor !== undefined && item.floor !== null ? String(item.floor) : '';
+    const batch = item.batch !== undefined && item.batch !== null ? String(item.batch) : (item.row || '');
+    const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf) : '';
+    const level = item.level !== undefined && item.level !== null ? String(item.level) : '';
+    const hasLoc = floor !== '';
+    
+    const locFull = item.loc_full || item.locFull || (hasLoc ? `${floor}-${batch}-${shelf}-${level}` : 'Location not yet assigned');
+    const st = statusInfo(item.status);
+    const qtyVal = item.qty !== undefined && item.qty !== null ? item.qty : 0;
+    const stockmanVal = item.last_modified_by || item.modifiedBy || 'System Import';
+
+    const subCard = document.createElement('div');
+    subCard.className = 'location-subcard';
+    subCard.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span class="badge ${st.cls}" style="font-size: 11px; padding: 4px 8px;">${st.label}</span>
+        <span style="font-family: var(--mono); font-size: 12.5px; color: var(--ink); font-weight: 600;">Qty: ${qtyVal}</span>
+      </div>
+      
+      <div class="grid4" style="margin: 8px 0 12px 0;">
+        <div class="cell"><div class="clabel">Floor</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
+        <div class="cell"><div class="clabel">Row</div><div class="cval">${hasLoc ? batch : '–'}</div></div>
+        <div class="cell"><div class="clabel">Shelf</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
+        <div class="cell"><div class="clabel">Level</div><div class="cval">${hasLoc ? level : '–'}</div></div>
+      </div>
+      
+      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px; font-family: var(--body);">
+        📍 ${locFull}
+      </div>
+      
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--line); padding-top: 10px; font-size: 11.5px; color: var(--muted); margin-top: 6px;">
+        <span>Stockman: <strong>${stockmanVal}</strong></span>
+        <button class="user-auth-btn login" style="font-size: 11px; padding: 4px 10px; margin: 0; border-radius: 8px;" type="button" onclick="openEditFormForProductIndex(${index})">Edit Location</button>
+      </div>
+    `;
+    locationsList.appendChild(subCard);
+  });
+
+  window.currentLocs = locs;
+
+  const editBtn = document.getElementById('editProductBtn');
+  const scanQrBtn = document.getElementById('scanLocationQrBtn');
+
+  editBtn.style.display = 'none';
+
+  if (currentUser) {
+    scanQrBtn.style.display = 'inline-flex';
+  } else {
+    scanQrBtn.style.display = 'none';
+  }
 
   if (navigator.vibrate) navigator.vibrate(60);
 
@@ -410,7 +697,9 @@ async function startScanner(target) {
   overlay.classList.add('show');
   const hintEl = document.querySelector('.scan-hint');
   hintEl.style.color = '';
-  hintEl.textContent = 'Hold the item barcode steady inside the frame.';
+  hintEl.textContent = target === 'location_qr'
+    ? 'Point the camera at the location QR code (e.g. 1-02-01-03).'
+    : 'Hold the item barcode steady inside the frame.';
 
   if (html5QrCode) {
     try { await html5QrCode.stop(); } catch (e) {}
@@ -474,6 +763,16 @@ function onScanSuccess(code) {
   stopScanner();
   if (scanTarget === 'add') {
     document.getElementById('fBarcode').value = code;
+  } else if (scanTarget === 'location_qr') {
+    handleLocationQRScan(code);
+  } else if (scanTarget === 'rapid_barcode') {
+    const input = document.getElementById('rfBarcode');
+    input.value = code;
+    input.dispatchEvent(new Event('input'));
+    document.getElementById('rfLocation').focus();
+  } else if (scanTarget === 'rapid_location_qr') {
+    document.getElementById('rfLocation').value = code;
+    document.getElementById('rfQty').focus();
   } else {
     document.getElementById('searchInput').value = code;
     doSearch(code, true);
@@ -1055,6 +1354,267 @@ document.addEventListener('click', (e) => {
     if (dropdown) dropdown.style.display = 'none';
   }
 });
+
+document.getElementById('scanLocationQrBtn').addEventListener('click', () => startScanner('location_qr'));
+
+function parseLocationQR(text) {
+  text = text.trim();
+  const parts = text.split('-');
+  if (parts.length >= 3) {
+    return {
+      floor: parts[0].trim(),
+      row: parts[1].trim(),
+      shelf: parts[2].trim(),
+      level: parts[3] ? parts[3].trim() : '00'
+    };
+  }
+  return null;
+}
+
+async function handleLocationQRScan(code) {
+  if (!activeProduct) {
+    alert("No active product selected to link a location to.");
+    return;
+  }
+  const parsed = parseLocationQR(code);
+  if (!parsed) {
+    alert("Invalid location QR code format. Expected e.g. '1-02-01-03'.");
+    return;
+  }
+
+  showToast("Registering new location...");
+
+  const payload = {
+    barcode: activeProduct.barcode || activeProduct.b || '',
+    stock_code: activeProduct.stock_code || activeProduct.s || '',
+    name: activeProduct.name || activeProduct.n,
+    category: activeProduct.category || activeProduct.c || 'Uncategorized',
+    subcategory: activeProduct.subcategory || activeProduct.sc || '',
+    floor: parsed.floor,
+    batch: parsed.row,
+    shelf: parsed.shelf,
+    level: parsed.level,
+    qty: 0,
+    last_modified_by: currentUser ? currentUser.full_name : 'Staff Scanner'
+  };
+
+  try {
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    if (res.success) {
+      showToast("📍 New location linked successfully!");
+      
+      const productsRes = await fetch('/api/products/all').then(r => r.json());
+      if (productsRes.success && Array.isArray(productsRes.products)) {
+        PRODUCTS = productsRes.products;
+        rebuildIndex();
+        updateCategoryDatalist();
+        
+        const updatedProduct = PRODUCTS.find(p => p.id === res.product.id) || res.product;
+        renderProduct(updatedProduct);
+      }
+    } else {
+      alert("Failed to register location: " + (res.error || "Unknown error"));
+    }
+  } catch (err) {
+    console.error("Failed to post new location:", err);
+    alert("Network error: failed to link location.");
+  }
+}
+
+window.openEditFormForProductIndex = function(index) {
+  if (!window.currentLocs || !window.currentLocs[index]) return;
+  const p = window.currentLocs[index];
+  
+  document.getElementById('efId').value = p.id;
+  document.getElementById('efName').value = p.name || p.n || '';
+  document.getElementById('efBarcode').value = p.barcode || p.b || '';
+  document.getElementById('efStock').value = p.stock_code || p.s || '';
+  document.getElementById('efFloor').value = p.floor || '1';
+  document.getElementById('efRow').value = p.floor !== undefined ? (p.batch || p.row || '') : '';
+  document.getElementById('efShelf').value = p.shelf || '';
+  document.getElementById('efLevel').value = p.level || '00';
+  document.getElementById('efQty').value = p.qty !== undefined ? p.qty : '';
+  document.getElementById('efStockman').value = p.last_modified_by || p.modifiedBy || (currentUser ? currentUser.full_name : '');
+
+  document.getElementById('editFormError').classList.remove('show');
+  document.getElementById('editOverlay').classList.add('show');
+  updateEditLocationSuggestions();
+};
+
+// --- RAPID LOCATION LOGGER LOGIC ---
+const rapidOverlay = document.getElementById('rapidOverlay');
+const rfBarcode = document.getElementById('rfBarcode');
+const rfLocation = document.getElementById('rfLocation');
+const rfQty = document.getElementById('rfQty');
+const rapidFormError = document.getElementById('rapidFormError');
+const rapidLogList = document.getElementById('rapidLogList');
+
+let rapidLogs = [];
+
+document.getElementById('rapidLoggerBtn').addEventListener('click', openRapidLogger);
+document.getElementById('closeRapidBtn').addEventListener('click', closeRapidLogger);
+document.getElementById('saveRapidBtn').addEventListener('click', saveRapidEntry);
+
+document.getElementById('scanForRapidBarcodeBtn').addEventListener('click', () => startScanner('rapid_barcode'));
+document.getElementById('scanForRapidLocBtn').addEventListener('click', () => startScanner('rapid_location_qr'));
+
+function openRapidLogger() {
+  rfBarcode.value = '';
+  rfLocation.value = '';
+  rfQty.value = '1';
+  document.getElementById('rapidProductPreview').style.display = 'none';
+  rapidFormError.classList.remove('show');
+  rapidOverlay.classList.add('show');
+  setTimeout(() => rfBarcode.focus(), 150);
+}
+
+function closeRapidLogger() {
+  rapidOverlay.classList.remove('show');
+}
+
+rfBarcode.addEventListener('input', () => {
+  const val = rfBarcode.value.trim().toLowerCase();
+  const previewEl = document.getElementById('rapidProductPreview');
+  const matchedNameEl = document.getElementById('rfMatchedName');
+
+  if (!val) {
+    previewEl.style.display = 'none';
+    return;
+  }
+
+  // Look in PRODUCTS array
+  const found = PRODUCTS.find(p => {
+    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
+    return (b && b === val) || (s && s === val);
+  });
+
+  if (found) {
+    matchedNameEl.textContent = found.name || found.n;
+    previewEl.style.display = 'block';
+    previewEl.style.color = '#10b981';
+  } else {
+    matchedNameEl.textContent = CURRENT_LANG === 'en' ? 'New Product (Will create record)' : '新商品（保存时将自动创建新记录）';
+    previewEl.style.display = 'block';
+    previewEl.style.color = '#3b82f6';
+  }
+});
+
+// Pressing enter in inputs transitions focus
+rfBarcode.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    rfLocation.focus();
+  }
+});
+rfLocation.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    rfQty.focus();
+  }
+});
+rfQty.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    saveRapidEntry();
+  }
+});
+
+async function saveRapidEntry() {
+  const barcode = rfBarcode.value.trim();
+  const locCode = rfLocation.value.trim();
+  const qtyRaw = rfQty.value.trim();
+
+  if (!barcode || !locCode || !qtyRaw) {
+    rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please fill in all fields.' : '请填写所有必填字段。';
+    rapidFormError.classList.add('show');
+    return;
+  }
+
+  const parsed = parseLocationQR(locCode);
+  if (!parsed) {
+    rapidFormError.textContent = TRANSLATIONS[CURRENT_LANG].rapidLocError;
+    rapidFormError.classList.add('show');
+    return;
+  }
+
+  rapidFormError.classList.remove('show');
+  showToast(CURRENT_LANG === 'en' ? 'Saving rapid location...' : '正在登记库位...');
+
+  // Search existing details
+  const existing = PRODUCTS.find(p => {
+    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
+    return (b && b === barcode.toLowerCase()) || (s && s === barcode.toLowerCase());
+  });
+
+  const payload = {
+    barcode: existing ? (existing.barcode || existing.b) : barcode,
+    stock_code: existing ? (existing.stock_code || existing.s) : barcode.slice(0, 8),
+    name: existing ? (existing.name || existing.n) : `Product ${barcode}`,
+    category: existing ? (existing.category || existing.c || 'Uncategorized') : 'Uncategorized',
+    subcategory: existing ? (existing.subcategory || existing.sc || '') : '',
+    floor: parsed.floor,
+    batch: parsed.row,
+    shelf: parsed.shelf,
+    level: parsed.level,
+    qty: parseInt(qtyRaw, 10) || 0,
+    last_modified_by: currentUser ? currentUser.full_name : 'Rapid Logger'
+  };
+
+  try {
+    const res = await fetch('/api/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    if (res.success) {
+      showToast(TRANSLATIONS[CURRENT_LANG].rapidSaved);
+
+      // Add to session logs list
+      const logText = `[${new Date().toLocaleTimeString()}] ${payload.name} (${payload.barcode}) &rarr; 📍 ${locCode} [Qty: ${payload.qty}]`;
+      rapidLogs.unshift(logText);
+      rapidLogs = rapidLogs.slice(0, 5);
+
+      rapidLogList.innerHTML = '';
+      rapidLogs.forEach(log => {
+        const item = document.createElement('div');
+        item.style.padding = '6px';
+        item.style.background = 'var(--bg)';
+        item.style.borderRadius = '6px';
+        item.style.border = '1px solid var(--line)';
+        item.innerHTML = log;
+        rapidLogList.appendChild(item);
+      });
+
+      // Update local PRODUCTS state
+      const productsRes = await fetch('/api/products/all').then(r => r.json());
+      if (productsRes.success && Array.isArray(productsRes.products)) {
+        PRODUCTS = productsRes.products;
+        rebuildIndex();
+        updateCategoryDatalist();
+      }
+
+      // Reset logger fields and focus barcode for next item
+      rfBarcode.value = '';
+      rfLocation.value = '';
+      rfQty.value = '1';
+      document.getElementById('rapidProductPreview').style.display = 'none';
+      rfBarcode.focus();
+    } else {
+      alert("Error saving: " + (res.error || "Unknown error"));
+    }
+  } catch (err) {
+    console.error("Failed to rapidly register product location:", err);
+    alert("Connection error: failed to register location.");
+  }
+}
 
 // Coordinate change listeners for Add modal
 ['fFloor', 'fRow', 'fShelf', 'fLevel'].forEach(id => {

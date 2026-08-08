@@ -13,41 +13,48 @@
 <body>
 <div class="wrap">
 
-  <header>
+  <header style="display:flex; justify-content:space-between; align-items:flex-start;">
     <div>
-      <div class="brand-eyebrow">Warehouse Product Locator</div>
-      <h1>Product&nbsp;Locator</h1>
-      <div class="sub">Find where a product goes, or add a new one</div>
+      <div class="brand-eyebrow" data-i18n="brandEyebrow">Warehouse Product Locator</div>
+      <h1 data-i18n="appTitle">Product&nbsp;Locator</h1>
+      <div class="sub" data-i18n="appSub">Find where a product goes, or add a new one</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-      <div class="tag-stamp" id="skuStamp">Loading database…</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="langToggleBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700;">🌐 EN / 中文</button>
+        <div class="tag-stamp" id="skuStamp">Loading database…</div>
+      </div>
       <div class="user-pill-container" id="userBadge" style="background: none; border: none; padding: 0; box-shadow: none;">
         <div class="user-avatar-icon" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <span class="user-name" id="userNameDisplay" style="display: none;">Guest</span>
-        <button id="authBtn" class="user-auth-btn login" type="button">Sign In</button>
+        <button id="authBtn" class="user-auth-btn login" type="button" data-i18n="signIn">Sign In</button>
       </div>
     </div>
   </header>
 
   <div class="controls">
     <div class="search-row">
-      <input id="searchInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Type a barcode, item code, or product name…">
+      <input id="searchInput" type="text" inputmode="numeric" autocomplete="off" placeholder="Type a barcode, item code, or product name…" data-i18n-placeholder="searchPlaceholder">
       <button id="scanBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
-        Scan
+        <span data-i18n="scanBtn">Scan</span>
       </button>
     </div>
     <div id="resultsList" class="results-list"></div>
     <div class="add-row" style="display:flex;gap:8px;">
       <button id="addProductBtn" type="button" style="flex:1;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add Product
+        <span data-i18n="addBtn">Add Product</span>
+      </button>
+      <button id="rapidLoggerBtn" type="button" style="flex:1; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: var(--display); font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <span data-i18n="rapidBtn">⚡ Rapid Logger</span>
       </button>
       <button id="uploadExcelBtn" type="button" class="card-action-btn" style="flex:1;margin-top:0;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        Upload Excel
+        <span data-i18n="uploadExcelBtn">Upload Excel</span>
       </button>
       <input id="excelFileInput" type="file" accept=".xlsx, .xls" style="display:none;">
     </div>
@@ -66,12 +73,12 @@
     </div>
     <div id="emptyPrompt" style="display:none;flex-direction:column;align-items:center;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/></svg>
-      <div class="e1">No product looked up yet</div>
-      <div class="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add Product" to save it and its shelf location.</div>
+      <div class="e1" data-i18n="e1">No product looked up yet</div>
+      <div class="e2" data-i18n="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add Product" to save it and its shelf location.</div>
     </div>
   </div>
 
-  <!-- LOCATION TAG CARD (Punch holes removed) -->
+  <!-- LOCATION TAG CARD -->
   <div id="tagCard" class="tagcard">
     <div class="tagcard-top">
       <p class="pname" id="pName">—</p>
@@ -80,67 +87,73 @@
         <span id="pSub">—</span>
       </div>
     </div>
-    <div class="grid4">
-      <div class="cell"><div class="clabel">Floor</div><div class="cval" id="cFloor">–</div></div>
-      <div class="cell"><div class="clabel">Row</div><div class="cval" id="cRow">–</div></div>
-      <div class="cell"><div class="clabel">Shelf</div><div class="cval" id="cShelf">–</div></div>
-      <div class="cell"><div class="clabel">Level</div><div class="cval" id="cLevel">–</div></div>
-    </div>
-    <div class="tagcard-bottom">
-      <span class="fulltext" id="pFull">—</span>
-      <span class="badge neutral" id="pStatus">—</span>
+    <div id="locationsList">
+      <div class="grid4">
+        <div class="cell"><div class="clabel" data-i18n="floorLabel">Floor</div><div class="cval" id="cFloor">–</div></div>
+        <div class="cell"><div class="clabel" data-i18n="rowLabel">Row</div><div class="cval" id="cRow">–</div></div>
+        <div class="cell"><div class="clabel" data-i18n="shelfLabel">Shelf</div><div class="cval" id="cShelf">–</div></div>
+        <div class="cell"><div class="clabel" data-i18n="levelLabel">Level</div><div class="cval" id="cLevel">–</div></div>
+      </div>
+      <div class="tagcard-bottom">
+        <span class="fulltext" id="pFull">—</span>
+        <span class="badge neutral" id="pStatus">—</span>
+      </div>
     </div>
   </div>
   <div class="extra-row" id="extraRow" style="display:none;flex-wrap:wrap;gap:8px;">
-    <div class="extra-pill"><div class="pl">Barcode</div><div class="pv" id="pBarcode">—</div></div>
-    <div class="extra-pill"><div class="pl">On hand</div><div class="pv" id="pQty">—</div></div>
+    <div class="extra-pill"><div class="pl" data-i18n="barcode">Barcode</div><div class="pv" id="pBarcode">—</div></div>
+    <div class="extra-pill"><div class="pl" data-i18n="onHand">On hand</div><div class="pv" id="pQty">—</div></div>
     <div class="extra-pill" style="flex:1.5; display: none;"><div class="pl">Responsible Stockman</div><div class="pv" id="pStockman">System Import</div></div>
   </div>
   <div class="card-actions" id="cardActions" style="display:none;">
     <button id="editProductBtn" class="card-action-btn" type="button">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      Edit Location / Details
+      <span data-i18n="editLocDetails">Edit Location / Details</span>
+    </button>
+    <button id="scanLocationQrBtn" class="card-action-btn" style="background: #d97706; color: white; display: none; gap: 6px; align-items: center;" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span data-i18n="scanNewLoc">Scan QR for New Location</span>
     </button>
   </div>
 
   <div class="recent-head">
-    <h2>Recent lookups</h2>
-    <button id="clearRecent" type="button">clear</button>
+    <h2 data-i18n="recentHead">Recent lookups</h2>
+    <button id="clearRecent" type="button" data-i18n="clearRecent">clear</button>
   </div>
   <div class="recent-strip" id="recentStrip"></div>
 
-  <footer id="footerText">Database Connected</footer>
+  <footer id="footerText" data-i18n="databaseConnected">Database Connected</footer>
 </div>
 
 <!-- ADD PRODUCT MODAL OVERLAY -->
 <div id="addOverlay" class="modal-overlay">
   <div class="form-panel">
-    <h2>Add a New Product</h2>
-    <div class="form-sub">Fill this in for a product that isn't in the system yet. Tell us its name and exactly where it sits on the shelf — that's what shows up next time someone searches for it.</div>
+    <h2 data-i18n="addNewTitle">Add a New Product</h2>
+    <div class="form-sub" data-i18n="addNewSub">Fill this in for a product that isn't in the system yet. Tell us its name and exactly where it sits on the shelf — that's what shows up next time someone searches for it.</div>
 
     <div class="field">
-      <label>Barcode number</label>
-      <div class="hint">Scan it or type the numbers printed under the barcode. Leave blank if the item has no barcode.</div>
+      <label data-i18n="barcodeLabel">Barcode number</label>
+      <div class="hint" data-i18n="barcodeHint">Scan it or type the numbers printed under the barcode. Leave blank if the item has no barcode.</div>
       <div class="field-scan-row">
         <input id="fBarcode" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 100002109790">
-        <button id="scanForAddBtn" type="button">Scan</button>
+        <button id="scanForAddBtn" type="button" data-i18n="scanBtn">Scan</button>
       </div>
     </div>
 
     <div class="field field-required">
-      <label>Product name</label>
-      <div class="hint">What is it? Write it the way you'd say it out loud, e.g. "16oz plastic tumbler".</div>
+      <label data-i18n="prodNameLabel">Product name</label>
+      <div class="hint" data-i18n="prodNameHint">What is it? Write it the way you'd say it out loud, e.g. "16oz plastic tumbler".</div>
       <input id="fName" type="text" autocomplete="off" placeholder="e.g. Balloon stick color/white 50cm">
     </div>
 
     <div class="field field-required">
-      <label>Item / stock code</label>
-      <div class="hint">The short code printed on the price tag, if it has one.</div>
+      <label data-i18n="itemCodeLabel">Item / stock code</label>
+      <div class="hint" data-i18n="itemCodeHint">The short code printed on the price tag, if it has one.</div>
       <input id="fStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
     </div>
 
     <div class="field">
-      <label>Category (optional)</label>
+      <label data-i18n="categoryLabel">Category (optional)</label>
       <div class="combobox-container" style="position: relative;">
         <input id="fCategory" type="text" autocomplete="off" placeholder="e.g. Household Supplies" style="padding-right: 32px;">
         <button type="button" id="fCategoryArrow" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: flex; align-items: center; justify-content: center;">
@@ -151,32 +164,32 @@
     </div>
 
     <div class="field">
-      <label>Sub-category (optional)</label>
+      <label data-i18n="subcategoryLabel">Sub-category (optional)</label>
       <input id="fSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
     </div>
 
     <div class="field field-required">
-      <label>Where is it stored?</label>
-      <div class="hint">This is what tells the next person exactly where to find it on the shelf.</div>
+      <label data-i18n="storedLabel">Where is it stored?</label>
+      <div class="hint" data-i18n="storedHint">This is what tells the next person exactly where to find it on the shelf.</div>
       <div class="loc-grid">
         <div>
-          <div class="hint" style="margin-bottom:4px;">Floor</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
           <select id="fFloor">
-            <option value="1">1st Floor</option>
-            <option value="2">2nd Floor</option>
-            <option value="3">3rd Floor</option>
+            <option value="1" data-i18n="floor1">1st Floor</option>
+            <option value="2" data-i18n="floor2">2nd Floor</option>
+            <option value="3" data-i18n="floor3">3rd Floor</option>
           </select>
         </div>
         <div>
-          <div class="hint" style="margin-bottom:4px;">Row number</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
           <input id="fRow" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 02">
         </div>
         <div>
-          <div class="hint" style="margin-bottom:4px;">Shelf number</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
           <input id="fShelf" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 01">
         </div>
         <div>
-          <div class="hint" style="margin-bottom:4px;">Level (0 = bottom)</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level (0 = bottom)</div>
           <input id="fLevel" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 03">
         </div>
       </div>
@@ -188,20 +201,20 @@
     </div>
 
     <div class="field field-required">
-      <label>How many are on hand?</label>
+      <label data-i18n="qtyLabel">How many are on hand?</label>
       <input id="fQty" type="number" inputmode="numeric" autocomplete="off" placeholder="e.g. 20">
     </div>
 
     <div class="field">
-      <label>Responsible Stockman</label>
+      <label data-i18n="stockmanLabel">Responsible Stockman</label>
       <input id="fStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz">
     </div>
 
-    <div id="formError" class="form-error">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
+    <div id="formError" class="form-error" data-i18n="formError">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
 
     <div class="form-actions">
-      <button id="cancelAddBtn" class="btn-cancel" type="button">Cancel</button>
-      <button id="saveProductBtn" class="btn-save" type="button">Save Product</button>
+      <button id="cancelAddBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
+      <button id="saveProductBtn" class="btn-save" type="button" data-i18n="saveProduct">Save Product</button>
     </div>
   </div>
 </div>
@@ -209,46 +222,46 @@
 <!-- EDIT PRODUCT MODAL OVERLAY -->
 <div id="editOverlay" class="modal-overlay">
   <div class="form-panel">
-    <h2>Product Details & Location</h2>
-    <div class="form-sub">View details or update shelf position for this item in the database.</div>
+    <h2 data-i18n="detailsTitle">Product Details & Location</h2>
+    <div class="form-sub" data-i18n="detailsSub">View details or update shelf position for this item in the database.</div>
     <input id="efId" type="hidden">
 
     <div class="field field-required">
-      <label>Product name</label>
+      <label data-i18n="prodNameLabel">Product name</label>
       <input id="efName" type="text" autocomplete="off">
     </div>
 
     <div class="field">
-      <label>Barcode</label>
+      <label data-i18n="barcode">Barcode</label>
       <input id="efBarcode" type="text" autocomplete="off">
     </div>
 
     <div class="field field-required">
-      <label>Stock Code</label>
+      <label data-i18n="itemCodeLabel">Stock Code</label>
       <input id="efStock" type="text" autocomplete="off">
     </div>
 
     <div class="field field-required">
-      <label>Where is it stored?</label>
+      <label data-i18n="storedLabel">Where is it stored?</label>
       <div class="loc-grid">
         <div>
-          <div class="hint" style="margin-bottom:4px;">Floor</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
           <select id="efFloor">
-            <option value="1">1st Floor</option>
-            <option value="2">2nd Floor</option>
-            <option value="3">3rd Floor</option>
+            <option value="1" data-i18n="floor1">1st Floor</option>
+            <option value="2" data-i18n="floor2">2nd Floor</option>
+            <option value="3" data-i18n="floor3">3rd Floor</option>
           </select>
         </div>
         <div>
-          <div class="hint" style="margin-bottom:4px;">Row number</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
           <input id="efRow" type="text" inputmode="numeric" autocomplete="off">
         </div>
         <div>
-          <div class="hint" style="margin-bottom:4px;">Shelf number</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
           <input id="efShelf" type="text" inputmode="numeric" autocomplete="off">
         </div>
         <div>
-          <div class="hint" style="margin-bottom:4px;">Level</div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
           <input id="efLevel" type="text" inputmode="numeric" autocomplete="off">
         </div>
       </div>
@@ -260,20 +273,20 @@
     </div>
 
     <div class="field field-required">
-      <label>On Hand Quantity</label>
+      <label data-i18n="qtyLabel">On Hand Quantity</label>
       <input id="efQty" type="number" inputmode="numeric" autocomplete="off">
     </div>
 
     <div class="field">
-      <label>Responsible Stockman</label>
+      <label data-i18n="stockmanLabel">Responsible Stockman</label>
       <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz">
     </div>
 
-    <div id="editFormError" class="form-error">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
+    <div id="editFormError" class="form-error" data-i18n="formError">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
 
     <div class="form-actions">
-      <button id="cancelEditBtn" class="btn-cancel" type="button">Cancel</button>
-      <button id="saveEditBtn" class="btn-save" type="button">Save Changes</button>
+      <button id="cancelEditBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
+      <button id="saveEditBtn" class="btn-save" type="button" data-i18n="saveChanges">Save Changes</button>
     </div>
   </div>
 </div>
@@ -287,42 +300,42 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <div>
-          <h2>Stockman Sign In</h2>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);">Warehouse Accountability Access</div>
+          <h2 data-i18n="loginTitle">Stockman Sign In</h2>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);" data-i18n="loginSub">Warehouse Accountability Access</div>
         </div>
       </div>
       <button id="closeLoginModal" type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted);display:none;">&times;</button>
     </div>
-    <p class="form-sub" style="margin-bottom:14px;">Sign in with your stockman profile to take responsibility for shelf location updates.</p>
+    <p class="form-sub" style="margin-bottom:14px;" data-i18n="loginTip">Sign in with your stockman profile to take responsibility for shelf location updates.</p>
 
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
-      <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);">Quick Select Stockman Profile:</div>
+      <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);" data-i18n="quickLoginTitle">Quick Select Stockman Profile:</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         <div class="quick-user-chip" id="chipStockman1">
           <div class="qu-name">Juan Dela Cruz</div>
-          <div class="qu-role">Stockman 1</div>
+          <div class="qu-role" data-i18n="stockmanRole1">Stockman 1</div>
         </div>
         <div class="quick-user-chip" id="chipStockman2">
           <div class="qu-name">Pedro Santos</div>
-          <div class="qu-role">Stockman 2</div>
+          <div class="qu-role" data-i18n="stockmanRole2">Stockman 2</div>
         </div>
       </div>
     </div>
 
     <form id="loginForm">
       <div class="field">
-        <label for="loginUsername">Username</label>
+        <label for="loginUsername" data-i18n="usernameLabel">Username</label>
         <input id="loginUsername" type="text" placeholder="e.g. stockman1" required>
       </div>
       <div class="field">
-        <label for="loginPassword">Password</label>
+        <label for="loginPassword" data-i18n="passwordLabel">Password</label>
         <input id="loginPassword" type="password" placeholder="Enter your password" required>
       </div>
       <div id="loginFormError" class="form-error" style="display:none;color:#ef4444;font-size:12px;margin-bottom:10px;">Invalid username or password.</div>
       <div style="margin-top:20px;">
         <button type="submit" class="submit-btn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-          <span>Sign In as Stockman</span>
+          <span data-i18n="signInBtn">Sign In as Stockman</span>
         </button>
       </div>
     </form>
@@ -335,12 +348,58 @@
     <div style="width: 48px; height: 48px; border-radius: 50%; background: #fef2f2; color: #ef4444; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
     </div>
-    <h2 style="margin-bottom: 8px;">Product Not Found</h2>
+    <h2 style="margin-bottom: 8px;" data-i18n="notFoundTitle">Product Not Found</h2>
     <p class="form-sub" id="notFoundMessage" style="margin-bottom: 20px;">The scanned barcode is not in the system yet.</p>
     
     <div style="display: flex; gap: 8px; justify-content: center;">
-      <button id="cancelNotFoundBtn" class="btn-cancel" style="margin-top:0; flex:1;" type="button">Cancel</button>
-      <button id="confirmNotFoundBtn" class="btn-save" style="margin-top:0; flex:1; background:var(--ink);" type="button">Add Product</button>
+      <button id="cancelNotFoundBtn" class="btn-cancel" style="margin-top:0; flex:1;" type="button" data-i18n="cancel">Cancel</button>
+      <button id="confirmNotFoundBtn" class="btn-save" style="margin-top:0; flex:1; background:var(--ink);" type="button" data-i18n="notFoundBtn">Add Product</button>
+    </div>
+  </div>
+</div>
+
+<!-- RAPID LOGGER OVERLAY -->
+<div id="rapidOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width: 520px;">
+    <h2 data-i18n="rapidTitle">⚡ Rapid Location Logger</h2>
+    <div class="form-sub" data-i18n="rapidSub">Quickly scan a product, scan its location QR, and save. Repeat for high-speed mapping.</div>
+
+    <div class="field field-required">
+      <label data-i18n="rapidBarcodeLabel">1. Scan / Type Product Barcode</label>
+      <div class="field-scan-row">
+        <input id="rfBarcode" type="text" autocomplete="off" placeholder="e.g. 100002109790">
+        <button id="scanForRapidBarcodeBtn" type="button" class="btn-save" style="margin-top:0; padding:10px 15px; font-size:13px; min-height:40px;" data-i18n="scanBtn">Scan</button>
+      </div>
+      <div id="rapidProductPreview" style="margin-top: 6px; font-weight:600; color: #10b981; display: none;">
+        Matched: <span id="rfMatchedName">...</span>
+      </div>
+    </div>
+
+    <div class="field field-required">
+      <label data-i18n="rapidLocLabel">2. Scan / Type Location (e.g. 1-02-01-03)</label>
+      <div class="field-scan-row">
+        <input id="rfLocation" type="text" autocomplete="off" placeholder="e.g. 1-02-01-03">
+        <button id="scanForRapidLocBtn" type="button" class="btn-save" style="margin-top:0; padding:10px 15px; font-size:13px; min-height:40px; background: #d97706;" data-i18n="scanBtn">Scan</button>
+      </div>
+    </div>
+
+    <div class="field field-required">
+      <label data-i18n="rapidQtyLabel">3. Quantity On Hand</label>
+      <input id="rfQty" type="number" inputmode="numeric" autocomplete="off" placeholder="e.g. 20">
+    </div>
+
+    <div id="rapidFormError" class="form-error" style="margin-bottom:12px;" data-i18n="formError">Please fill in all fields.</div>
+
+    <div class="form-actions">
+      <button id="closeRapidBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
+      <button id="saveRapidBtn" class="btn-save" type="button" data-i18n="rapidSubmit">Register & Next</button>
+    </div>
+
+    <div style="margin-top: 20px; border-top: 1px solid var(--line); padding-top: 15px;">
+      <h4 style="margin: 0 0 10px 0; font-family: var(--display); font-size: 13px; color: var(--ink);" data-i18n="rapidSuccessLog">Last Registered Items</h4>
+      <div id="rapidLogList" style="display:flex; flex-direction:column; gap:6px; max-height: 120px; overflow-y:auto; font-size: 12px; font-family:var(--mono); color: var(--ink);">
+        <!-- Last 5 logs go here -->
+      </div>
     </div>
   </div>
 </div>

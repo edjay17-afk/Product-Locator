@@ -1120,4 +1120,21 @@ footer {
   outline: none;
 }
 
+.location-subcard {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 12px;
+  background: #f8fafc;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.location-subcard:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.location-subcard .grid4 {
+  margin-top: 10px;
+}
+
+
 
