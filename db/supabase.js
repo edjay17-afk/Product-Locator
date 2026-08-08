@@ -284,6 +284,7 @@ module.exports = {
   },
   updateProduct: async (id, data) => {
     if (isConnectedToSupabase && supabase) {
+      // 1. Update the specific location row
       const { data: updated, error } = await supabase
         .from('products')
         .update({
@@ -294,13 +295,63 @@ module.exports = {
         .select()
         .single();
 
-      if (!error && updated) return updated;
+      if (error) {
+        console.error('Error updating product row:', error.message);
+      }
+
+      if (!error && updated) {
+        // 2. Propagate product-wide metadata updates to all other rows for the same product
+        const barcode = updated.barcode || '';
+        const stock_code = updated.stock_code || '';
+        
+        if (barcode || stock_code) {
+          const syncData = {
+            name: updated.name,
+            category: updated.category,
+            subcategory: updated.subcategory,
+            stock_code: updated.stock_code,
+            barcode: updated.barcode
+          };
+          
+          let query = supabase.from('products').update(syncData);
+          if (barcode && stock_code) {
+            query = query.or(`barcode.eq."${barcode}",stock_code.eq."${stock_code}"`);
+          } else if (barcode) {
+            query = query.eq('barcode', barcode);
+          } else {
+            query = query.eq('stock_code', stock_code);
+          }
+          
+          const { error: syncError } = await query;
+          if (syncError) {
+            console.error('Failed to sync product metadata to other locations:', syncError.message);
+          }
+        }
+        return updated;
+      }
     }
 
     const item = memoryProducts.find(p => String(p.id) === String(id));
     if (item) {
       Object.assign(item, data);
       if (data.last_modified_by) item.last_modified_by = data.last_modified_by;
+
+      // Sync metadata in memory products
+      const barcode = item.barcode || '';
+      const stock_code = item.stock_code || '';
+      if (barcode || stock_code) {
+        memoryProducts.forEach(p => {
+          const matchesBarcode = barcode && p.barcode === barcode;
+          const matchesStock = stock_code && p.stock_code === stock_code;
+          if (matchesBarcode || matchesStock) {
+            p.name = item.name;
+            p.category = item.category;
+            p.subcategory = item.subcategory;
+            p.stock_code = item.stock_code;
+            p.barcode = item.barcode;
+          }
+        });
+      }
     }
     return item;
   },

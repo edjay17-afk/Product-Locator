@@ -6,7 +6,7 @@ const TRANSLATIONS = {
     databaseConnected: "Database Connected",
     skusMapped: "SKUs mapped",
     loadingDb: "Loading database...",
-    searchPlaceholder: "Type a barcode, item code, or product name…",
+    searchPlaceholder: "Search barcode, code, or name...",
     scanBtn: "Scan",
     addBtn: "Add Product",
     rapidBtn: "Rapid Logger",
@@ -50,7 +50,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. Scan / Type Product Barcode",
     rapidLocLabel: "2. Scan / Type Location (e.g. 1-02-01-03)",
     rapidQtyLabel: "3. Quantity On Hand",
-    rapidSubmit: "Register & Next",
+    rapidSubmit: "Add & Next",
     rapidSuccessLog: "Last Registered Items (This Session)",
     rapidLocError: "Invalid location format. Expected format like '1-02-01-03'.",
     rapidSaved: "Location mapped successfully!",
@@ -69,11 +69,18 @@ const TRANSLATIONS = {
     floor2: "2nd Floor",
     floor3: "3rd Floor",
     e1: "No product looked up yet",
-    e2: "Tap \"Scan\" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap \"Add Product\" to save it and its shelf location.",
+    e2: "Tap \"Scan\" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap \"Add Product\" to save it, or use the ⚡ \"Rapid Logger\" for high-speed barcode + location mapping.",
     scanBarcodeBtn: "Scan Barcode",
     scanQrBtn: "Scan QR",
     newProductFieldsTitle: "🆕 NEW PRODUCT DETAILS",
-    orManualLoc: "OR ENTER COORDINATES MANUALLY:"
+    orManualLoc: "OR ENTER COORDINATES MANUALLY:",
+    cardFloor: "Floor",
+    cardRow: "Row",
+    cardShelf: "Shelf",
+    cardLevel: "Level",
+    cardStockman: "Stockman",
+    cardLocationQty: "Location Qty",
+    cardEditBtn: "Edit"
   },
   zh: {
     brandEyebrow: "仓库商品定位系统",
@@ -82,7 +89,7 @@ const TRANSLATIONS = {
     databaseConnected: "数据库已连接",
     skusMapped: "已登记库位商品数",
     loadingDb: "正在加载数据库...",
-    searchPlaceholder: "输入条形码、商品编码或商品名称...",
+    searchPlaceholder: "搜索条码、编码或名称...",
     scanBtn: "扫码",
     addBtn: "添加商品",
     rapidBtn: "快速登记",
@@ -126,7 +133,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. 扫描 / 输入商品条形码",
     rapidLocLabel: "2. 扫描 / 输入库位 (例如 1-02-01-03)",
     rapidQtyLabel: "3. 现有库存数量",
-    rapidSubmit: "登记并继续",
+    rapidSubmit: "添加 & 下一个",
     rapidSuccessLog: "本次登记记录（最近5条）",
     rapidLocError: "库位格式错误。应为 '楼层-排号-货架号-层数' 格式（如 1-02-01-03）。",
     rapidSaved: "库位登记成功！",
@@ -145,11 +152,18 @@ const TRANSLATIONS = {
     floor2: "2楼",
     floor3: "3楼",
     e1: "暂无查询记录",
-    e2: "点击“扫码”使用相机，或在上方输入条码、货号、名称。如果商品不存在，点击“添加商品”保存商品及其货架位置。",
+    e2: "点击“扫码”使用相机，或在上方输入条码、货号、名称。如果商品不存在，点击“添加商品”保存商品，或使用 ⚡“快速登记”进行高效率条码+库位绑定。",
     scanBarcodeBtn: "扫商品条码",
     scanQrBtn: "扫库位码",
     newProductFieldsTitle: "🆕 新商品详情",
-    orManualLoc: "或手动输入库位："
+    orManualLoc: "或手动输入库位：",
+    cardFloor: "楼层",
+    cardRow: "通道/排号",
+    cardShelf: "货架号",
+    cardLevel: "层数",
+    cardStockman: "负责理货员",
+    cardLocationQty: "库位数量",
+    cardEditBtn: "编辑"
   }
 };
 
@@ -235,6 +249,10 @@ function updateLanguageUI() {
     langBtn.textContent = lang === 'en' ? '🇨🇳 中文' : '🇬🇧 English';
   }
 
+  // Re-apply user UI so auth button (Logout/Sign In) is always correct
+  // after the translation loop runs (translations must not overwrite dynamic state)
+  updateUserUI();
+
   // Update dynamic lists
   if (activeProduct) {
     renderProduct(activeProduct);
@@ -266,7 +284,8 @@ async function initApp() {
     ]);
 
     if (statsRes.success) {
-      document.getElementById('skuStamp').textContent = `${statsRes.total} SKUs mapped`;
+      const skuStamp = document.getElementById('skuStamp');
+      if (skuStamp) skuStamp.textContent = `${statsRes.total} SKUs mapped`;
       document.getElementById('footerText').textContent = `Database Connected · ${statsRes.total} SKUs mapped`;
     }
 
@@ -277,7 +296,8 @@ async function initApp() {
     }
   } catch (err) {
     console.warn('Network or API unavailable, operating in offline fallback mode if cached data exists.', err);
-    document.getElementById('skuStamp').textContent = `Offline mode`;
+    const skuStamp = document.getElementById('skuStamp');
+    if (skuStamp) skuStamp.textContent = `Offline mode`;
   }
 
   document.getElementById('skeletonState').style.display = 'none';
@@ -303,11 +323,12 @@ function rebuildIndex() {
 }
 
 function statusInfo(status) {
-  if (!status) return { cls: 'neutral', label: 'No status' };
+  const isEn = CURRENT_LANG === 'en';
+  if (!status) return { cls: 'neutral', label: isEn ? 'No status' : '未指派状态' };
   const s = status.toUpperCase();
-  if (s === 'DONE') return { cls: 'go', label: 'Verified' };
-  if (s.includes('RECOUNT')) return { cls: 'warn', label: 'Needs recount' };
-  if (s.includes('NOT FOUND') || s.includes('WRONG')) return { cls: 'bad', label: 'Flagged' };
+  if (s === 'DONE') return { cls: 'go', label: isEn ? 'Verified' : '已核对' };
+  if (s.includes('RECOUNT')) return { cls: 'warn', label: isEn ? 'Needs recount' : '需重数' };
+  if (s.includes('NOT FOUND') || s.includes('WRONG')) return { cls: 'bad', label: isEn ? 'Flagged' : '异常标记' };
   return { cls: 'neutral', label: status };
 }
 
@@ -363,14 +384,6 @@ async function renderProduct(p) {
   document.getElementById('extraRow').style.display = 'flex';
   document.getElementById('cardActions').style.display = 'flex';
 
-  const name = p.name || p.n || 'Unnamed item';
-  const category = p.category || p.c || '—';
-  const subcategory = p.subcategory || p.sc || '';
-
-  document.getElementById('pName').textContent = name;
-  document.getElementById('pCat').textContent = category;
-  document.getElementById('pSub').textContent = subcategory + (p.custom ? '  •  Added by staff' : '');
-
   const barcode = p.barcode || p.b;
   const stockCode = p.stock_code || p.s;
   document.getElementById('pBarcode').textContent = barcode || (stockCode ? ('#' + stockCode) : '—');
@@ -380,49 +393,101 @@ async function renderProduct(p) {
   const totalQty = locs.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
   document.getElementById('pQty').textContent = totalQty;
 
+  // Deduplicate and group locations by exact coordinates (floor, row, shelf, level)
+  const uniqueLocs = [];
+  locs.forEach(item => {
+    const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '';
+    const batch = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row || '').trim();
+    const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '';
+    const level = item.level !== undefined && item.level !== null ? String(item.level).trim() : '';
+    const hasLoc = floor !== '';
+
+    // Search for existing entry in grouped array
+    const existing = uniqueLocs.find(u =>
+      u.floor === floor &&
+      u.batch === batch &&
+      u.shelf === shelf &&
+      u.level === level
+    );
+
+    if (existing) {
+      existing.qty = (parseInt(existing.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
+      // Retain the highest/most-recent database record ID for edit actions
+      if (item.id && (!existing.id || item.id > existing.id)) {
+        existing.id = item.id;
+        existing.status = item.status;
+        existing.last_modified_by = item.last_modified_by || item.modifiedBy;
+      }
+    } else {
+      uniqueLocs.push({
+        id: item.id,
+        barcode: item.barcode || p.barcode || p.b || '',
+        stock_code: item.stock_code || p.stock_code || p.s || '',
+        name: item.name || p.name || p.n || 'Unnamed item',
+        category: item.category || p.category || p.c || '—',
+        subcategory: item.subcategory || p.subcategory || p.sc || '',
+        floor,
+        batch,
+        shelf,
+        level,
+        hasLoc,
+        qty: parseInt(item.qty, 10) || 0,
+        status: item.status,
+        last_modified_by: item.last_modified_by || item.modifiedBy || 'System Import',
+        custom: item.custom || p.custom
+      });
+    }
+  });
+
+  window.currentLocs = uniqueLocs;
+
   const locationsList = document.getElementById('locationsList');
   locationsList.innerHTML = '';
 
-  locs.forEach((item, index) => {
-    const floor = item.floor !== undefined && item.floor !== null ? String(item.floor) : '';
-    const batch = item.batch !== undefined && item.batch !== null ? String(item.batch) : (item.row || '');
-    const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf) : '';
-    const level = item.level !== undefined && item.level !== null ? String(item.level) : '';
-    const hasLoc = floor !== '';
-    
-    const locFull = item.loc_full || item.locFull || (hasLoc ? `${floor}-${batch}-${shelf}-${level}` : 'Location not yet assigned');
-    const st = statusInfo(item.status);
-    const qtyVal = item.qty !== undefined && item.qty !== null ? item.qty : 0;
-    const stockmanVal = item.last_modified_by || item.modifiedBy || 'System Import';
+  uniqueLocs.forEach((item, index) => {
+    const floor = item.floor;
+    const batch = item.batch;
+    const shelf = item.shelf;
+    const level = item.level;
+    const hasLoc = item.hasLoc;
 
-    const subCard = document.createElement('div');
-    subCard.className = 'location-subcard';
-    subCard.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span class="badge ${st.cls}" style="font-size: 11px; padding: 4px 8px;">${st.label}</span>
-        <span style="font-family: var(--mono); font-size: 12.5px; color: var(--ink); font-weight: 600;">Qty: ${qtyVal}</span>
+    const st = statusInfo(item.status);
+    const qtyVal = item.qty;
+    const stockmanVal = item.last_modified_by;
+
+    const cardEl = document.createElement('div');
+    cardEl.className = 'tagcard';
+    cardEl.style.marginBottom = '16px';
+
+    cardEl.innerHTML = `
+      <div class="tagcard-top">
+        <p class="pname">${escapeHtml(item.name)}</p>
+        <div class="pmeta">
+          <span>${escapeHtml(item.category)}</span>
+          <span>${escapeHtml(item.subcategory)}</span>
+        </div>
       </div>
-      
-      <div class="grid4" style="margin: 8px 0 12px 0;">
-        <div class="cell"><div class="clabel">Floor</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
-        <div class="cell"><div class="clabel">Row</div><div class="cval">${hasLoc ? batch : '–'}</div></div>
-        <div class="cell"><div class="clabel">Shelf</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
-        <div class="cell"><div class="clabel">Level</div><div class="cval">${hasLoc ? level : '–'}</div></div>
+      <div class="grid4">
+        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
+        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardRow}</div><div class="cval">${hasLoc ? batch : '–'}</div></div>
+        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardShelf}</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
+        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardLevel}</div><div class="cval">${hasLoc ? level : '–'}</div></div>
       </div>
-      
-      <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 12px; font-family: var(--body);">
-        📍 ${locFull}
-      </div>
-      
-      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--line); padding-top: 10px; font-size: 11.5px; color: var(--muted); margin-top: 6px;">
-        <span>Stockman: <strong>${stockmanVal}</strong></span>
-        <button class="user-auth-btn login" style="font-size: 11px; padding: 4px 10px; margin: 0; border-radius: 8px;" type="button" onclick="openEditFormForProductIndex(${index})">Edit Location</button>
+      <div class="tagcard-bottom">
+        <div style="font-size: 12px; display: flex; flex-direction: column; gap: 2px;">
+          <div>${TRANSLATIONS[CURRENT_LANG].cardStockman}: <strong style="font-weight: 600;">${escapeHtml(stockmanVal)}</strong></div>
+          <div style="opacity: 0.95; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span class="badge ${st.cls}" style="font-size: 10px; padding: 4px 10px;">${st.label}</span>
+          <button class="user-auth-btn login" style="font-size: 11.5px; padding: 5px 12px; margin: 0; border-radius: 8px; background: white; color: var(--ink); border: none; font-weight: 600;" type="button" onclick="openEditFormForProductIndex(${index})">${TRANSLATIONS[CURRENT_LANG].cardEditBtn}</button>
+        </div>
       </div>
     `;
-    locationsList.appendChild(subCard);
+    locationsList.appendChild(cardEl);
   });
 
-  window.currentLocs = locs;
+  window.currentLocs = uniqueLocs;
 
   const editBtn = document.getElementById('editProductBtn');
   const scanQrBtn = document.getElementById('scanLocationQrBtn');
@@ -702,9 +767,10 @@ function onScanSuccess(code) {
   } else if (scanTarget === 'rapid_barcode') {
     handleRapidBarcodeScanned(code);
   } else if (scanTarget === 'rapid_location_qr') {
-    currentRapidLocation = code;
-    rapidLocationBadgeVal.textContent = code;
+    currentRapidLocation = code.trim();
+    rapidLocationBadgeVal.textContent = currentRapidLocation;
     rapidLocationBadge.style.display = 'block';
+    checkRapidExistingLocationProduct();
     rfQty.focus();
   } else {
     document.getElementById('searchInput').value = code;
@@ -857,12 +923,17 @@ function openEditForm() {
   document.getElementById('efName').value = activeProduct.name || activeProduct.n || '';
   document.getElementById('efBarcode').value = activeProduct.barcode || activeProduct.b || '';
   document.getElementById('efStock').value = activeProduct.stock_code || activeProduct.s || '';
+  document.getElementById('efCategory').value = activeProduct.category || activeProduct.c || '';
+  document.getElementById('efSubcategory').value = activeProduct.subcategory || activeProduct.sc || '';
   document.getElementById('efFloor').value = activeProduct.floor || '1';
   document.getElementById('efRow').value = activeProduct.batch || activeProduct.row || '';
   document.getElementById('efShelf').value = activeProduct.shelf || '';
   document.getElementById('efLevel').value = activeProduct.level || '00';
   document.getElementById('efQty').value = activeProduct.qty !== undefined ? activeProduct.qty : 0;
   document.getElementById('efStockman').value = activeProduct.last_modified_by || activeProduct.modifiedBy || (currentUser ? currentUser.full_name : '');
+
+  document.getElementById('efCategoryDropdown').style.display = 'none';
+  document.getElementById('efCategoryDropdown').innerHTML = '';
 
   editFormError.classList.remove('show');
   editOverlay.classList.add('show');
@@ -878,6 +949,8 @@ async function saveEditProduct() {
   const name = document.getElementById('efName').value.trim();
   const barcode = document.getElementById('efBarcode').value.trim();
   const stock_code = document.getElementById('efStock').value.trim();
+  const category = document.getElementById('efCategory').value.trim();
+  const subcategory = document.getElementById('efSubcategory').value.trim();
   const floor = document.getElementById('efFloor').value;
   const row = pad2(document.getElementById('efRow').value);
   const shelf = pad2(document.getElementById('efShelf').value);
@@ -885,7 +958,7 @@ async function saveEditProduct() {
   const qtyRaw = document.getElementById('efQty').value.trim();
   const stockmanRaw = document.getElementById('efStockman').value.trim();
 
-  if (!name || !stock_code || !row || !shelf || qtyRaw === '') {
+  if (!name || !row || !shelf || qtyRaw === '') {
     editFormError.classList.add('show');
     return;
   }
@@ -898,7 +971,9 @@ async function saveEditProduct() {
   const payload = {
     name,
     barcode,
-    stock_code,
+    stock_code: stock_code || barcode || '',
+    category: category || 'Uncategorized',
+    subcategory,
     floor,
     batch: row,
     shelf,
@@ -944,7 +1019,8 @@ async function updateStatsHeader() {
   try {
     const statsRes = await fetch('/api/stats').then(r => r.json());
     if (statsRes.success) {
-      document.getElementById('skuStamp').textContent = `${statsRes.total} SKUs mapped`;
+      const skuStamp = document.getElementById('skuStamp');
+      if (skuStamp) skuStamp.textContent = `${statsRes.total} SKUs mapped`;
     }
   } catch (e) {}
 }
@@ -1283,11 +1359,67 @@ document.getElementById('fCategoryArrow').addEventListener('click', (e) => {
   }
 });
 
-// Close dropdown when clicking outside
+function renderEditCategoryDropdown(filterText = '') {
+  const cleanFilter = filterText.trim().toLowerCase();
+  const filtered = ALL_CATEGORIES.filter(cat => 
+    cat.toLowerCase().includes(cleanFilter)
+  );
+
+  const dropdown = document.getElementById('efCategoryDropdown');
+  if (!dropdown) return;
+
+  dropdown.innerHTML = '';
+  if (filtered.length === 0) {
+    dropdown.innerHTML = '<div style="padding: 10px 14px; font-size:12px; color:var(--muted); font-family:var(--mono);">No matches</div>';
+  } else {
+    filtered.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'combobox-item';
+      btn.textContent = cat;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        handleEditCategorySelection(cat);
+      };
+      dropdown.appendChild(btn);
+    });
+  }
+}
+
+function handleEditCategorySelection(cat) {
+  document.getElementById('efCategory').value = cat;
+  document.getElementById('efCategoryDropdown').style.display = 'none';
+}
+
+function showEditCategoryDropdown() {
+  renderEditCategoryDropdown(document.getElementById('efCategory').value);
+  document.getElementById('efCategoryDropdown').style.display = 'block';
+}
+
+// Set up listeners for edit category combobox
+document.getElementById('efCategory').addEventListener('focus', showEditCategoryDropdown);
+document.getElementById('efCategory').addEventListener('input', (e) => {
+  renderEditCategoryDropdown(e.target.value);
+  document.getElementById('efCategoryDropdown').style.display = 'block';
+});
+
+document.getElementById('efCategoryArrow').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const dropdown = document.getElementById('efCategoryDropdown');
+  if (dropdown.style.display === 'block') {
+    dropdown.style.display = 'none';
+  } else {
+    showEditCategoryDropdown();
+  }
+});
+
+// Close dropdowns when clicking outside
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.combobox-container')) {
     const dropdown = document.getElementById('fCategoryDropdown');
     if (dropdown) dropdown.style.display = 'none';
+    const editDropdown = document.getElementById('efCategoryDropdown');
+    if (editDropdown) editDropdown.style.display = 'none';
   }
 });
 
@@ -1370,12 +1502,17 @@ window.openEditFormForProductIndex = function(index) {
   document.getElementById('efName').value = p.name || p.n || '';
   document.getElementById('efBarcode').value = p.barcode || p.b || '';
   document.getElementById('efStock').value = p.stock_code || p.s || '';
+  document.getElementById('efCategory').value = p.category || p.c || '';
+  document.getElementById('efSubcategory').value = p.subcategory || p.sc || '';
   document.getElementById('efFloor').value = p.floor || '1';
   document.getElementById('efRow').value = p.floor !== undefined ? (p.batch || p.row || '') : '';
   document.getElementById('efShelf').value = p.shelf || '';
   document.getElementById('efLevel').value = p.level || '00';
   document.getElementById('efQty').value = p.qty !== undefined ? p.qty : '';
   document.getElementById('efStockman').value = p.last_modified_by || p.modifiedBy || (currentUser ? currentUser.full_name : '');
+
+  document.getElementById('efCategoryDropdown').style.display = 'none';
+  document.getElementById('efCategoryDropdown').innerHTML = '';
 
   document.getElementById('editFormError').classList.remove('show');
   document.getElementById('editOverlay').classList.add('show');
@@ -1401,6 +1538,7 @@ const rapidLocationBadgeVal = document.getElementById('rapidLocationBadgeVal');
 let rapidLogs = [];
 let currentRapidBarcode = '';
 let currentRapidLocation = '';
+let currentRapidExistingRow = null;
 
 document.getElementById('rapidLoggerBtn').addEventListener('click', openRapidLogger);
 document.getElementById('closeRapidBtn').addEventListener('click', closeRapidLogger);
@@ -1412,6 +1550,7 @@ document.getElementById('scanForRapidLocBtn').addEventListener('click', () => st
 function openRapidLogger() {
   currentRapidBarcode = '';
   currentRapidLocation = '';
+  currentRapidExistingRow = null;
   rfName.value = '';
   rfStock.value = '';
   rfCategory.value = '';
@@ -1489,6 +1628,8 @@ async function handleRapidBarcodeScanned(barcode) {
     rfStock.value = currentRapidBarcode.slice(0, 8);
     setTimeout(() => rfName.focus(), 150);
   }
+
+  await checkRapidExistingLocationProduct();
 }
 
 // Key transitions mapping
@@ -1511,22 +1652,119 @@ rfQty.addEventListener('keydown', (e) => {
   }
 });
 
+async function checkRapidExistingLocationProduct() {
+  currentRapidExistingRow = null;
+  if (!currentRapidBarcode || !currentRapidLocation) return;
+
+  const parsed = parseLocationQR(currentRapidLocation);
+  if (!parsed) return;
+
+  // Show a brief checking status on the location badge
+  rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#64748b; font-size:11px; font-weight:500;">Checking location...</span>`;
+  rapidLocationBadge.style.background = '#fffbeb';
+  rapidLocationBadge.style.borderColor = '#fde68a';
+  rapidLocationBadge.style.color = '#b45309';
+
+  // 1. Search locally in PRODUCTS cache
+  let match = PRODUCTS.find(p => {
+    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
+    const isProductMatch = (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+    if (!isProductMatch) return false;
+
+    const pf = String(p.floor !== undefined && p.floor !== null ? p.floor : '').trim();
+    const pb = String(p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '')).trim();
+    const ps = String(p.shelf !== undefined && p.shelf !== null ? p.shelf : '').trim();
+    const pl = String(p.level !== undefined && p.level !== null ? p.level : '').trim();
+
+    return pf === String(parsed.floor) &&
+           pb === String(parsed.row) &&
+           ps === String(parsed.shelf) &&
+           pl === String(parsed.level);
+  });
+
+  // 2. Fallback to a precise server lookup if not in local cache
+  if (!match) {
+    try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=50`).then(r => r.json());
+      if (res.success && Array.isArray(res.products)) {
+        match = res.products.find(p => {
+          const pf = String(p.floor !== undefined && p.floor !== null ? p.floor : '').trim();
+          const pb = String(p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '')).trim();
+          const ps = String(p.shelf !== undefined && p.shelf !== null ? p.shelf : '').trim();
+          const pl = String(p.level !== undefined && p.level !== null ? p.level : '').trim();
+
+          return pf === String(parsed.floor) &&
+                 pb === String(parsed.row) &&
+                 ps === String(parsed.shelf) &&
+                 pl === String(parsed.level);
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to check existing product location on server:", e);
+    }
+  }
+
+  if (match) {
+    currentRapidExistingRow = match;
+    rfQty.value = match.qty !== undefined && match.qty !== null ? match.qty : 1;
+    rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Existing location: Qty ${match.qty} (will update)</span>`;
+    rapidLocationBadge.style.background = '#f0fdf4';
+    rapidLocationBadge.style.borderColor = '#bbf7d0';
+    rapidLocationBadge.style.color = '#15803d';
+  } else {
+    rfQty.value = '1';
+    rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#2563eb; font-size:11px; font-weight:500;">🆕 New location for this product</span>`;
+    rapidLocationBadge.style.background = '#eff6ff';
+    rapidLocationBadge.style.borderColor = '#bfdbfe';
+    rapidLocationBadge.style.color = '#1d4ed8';
+  }
+}
+
 async function saveRapidEntry() {
   const qtyRaw = rfQty.value.trim();
 
-  if (!currentRapidBarcode || !currentRapidLocation || !qtyRaw) {
-    rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please scan barcode, location QR, and enter quantity.' : '请先扫描条码、库位码并输入数量。';
+  if (!currentRapidBarcode) {
+    rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please scan a product barcode first.' : '请先扫描商品条码。';
+    rapidFormError.classList.add('show');
+    return;
+  }
+  if (!currentRapidLocation) {
+    rapidFormError.textContent = TRANSLATIONS[CURRENT_LANG].rapidLocError;
+    rapidFormError.classList.add('show');
+    return;
+  }
+  if (!qtyRaw) {
+    rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please enter quantity.' : '请填写数量。';
     rapidFormError.classList.add('show');
     return;
   }
 
-  // If new product, validate name and stock code are populated
-  const isNew = rapidNewProductFields.style.display !== 'none';
-  if (isNew) {
+  // Fresh lookup — do NOT rely on DOM visibility (async timing issue)
+  let existingProduct = PRODUCTS.find(p => {
+    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
+    return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+  });
+
+  // If not in local cache, ask server
+  if (!existingProduct) {
+    try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=5`).then(r => r.json());
+      if (res.success && res.products.length > 0) {
+        existingProduct = res.products.find(item =>
+          (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
+          (item.stock_code || '').toLowerCase() === currentRapidBarcode.toLowerCase()
+        );
+      }
+    } catch (e) { /* offline fallback */ }
+  }
+
+  // Only validate new-product fields if product truly doesn't exist
+  if (!existingProduct) {
     const customName = rfName.value.trim();
-    const customStock = rfStock.value.trim();
-    if (!customName || !customStock) {
-      rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please fill in name and stock code for new product.' : '请填写新商品的名称和货号。';
+    if (!customName) {
+      rapidFormError.textContent = CURRENT_LANG === 'en' ? 'New product — please fill in the product name.' : '新商品 — 请填写商品名称。';
       rapidFormError.classList.add('show');
       return;
     }
@@ -1540,21 +1778,14 @@ async function saveRapidEntry() {
   }
 
   rapidFormError.classList.remove('show');
-  showToast(CURRENT_LANG === 'en' ? 'Saving rapid location...' : '正在登记库位...');
-
-  // Search existing details
-  const existing = PRODUCTS.find(p => {
-    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
-    const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
-    return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
-  });
+  showToast(CURRENT_LANG === 'en' ? 'Saving location...' : '正在登记库位...');
 
   const payload = {
-    barcode: existing ? (existing.barcode || existing.b) : currentRapidBarcode,
-    stock_code: existing ? (existing.stock_code || existing.s) : rfStock.value.trim(),
-    name: existing ? (existing.name || existing.n) : rfName.value.trim(),
-    category: existing ? (existing.category || existing.c || 'Uncategorized') : (rfCategory.value.trim() || 'Uncategorized'),
-    subcategory: existing ? (existing.subcategory || existing.sc || '') : rfSubcategory.value.trim(),
+    barcode: existingProduct ? (existingProduct.barcode || existingProduct.b || currentRapidBarcode) : currentRapidBarcode,
+    stock_code: existingProduct ? (existingProduct.stock_code || existingProduct.s || rfStock.value.trim()) : rfStock.value.trim(),
+    name: existingProduct ? (existingProduct.name || existingProduct.n) : rfName.value.trim(),
+    category: existingProduct ? (existingProduct.category || existingProduct.c || 'Uncategorized') : (rfCategory.value.trim() || 'Uncategorized'),
+    subcategory: existingProduct ? (existingProduct.subcategory || existingProduct.sc || '') : rfSubcategory.value.trim(),
     floor: parsed.floor,
     batch: parsed.row,
     shelf: parsed.shelf,
@@ -1564,8 +1795,11 @@ async function saveRapidEntry() {
   };
 
   try {
-    const res = await fetch('/api/products', {
-      method: 'POST',
+    const url = currentRapidExistingRow ? `/api/products/${currentRapidExistingRow.id}` : '/api/products';
+    const method = currentRapidExistingRow ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     }).then(r => r.json());
@@ -1595,17 +1829,38 @@ async function saveRapidEntry() {
         PRODUCTS = productsRes.products;
         rebuildIndex();
         updateCategoryDatalist();
+
+        // Real-time UI update: if the active product matches the rapid logger product, re-render it!
+        if (activeProduct) {
+          const actBar = (activeProduct.barcode || activeProduct.b || '').toString().toLowerCase();
+          const actStk = (activeProduct.stock_code || activeProduct.s || '').toString().toLowerCase();
+          const rapidBar = payload.barcode.toLowerCase();
+          const rapidStk = payload.stock_code.toLowerCase();
+
+          if ((actBar && (actBar === rapidBar || actBar === rapidStk)) || 
+              (actStk && (actStk === rapidBar || actStk === rapidStk))) {
+            const freshMatch = PRODUCTS.find(p => {
+              const pb = (p.barcode || p.b || '').toString().toLowerCase();
+              const ps = (p.stock_code || p.s || '').toString().toLowerCase();
+              return (pb && pb === actBar) || (ps && ps === actStk);
+            });
+            if (freshMatch) {
+              renderProduct(freshMatch);
+            }
+          }
+        }
       }
 
       // Reset logger fields
       currentRapidBarcode = '';
       currentRapidLocation = '';
+      currentRapidExistingRow = null;
       rfName.value = '';
       rfStock.value = '';
       rfCategory.value = '';
       rfSubcategory.value = '';
       rfQty.value = '1';
-      
+
       rapidBarcodeBadge.style.display = 'none';
       rapidLocationBadge.style.display = 'none';
       rapidNewProductFields.style.display = 'none';

@@ -6,7 +6,7 @@
 <title>Warehouse Product Locator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -20,23 +20,20 @@
       <div class="sub" data-i18n="appSub">Find where a product goes, or add a new one</div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button id="langToggleBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700;">🌐 EN / 中文</button>
-        <div class="tag-stamp" id="skuStamp">Loading database…</div>
-      </div>
+      <button id="langToggleBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700;">🌐 EN / 中文</button>
       <div class="user-pill-container" id="userBadge" style="background: none; border: none; padding: 0; box-shadow: none;">
         <div class="user-avatar-icon" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <span class="user-name" id="userNameDisplay" style="display: none;">Guest</span>
-        <button id="authBtn" class="user-auth-btn login" type="button" data-i18n="signIn">Sign In</button>
+        <button id="authBtn" class="user-auth-btn login" type="button">Sign In</button>
       </div>
     </div>
   </header>
 
   <div class="controls">
     <div class="search-row">
-      <input id="searchInput" type="text" autocomplete="off" placeholder="Type a barcode, item code, or product name…" data-i18n-placeholder="searchPlaceholder">
+      <input id="searchInput" type="text" autocomplete="off" placeholder="Search barcode, code, or name..." data-i18n-placeholder="searchPlaceholder">
       <button id="scanBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
         <span data-i18n="scanBtn">Scan</span>
@@ -48,7 +45,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span data-i18n="addBtn">Add Product</span>
       </button>
-      <button id="rapidLoggerBtn" type="button" style="flex:1; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: var(--display); font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
+      <button id="rapidLoggerBtn" type="button" style="flex:1; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         <span data-i18n="rapidBtn">⚡ Rapid Logger</span>
       </button>
@@ -69,30 +66,14 @@
     <div id="emptyPrompt" style="display:none;flex-direction:column;align-items:center;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/></svg>
       <div class="e1" data-i18n="e1">No product looked up yet</div>
-      <div class="e2" data-i18n="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add Product" to save it and its shelf location.</div>
+      <div class="e2" data-i18n="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add Product" to save it, or use the ⚡ "Rapid Logger" for high-speed barcode + location mapping.</div>
     </div>
   </div>
 
-  <!-- LOCATION TAG CARD -->
-  <div id="tagCard" class="tagcard">
-    <div class="tagcard-top">
-      <p class="pname" id="pName">—</p>
-      <div class="pmeta">
-        <span id="pCat">—</span>
-        <span id="pSub">—</span>
-      </div>
-    </div>
-    <div id="locationsList">
-      <div class="grid4">
-        <div class="cell"><div class="clabel" data-i18n="floorLabel">Floor</div><div class="cval" id="cFloor">–</div></div>
-        <div class="cell"><div class="clabel" data-i18n="rowLabel">Row</div><div class="cval" id="cRow">–</div></div>
-        <div class="cell"><div class="clabel" data-i18n="shelfLabel">Shelf</div><div class="cval" id="cShelf">–</div></div>
-        <div class="cell"><div class="clabel" data-i18n="levelLabel">Level</div><div class="cval" id="cLevel">–</div></div>
-      </div>
-      <div class="tagcard-bottom">
-        <span class="fulltext" id="pFull">—</span>
-        <span class="badge neutral" id="pStatus">—</span>
-      </div>
+  <!-- LOCATION TAG CARD CONTAINER -->
+  <div id="tagCard" class="tagcard-wrapper">
+    <div id="locationsList" style="display:flex; flex-direction:column; gap:16px; width: 100%;">
+      <!-- Dynamic tagcards will be appended here -->
     </div>
   </div>
   <div class="extra-row" id="extraRow" style="display:none;flex-wrap:wrap;gap:8px;">
@@ -124,11 +105,9 @@
 <div id="addOverlay" class="modal-overlay">
   <div class="form-panel">
     <h2 data-i18n="addNewTitle">Add a New Product</h2>
-    <div class="form-sub" data-i18n="addNewSub">Fill this in for a product that isn't in the system yet. Tell us its name and exactly where it sits on the shelf — that's what shows up next time someone searches for it.</div>
 
     <div class="field">
       <label data-i18n="barcodeLabel">Barcode number</label>
-      <div class="hint" data-i18n="barcodeHint">Scan it or type the numbers printed under the barcode. Leave blank if the item has no barcode.</div>
       <div class="field-scan-row">
         <input id="fBarcode" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 100002109790">
         <button id="scanForAddBtn" type="button" data-i18n="scanBtn">Scan</button>
@@ -137,13 +116,11 @@
 
     <div class="field field-required">
       <label data-i18n="prodNameLabel">Product name</label>
-      <div class="hint" data-i18n="prodNameHint">What is it? Write it the way you'd say it out loud, e.g. "16oz plastic tumbler".</div>
       <input id="fName" type="text" autocomplete="off" placeholder="e.g. Balloon stick color/white 50cm">
     </div>
 
     <div class="field">
       <label data-i18n="itemCodeLabel">Item / stock code <span style="font-weight:400; color: var(--muted); font-size:12px;">(optional)</span></label>
-      <div class="hint" data-i18n="itemCodeHint">The short code printed on the price tag, if it has one. Leave blank if none.</div>
       <input id="fStock" type="text" autocomplete="off" placeholder="e.g. TDX-518">
     </div>
 
@@ -165,7 +142,6 @@
 
     <div class="field field-required">
       <label data-i18n="storedLabel">Where is it stored?</label>
-      <div class="hint" data-i18n="storedHint">This is what tells the next person exactly where to find it on the shelf.</div>
       <div class="loc-grid">
         <div>
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
@@ -236,6 +212,22 @@
       <input id="efStock" type="text" autocomplete="off">
     </div>
 
+    <div class="field">
+      <label data-i18n="categoryLabel">Category (optional)</label>
+      <div class="combobox-container" style="position: relative;">
+        <input id="efCategory" type="text" autocomplete="off" placeholder="e.g. Household Supplies" style="padding-right: 32px;">
+        <button type="button" id="efCategoryArrow" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: flex; align-items: center; justify-content: center;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="efCategoryDropdown" class="combobox-dropdown" style="display: none;"></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="subcategoryLabel">Sub-category (optional)</label>
+      <input id="efSubcategory" type="text" autocomplete="off" placeholder="e.g. Insecticide">
+    </div>
+
     <div class="field field-required">
       <label data-i18n="storedLabel">Where is it stored?</label>
       <div class="loc-grid">
@@ -296,7 +288,7 @@
         </div>
         <div>
           <h2 data-i18n="loginTitle">Stockman Sign In</h2>
-          <div style="font-family:var(--mono);font-size:11px;color:var(--muted);" data-i18n="loginSub">Warehouse Accountability Access</div>
+          <div style="font-family:'Poppins',sans-serif;font-size:11px;color:var(--muted);" data-i18n="loginSub">Warehouse Accountability Access</div>
         </div>
       </div>
       <button id="closeLoginModal" type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted);display:none;">&times;</button>
@@ -304,7 +296,7 @@
     <p class="form-sub" style="margin-bottom:14px;" data-i18n="loginTip">Sign in with your stockman profile to take responsibility for shelf location updates.</p>
 
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
-      <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);" data-i18n="quickLoginTitle">Quick Select Stockman Profile:</div>
+      <div style="font-family:'Poppins',sans-serif;font-size:11px;font-weight:700;color:var(--muted);" data-i18n="quickLoginTitle">Quick Select Stockman Profile:</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
         <div class="quick-user-chip" id="chipStockman1">
           <div class="qu-name">Juan Dela Cruz</div>
@@ -388,7 +380,7 @@
 
     <!-- 2. Dynamic New Product Fields Group (Hidden by default) -->
     <div id="rapidNewProductFields" style="display: none; border: 1px dashed var(--line); padding: 14px; border-radius: 8px; margin-bottom: 20px; background: #faf5ff;">
-      <div style="font-family: var(--mono); font-size: 11px; font-weight: 700; color: #7c3aed; margin-bottom: 12px;" data-i18n="newProductFieldsTitle">🆕 NEW PRODUCT DETAILS</div>
+      <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; color: #7c3aed; margin-bottom: 12px;" data-i18n="newProductFieldsTitle">🆕 NEW PRODUCT DETAILS</div>
       
       <div class="field field-required" style="margin-bottom: 10px;">
         <label data-i18n="prodNameLabel">Product name</label>
@@ -421,12 +413,12 @@
 
     <div class="form-actions" style="margin-bottom: 16px;">
       <button id="closeRapidBtn" class="btn-cancel" type="button" data-i18n="cancel" style="height: 44px;">Cancel</button>
-      <button id="saveRapidBtn" class="btn-save" type="button" data-i18n="rapidSubmit" style="height: 44px;">Register & Next</button>
+      <button id="saveRapidBtn" class="btn-save" type="button" data-i18n="rapidSubmit" style="height: 44px;">Add &amp; Next</button>
     </div>
 
     <div style="margin-top: 20px; border-top: 1px solid var(--line); padding-top: 15px;">
-      <h4 style="margin: 0 0 10px 0; font-family: var(--display); font-size: 13px; color: var(--ink);" data-i18n="rapidSuccessLog">Last Registered Items</h4>
-      <div id="rapidLogList" style="display:flex; flex-direction:column; gap:6px; max-height: 120px; overflow-y:auto; font-size: 12px; font-family:var(--mono); color: var(--ink);">
+      <h4 style="margin: 0 0 10px 0; font-family: 'Poppins', sans-serif; font-size: 13px; color: var(--ink);" data-i18n="rapidSuccessLog">Last Registered Items</h4>
+      <div id="rapidLogList" style="display:flex; flex-direction:column; gap:6px; max-height: 120px; overflow-y:auto; font-size: 12px; font-family:'Poppins', sans-serif; color: var(--ink);">
         <!-- Last 5 logs go here -->
       </div>
     </div>

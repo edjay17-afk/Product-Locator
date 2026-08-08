@@ -15,14 +15,16 @@
   --warn: #d97706;
   --bad: #ef4444;
   --muted: #64748b;
-  --display: 'Archivo Black', sans-serif;
-  --body: 'Space Grotesk', sans-serif;
-  --mono: 'Space Mono', monospace;
+  --display: 'Poppins', sans-serif;
+  --body: 'Poppins', sans-serif;
+  --mono: 'Poppins', sans-serif;
   --radius: 14px;
 }
 
 * {
   box-sizing: border-box;
+  /* Force ALL elements (inputs, buttons, selects) to inherit Poppins from body */
+  font-family: inherit;
 }
 
 html, body {
@@ -36,9 +38,10 @@ body {
     repeating-linear-gradient(0deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 24px),
     var(--bg);
   color: var(--ink);
-  font-family: var(--body);
+  font-family: 'Poppins', sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .wrap {
@@ -144,6 +147,7 @@ h1 {
 
 #searchInput {
   flex: 1;
+  min-width: 0; /* Let it shrink on narrow screens instead of breaking margins */
   background: #ffffff;
   border: 1px solid var(--card-border);
   color: var(--ink);
@@ -162,6 +166,12 @@ h1 {
 
 #searchInput::placeholder {
   color: var(--muted);
+}
+
+@media (max-width: 480px) {
+  #searchInput::placeholder {
+    font-size: 12.5px;
+  }
 }
 
 #scanBtn {
@@ -647,8 +657,19 @@ h1 {
 /* 
   LOCATION TAG CARD — Clean, Punchhole-free Light Mode Card
 */
-.tagcard {
+.tagcard-wrapper {
   display: none;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.tagcard-wrapper.show {
+  display: flex;
+  animation: pop 0.25s ease;
+}
+
+.tagcard {
   background: #ffffff;
   color: var(--ink);
   border-radius: var(--radius);
@@ -656,11 +677,7 @@ h1 {
   position: relative;
   border: 1px solid var(--card-border);
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
-}
-
-.tagcard.show {
-  display: block;
-  animation: pop 0.25s ease;
+  width: 100%;
 }
 
 @keyframes pop {
@@ -683,6 +700,7 @@ h1 {
 .tagcard-top .pname {
   font-family: var(--display);
   font-size: 17px;
+  font-weight: 600; /* Bold product name for readability */
   line-height: 1.2;
   margin: 0 0 6px;
   padding-right: 6px;
@@ -726,6 +744,7 @@ h1 {
 .cell .cval {
   font-family: var(--display);
   font-size: 30px;
+  font-weight: 700; /* Bold numbers so they are easily seen */
   line-height: 1;
   color: var(--ink);
 }
@@ -758,27 +777,27 @@ h1 {
 }
 
 .badge.go {
-  background: rgba(16, 185, 129, 0.2);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
 }
 
 .badge.warn {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
 }
 
 .badge.bad {
-  background: rgba(239, 68, 68, 0.2);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
 }
 
 .badge.neutral {
-  background: rgba(148, 163, 184, 0.2);
-  color: #cbd5e1;
-  border: 1px solid rgba(203, 213, 225, 0.4);
+  background: #e2e8f0;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 .extra-row {
