@@ -9,7 +9,7 @@ const TRANSLATIONS = {
     searchPlaceholder: "Type a barcode, item code, or product name…",
     scanBtn: "Scan",
     addBtn: "Add Product",
-    rapidBtn: "⚡ Rapid Logger",
+    rapidBtn: "Rapid Logger",
     uploadExcelBtn: "Upload Excel",
     recentHead: "Recent lookups",
     clearRecent: "clear",
@@ -25,6 +25,7 @@ const TRANSLATIONS = {
     barcodeHint: "Scan it or type the numbers printed under the barcode. Leave blank if the item has no barcode.",
     prodNameLabel: "Product name",
     prodNameHint: "What is it? Write it the way you'd say it out loud, e.g. \"16oz plastic tumbler\".",
+    prodNameLabelOptional: "Product Name (Optional)",
     itemCodeLabel: "Item / stock code",
     itemCodeHint: "The short code printed on the price tag, if it has one.",
     categoryLabel: "Category (optional)",
@@ -44,7 +45,7 @@ const TRANSLATIONS = {
     onHand: "On hand",
     editLocDetails: "Edit Location / Details",
     scanNewLoc: "Scan QR for New Location",
-    rapidTitle: "⚡ Rapid Location Logger",
+    rapidTitle: "Rapid Location Logger",
     rapidSub: "Quickly scan a product, scan its location QR, and save. Repeat for high-speed mapping.",
     rapidBarcodeLabel: "1. Scan / Type Product Barcode",
     rapidLocLabel: "2. Scan / Type Location (e.g. 1-02-01-03)",
@@ -80,7 +81,7 @@ const TRANSLATIONS = {
     searchPlaceholder: "输入条形码、商品编码或商品名称...",
     scanBtn: "扫码",
     addBtn: "添加商品",
-    rapidBtn: "⚡ 快速登记",
+    rapidBtn: "快速登记",
     uploadExcelBtn: "导入 Excel",
     recentHead: "最近查询",
     clearRecent: "清除历史",
@@ -96,6 +97,7 @@ const TRANSLATIONS = {
     barcodeHint: "扫描条码或手动输入条码下方的数字。若无条码则留空。",
     prodNameLabel: "商品名称",
     prodNameHint: "例如：\"16盎司塑料水杯\"，请使用通俗易懂的名称。",
+    prodNameLabelOptional: "商品名称（可选）",
     itemCodeLabel: "货号 / 库存编码",
     itemCodeHint: "商品价格标签上印制的简短编码。",
     categoryLabel: "分类（可选）",
@@ -115,7 +117,7 @@ const TRANSLATIONS = {
     onHand: "现有库存",
     editLocDetails: "编辑库位 / 详情",
     scanNewLoc: "扫描二维码添加新位置",
-    rapidTitle: "⚡ 快速位置登记",
+    rapidTitle: "快速位置登记",
     rapidSub: "快速扫描商品条码，扫描库位二维码并保存。适合批量高速库位登记。",
     rapidBarcodeLabel: "1. 扫描 / 输入商品条形码",
     rapidLocLabel: "2. 扫描 / 输入库位 (例如 1-02-01-03)",
@@ -719,7 +721,9 @@ async function startScanner(target) {
     ]
   });
 
-  const config = { fps: 12, qrbox: { width: 260, height: 140 } };
+  const isQr = target.includes('qr') || target.includes('location');
+  const qrbox = isQr ? { width: 250, height: 250 } : { width: 260, height: 150 };
+  const config = { fps: 12, qrbox };
   const onScan = (decodedText) => onScanSuccess(decodedText);
   const onError = () => {};
 
@@ -1449,6 +1453,8 @@ window.openEditFormForProductIndex = function(index) {
 // --- RAPID LOCATION LOGGER LOGIC ---
 const rapidOverlay = document.getElementById('rapidOverlay');
 const rfBarcode = document.getElementById('rfBarcode');
+const rfNameField = document.getElementById('rfNameField');
+const rfName = document.getElementById('rfName');
 const rfLocation = document.getElementById('rfLocation');
 const rfQty = document.getElementById('rfQty');
 const rapidFormError = document.getElementById('rapidFormError');
@@ -1465,8 +1471,10 @@ document.getElementById('scanForRapidLocBtn').addEventListener('click', () => st
 
 function openRapidLogger() {
   rfBarcode.value = '';
+  rfName.value = '';
   rfLocation.value = '';
   rfQty.value = '1';
+  rfNameField.style.display = 'none';
   document.getElementById('rapidProductPreview').style.display = 'none';
   rapidFormError.classList.remove('show');
   rapidOverlay.classList.add('show');
@@ -1484,6 +1492,7 @@ rfBarcode.addEventListener('input', () => {
 
   if (!val) {
     previewEl.style.display = 'none';
+    rfNameField.style.display = 'none';
     return;
   }
 
@@ -1498,15 +1507,28 @@ rfBarcode.addEventListener('input', () => {
     matchedNameEl.textContent = found.name || found.n;
     previewEl.style.display = 'block';
     previewEl.style.color = '#10b981';
+    rfNameField.style.display = 'none';
+    rfName.value = '';
   } else {
-    matchedNameEl.textContent = CURRENT_LANG === 'en' ? 'New Product (Will create record)' : '新商品（保存时将自动创建新记录）';
+    matchedNameEl.textContent = CURRENT_LANG === 'en' ? 'New Product (Name Optional)' : '新商品（可选择录入商品名称）';
     previewEl.style.display = 'block';
     previewEl.style.color = '#3b82f6';
+    rfNameField.style.display = 'block';
   }
 });
 
 // Pressing enter in inputs transitions focus
 rfBarcode.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (rfNameField.style.display !== 'none') {
+      rfName.focus();
+    } else {
+      rfLocation.focus();
+    }
+  }
+});
+rfName.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     rfLocation.focus();
@@ -1529,6 +1551,7 @@ async function saveRapidEntry() {
   const barcode = rfBarcode.value.trim();
   const locCode = rfLocation.value.trim();
   const qtyRaw = rfQty.value.trim();
+  const customName = rfName.value.trim();
 
   if (!barcode || !locCode || !qtyRaw) {
     rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please fill in all fields.' : '请填写所有必填字段。';
@@ -1553,10 +1576,20 @@ async function saveRapidEntry() {
     return (b && b === barcode.toLowerCase()) || (s && s === barcode.toLowerCase());
   });
 
+  // Decide product name
+  let nameToUse = `Product ${barcode}`;
+  if (existing) {
+    nameToUse = existing.name || existing.n;
+  } else if (customName) {
+    nameToUse = customName;
+  } else {
+    nameToUse = CURRENT_LANG === 'en' ? `New Product (${barcode})` : `新登记商品 (${barcode})`;
+  }
+
   const payload = {
     barcode: existing ? (existing.barcode || existing.b) : barcode,
     stock_code: existing ? (existing.stock_code || existing.s) : barcode.slice(0, 8),
-    name: existing ? (existing.name || existing.n) : `Product ${barcode}`,
+    name: nameToUse,
     category: existing ? (existing.category || existing.c || 'Uncategorized') : 'Uncategorized',
     subcategory: existing ? (existing.subcategory || existing.sc || '') : '',
     floor: parsed.floor,
@@ -1603,8 +1636,10 @@ async function saveRapidEntry() {
 
       // Reset logger fields and focus barcode for next item
       rfBarcode.value = '';
+      rfName.value = '';
       rfLocation.value = '';
       rfQty.value = '1';
+      rfNameField.style.display = 'none';
       document.getElementById('rapidProductPreview').style.display = 'none';
       rfBarcode.focus();
     } else {
