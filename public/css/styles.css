@@ -470,26 +470,33 @@ h1 {
   display: block;
 }
 
-/* Success toast */
+/* Success Toast — Sleek Single-Line System Theme Pill */
 #successToast {
   position: fixed;
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%) translateY(20px);
-  background: var(--go);
+  background: #0f172a;
   color: #ffffff;
-  padding: 13px 20px;
-  border-radius: 10px;
-  font-family: var(--body);
-  font-weight: 700;
-  font-size: 14px;
-  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
-  z-index: 80;
+  padding: 7px 18px;
+  border-radius: 9999px;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.5), 0 0 15px rgba(124, 58, 237, 0.25);
+  z-index: 99999;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-  max-width: 90vw;
-  text-align: center;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  max-width: 92vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 #successToast.show {
@@ -1199,6 +1206,18 @@ body.guest-mode .tagcard-bottom button {
     padding: 0 !important;
     margin: 0 auto !important;
   }
+/* GPU Hardware Acceleration for 60fps silky smooth transitions */
+.modal-overlay,
+.form-panel,
+.tagcard,
+.combobox-dropdown,
+.btn-save,
+.btn-cancel,
+#scannerOverlay,
+#resultsList {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 

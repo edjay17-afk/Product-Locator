@@ -185,6 +185,8 @@ let isGuestMode = false;
 let PRODUCTS = [];
 let byBarcode = {};
 let byStock = {};
+let byBarcodeMap = new Map();
+let byStockMap = new Map();
 let recent = [];
 try {
   const saved = localStorage.getItem('wh_recent_lookups');
@@ -323,6 +325,35 @@ async function initApp() {
       rebuildIndex();
       updateCategoryDatalist();
     }
+
+    // Supabase Realtime WebSocket Subscription for instant multi-stockman push updates!
+    try {
+      if (window.supabase) {
+        window.supabase.channel('products_realtime_sync')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+            const item = payload.new;
+            if (item && (item.name || item.barcode)) {
+              const stockman = item.last_modified_by ? `by ${item.last_modified_by}` : '';
+              showToast(`🔔 Stock updated ${stockman}: ${item.name || item.barcode} (Qty: ${item.qty})`);
+              
+              const existingIdx = PRODUCTS.findIndex(p => p.id === item.id);
+              if (existingIdx >= 0) {
+                PRODUCTS[existingIdx] = item;
+              } else {
+                PRODUCTS.push(item);
+              }
+              rebuildIndex();
+
+              if (activeProduct && ((activeProduct.barcode && activeProduct.barcode === item.barcode) || (activeProduct.stock_code && activeProduct.stock_code === item.stock_code))) {
+                renderProduct(activeProduct);
+              }
+            }
+          })
+          .subscribe();
+      }
+    } catch (e) {
+      console.warn("Supabase Realtime subscription initialized in HTTP fallback mode:", e);
+    }
   } catch (err) {
     console.warn('Network or API unavailable, operating in offline fallback mode if cached data exists.', err);
     const skuStamp = document.getElementById('skuStamp');
@@ -339,16 +370,26 @@ async function initApp() {
 function rebuildIndex() {
   byBarcode = {};
   byStock = {};
-  PRODUCTS.forEach(p => {
+  byBarcodeMap.clear();
+  byStockMap.clear();
+
+  for (let i = 0; i < PRODUCTS.length; i++) {
+    const p = PRODUCTS[i];
     if (p.barcode || p.b) {
       const b = (p.barcode || p.b).toString().trim().toLowerCase();
-      if (b) byBarcode[b] = p;
+      if (b) {
+        byBarcode[b] = p;
+        byBarcodeMap.set(b, p);
+      }
     }
     if (p.stock_code || p.s) {
       const s = (p.stock_code || p.s).toString().trim().toLowerCase();
-      if (s) byStock[s] = p;
+      if (s) {
+        byStock[s] = p;
+        byStockMap.set(s, p);
+      }
     }
-  });
+  }
 }
 
 function statusInfo(status) {
@@ -546,6 +587,14 @@ async function renderProduct(p) {
 
   renderRecent();
   hideResults();
+
+  // If product has no location set yet and Rapid Logger is not open, automatically pop up the Edit/Location modal!
+  const isRapidOpen = document.getElementById('rapidOverlay') && document.getElementById('rapidOverlay').classList.contains('show');
+  if (mappedLocs.length === 0 && !isRapidOpen) {
+    setTimeout(() => {
+      openEditForm();
+    }, 150);
+  }
 }
 
 function renderRecent() {
@@ -587,14 +636,14 @@ async function doSearch(q, isFinal = false) {
   q = q.trim().toLowerCase();
   if (!q) { hideResults(); return; }
 
-  // 1. Instant local index lookup — exact barcode or stock match → go straight to card
-  if (byBarcode[q]) {
-    renderProduct(byBarcode[q]);
+  // 1. Instant O(1) local Map index lookup — exact barcode or stock match
+  if (byBarcodeMap.has(q)) {
+    renderProduct(byBarcodeMap.get(q));
     document.getElementById('searchInput').value = '';
     return;
   }
-  if (byStock[q]) {
-    renderProduct(byStock[q]);
+  if (byStockMap.has(q)) {
+    renderProduct(byStockMap.get(q));
     document.getElementById('searchInput').value = '';
     return;
   }
@@ -692,10 +741,20 @@ function renderMatches(matches) {
   rl.classList.add('show');
 }
 
-// Event Listeners for Search & Upload
-document.getElementById('searchInput').addEventListener('input', e => doSearch(e.target.value, false));
+// Event Listeners for Search & Upload (80ms debounce for smooth typing)
+let searchDebounceTimer = null;
+document.getElementById('searchInput').addEventListener('input', e => {
+  clearTimeout(searchDebounceTimer);
+  const val = e.target.value;
+  searchDebounceTimer = setTimeout(() => {
+    doSearch(val, false);
+  }, 80);
+});
 document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doSearch(e.target.value, true);
+  if (e.key === 'Enter') {
+    clearTimeout(searchDebounceTimer);
+    doSearch(e.target.value, true);
+  }
 });
 
 document.getElementById('clearRecent').addEventListener('click', () => {
@@ -721,6 +780,12 @@ const overlay = document.getElementById('scannerOverlay');
 
 document.getElementById('scanBtn').addEventListener('click', () => startScanner('search'));
 document.getElementById('scanForAddBtn').addEventListener('click', () => startScanner('add'));
+if (document.getElementById('scanEditLocQrBtn')) {
+  document.getElementById('scanEditLocQrBtn').addEventListener('click', () => startScanner('edit_location_qr'));
+}
+if (document.getElementById('scanAddLocQrBtn')) {
+  document.getElementById('scanAddLocQrBtn').addEventListener('click', () => startScanner('add_location_qr'));
+}
 document.getElementById('closeScan').addEventListener('click', stopScanner);
 
 async function startScanner(target) {
@@ -728,7 +793,7 @@ async function startScanner(target) {
   overlay.classList.add('show');
   const hintEl = document.querySelector('.scan-hint');
   hintEl.style.color = '';
-  hintEl.textContent = target === 'location_qr'
+  hintEl.textContent = (target.includes('location_qr') || target.includes('loc'))
     ? 'Point the camera at the location QR code (e.g. 1-02-01-03).'
     : 'Hold the item barcode steady inside the frame.';
 
@@ -796,8 +861,13 @@ function onScanSuccess(code) {
   stopScanner();
   if (scanTarget === 'add') {
     document.getElementById('fBarcode').value = code;
+    autoFillAddFormForBarcode(code);
   } else if (scanTarget === 'location_qr') {
     handleLocationQRScan(code);
+  } else if (scanTarget === 'edit_location_qr') {
+    handleEditLocationQRScan(code);
+  } else if (scanTarget === 'add_location_qr') {
+    handleAddLocationQRScan(code);
   } else if (scanTarget === 'rapid_barcode') {
     handleRapidBarcodeScanned(code);
   } else if (scanTarget === 'rapid_location_qr') {
@@ -809,6 +879,71 @@ function onScanSuccess(code) {
   } else {
     document.getElementById('searchInput').value = code;
     doSearch(code, true);
+  }
+}
+
+function handleEditLocationQRScan(code) {
+  const parsed = parseLocationQR(code);
+  if (parsed) {
+    document.getElementById('efFloor').value = parsed.floor;
+    document.getElementById('efRow').value = parsed.row;
+    document.getElementById('efShelf').value = parsed.shelf;
+    document.getElementById('efLevel').value = parsed.level;
+    if (typeof updateEditLocationSuggestions === 'function') {
+      updateEditLocationSuggestions();
+    }
+    document.getElementById('efQty').focus();
+    showToast(`Location set: Floor ${parsed.floor}, Row ${parsed.row}, Shelf ${parsed.shelf}, Level ${parsed.level}`);
+  } else {
+    alert("Invalid location QR format. Expected format like '1-02-01-03'.");
+  }
+}
+
+function handleAddLocationQRScan(code) {
+  const parsed = parseLocationQR(code);
+  if (parsed) {
+    document.getElementById('fFloor').value = parsed.floor;
+    document.getElementById('fRow').value = parsed.row;
+    document.getElementById('fShelf').value = parsed.shelf;
+    document.getElementById('fLevel').value = parsed.level;
+    if (typeof updateAddLocationSuggestions === 'function') {
+      updateAddLocationSuggestions();
+    }
+    document.getElementById('fQty').focus();
+    showToast(`Location set: Floor ${parsed.floor}, Row ${parsed.row}, Shelf ${parsed.shelf}, Level ${parsed.level}`);
+  } else {
+    alert("Invalid location QR format. Expected format like '1-02-01-03'.");
+  }
+}
+
+async function autoFillAddFormForBarcode(code) {
+  if (!code) return;
+  const cleanCode = code.trim().toLowerCase();
+  
+  let match = PRODUCTS.find(p => {
+    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const s = (p.stock_code || p.s || '').toString().trim().toLowerCase();
+    return (b && b === cleanCode) || (s && s === cleanCode);
+  });
+
+  if (!match) {
+    try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(code)}&limit=5`).then(r => r.json());
+      if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+        match = res.products.find(item =>
+          (item.barcode || '').toLowerCase() === cleanCode ||
+          (item.stock_code || '').toLowerCase() === cleanCode
+        );
+      }
+    } catch (e) {}
+  }
+
+  if (match) {
+    document.getElementById('fName').value = match.name || match.n || '';
+    document.getElementById('fStock').value = match.stock_code || match.s || '';
+    document.getElementById('fCategory').value = match.category || match.c || '';
+    document.getElementById('fSubcategory').value = match.subcategory || match.sc || '';
+    showToast(`Auto-filled: "${match.name || match.n}"`);
   }
 }
 
@@ -1062,10 +1197,12 @@ async function updateStatsHeader() {
 let toastTimer = null;
 function showToast(msg) {
   const t = document.getElementById('successToast');
-  t.textContent = msg;
+  const hasIcon = msg.includes('⚡') || msg.includes('🔔') || msg.includes('📍') || msg.includes('✅') || msg.includes('⚠️') || msg.includes('🔒') || msg.includes('📦');
+  const icon = hasIcon ? '' : '✨ ';
+  t.innerHTML = `<span>${icon}${escapeHtml(msg).replace(/&amp;/g, '&')}</span>`;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3800);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
 // --- AUTHENTICATION EVENT LISTENERS ---
@@ -1755,6 +1892,55 @@ async function checkRapidExistingLocationProduct() {
   }
 }
 
+function promptConcurrentScan(existingRow, newQty) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('concurrentOverlay');
+    const stockmanEl = document.getElementById('concurrentStockman');
+    const locEl = document.getElementById('concurrentLocation');
+    const loggedQtyEl = document.getElementById('concurrentLoggedQty');
+    const timeAgoEl = document.getElementById('concurrentTimeAgo');
+    const addQtyEl = document.getElementById('concurrentAddQty');
+    const replaceQtyEl = document.getElementById('concurrentReplaceQty');
+
+    const stockmanName = existingRow.last_modified_by || existingRow.modifiedBy || 'Staff Stockman';
+    stockmanEl.textContent = stockmanName;
+    locEl.textContent = `Floor ${existingRow.floor || '1'}, Row ${existingRow.batch || existingRow.row || '—'}, Shelf ${existingRow.shelf || '—'}, Level ${existingRow.level || '—'}`;
+    loggedQtyEl.textContent = `${existingRow.qty !== undefined ? existingRow.qty : 0} units`;
+
+    let timeAgo = 'Recently (< 5 mins ago)';
+    if (existingRow.created_at || existingRow.updated_at) {
+      const diffMs = Date.now() - new Date(existingRow.updated_at || existingRow.created_at).getTime();
+      const diffSec = Math.floor(diffMs / 1000);
+      if (diffSec < 60) timeAgo = `${diffSec} seconds ago`;
+      else if (diffSec < 3600) timeAgo = `${Math.floor(diffSec / 60)} minutes ago`;
+    }
+    timeAgoEl.textContent = timeAgo;
+
+    const existingQtyNum = parseInt(existingRow.qty, 10) || 0;
+    const newQtyNum = parseInt(newQty, 10) || 0;
+    addQtyEl.textContent = `${newQtyNum} (Total: ${existingQtyNum + newQtyNum})`;
+    replaceQtyEl.textContent = `${newQtyNum}`;
+
+    overlay.classList.add('show');
+
+    const cancelBtn = document.getElementById('concurrentCancelBtn');
+    const addBtn = document.getElementById('concurrentAddBtn');
+    const replaceBtn = document.getElementById('concurrentReplaceBtn');
+
+    function cleanup(action) {
+      overlay.classList.remove('show');
+      cancelBtn.onclick = null;
+      addBtn.onclick = null;
+      replaceBtn.onclick = null;
+      resolve(action);
+    }
+
+    cancelBtn.onclick = () => cleanup('cancel');
+    addBtn.onclick = () => cleanup('add');
+    replaceBtn.onclick = () => cleanup('replace');
+  });
+}
+
 async function saveRapidEntry() {
   const qtyRaw = rfQty.value.trim();
 
@@ -1827,6 +2013,18 @@ async function saveRapidEntry() {
     qty: parseInt(qtyRaw, 10) || 0,
     last_modified_by: currentUser ? currentUser.full_name : 'Rapid Logger'
   };
+
+  // Concurrent Multi-User Duplicate Safeguard
+  if (currentRapidExistingRow) {
+    const userAction = await promptConcurrentScan(currentRapidExistingRow, payload.qty);
+    if (userAction === 'cancel') {
+      showToast(CURRENT_LANG === 'en' ? 'Scan cancelled — duplicate entry prevented.' : '已取消登记 — 已防止重复记录。');
+      return;
+    }
+    if (userAction === 'add') {
+      payload.qty = (parseInt(currentRapidExistingRow.qty, 10) || 0) + parseInt(payload.qty, 10);
+    }
+  }
 
   try {
     const isUnmappedMaster = existingProduct && (!existingProduct.floor || String(existingProduct.floor).trim() === '' || !existingProduct.loc || String(existingProduct.loc).trim() === '');

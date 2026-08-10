@@ -148,7 +148,13 @@
     </div>
 
     <div class="field field-required">
-      <label data-i18n="storedLabel">Where is it stored?</label>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+        <label data-i18n="storedLabel" style="margin: 0;">Where is it stored?</label>
+        <button id="scanAddLocQrBtn" type="button" class="user-auth-btn" style="margin:0; background: #faf5ff; border-color: #d8b4fe; color: #7e22ce; font-size:11.5px; padding:3px 10px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
+          <span data-i18n="scanLocationQrBtn">Scan Location QR</span>
+        </button>
+      </div>
       <div class="loc-grid">
         <div>
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
@@ -236,7 +242,13 @@
     </div>
 
     <div class="field field-required">
-      <label data-i18n="storedLabel">Where is it stored?</label>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+        <label data-i18n="storedLabel" style="margin: 0;">Where is it stored?</label>
+        <button id="scanEditLocQrBtn" type="button" class="user-auth-btn" style="margin:0; background: #faf5ff; border-color: #d8b4fe; color: #7e22ce; font-size:11.5px; padding:3px 10px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:5px; cursor:pointer;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
+          <span data-i18n="scanLocationQrBtn">Scan Location QR</span>
+        </button>
+      </div>
       <div class="loc-grid">
         <div>
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
@@ -285,53 +297,74 @@
   </div>
 </div>
 
-<!-- LOGIN MODAL OVERLAY -->
+<!-- LOGIN MODAL OVERLAY (Clean Light Theme) -->
 <div id="loginOverlay" class="modal-overlay">
-  <div class="form-panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:38px;height:38px;border-radius:10px;background:#fef3c7;color:#d97706;display:flex;align-items:center;justify-content:center;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  <div class="form-panel" style="max-width: 410px; border-radius: 20px; padding: 28px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08);">
+    
+    <!-- Clean Light Header -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 20px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:40px; height:40px; border-radius:12px; background: #f3e8ff; color: #7c3aed; display:flex; align-items:center; justify-content:center; border: 1px solid #e9d5ff;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <div>
-          <h2 data-i18n="loginTitle">Stockman Sign In</h2>
-          <div style="font-family:'Poppins',sans-serif;font-size:11px;color:var(--muted);" data-i18n="loginSub">Warehouse Accountability Access</div>
+          <h2 style="font-size:18px; margin:0; color:#0f172a; font-weight:700; font-family:'Poppins',sans-serif;" data-i18n="loginTitle">Stockman Sign In</h2>
+          <div style="font-family:'Poppins',sans-serif; font-size:11.5px; color:#64748b; margin-top:2px;" data-i18n="loginTip">Select profile or enter password to sign in</div>
         </div>
       </div>
-      <button id="closeLoginModal" type="button" style="background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted);display:none;">&times;</button>
+      <button id="closeLoginModal" type="button" style="background:#f1f5f9; border:none; font-size:16px; cursor:pointer; color:#64748b; width:28px; height:28px; border-radius:50%; display:none; align-items:center; justify-content:center;">&times;</button>
     </div>
-    <p class="form-sub" style="margin-bottom:14px;" data-i18n="loginTip">Sign in with your stockman profile to take responsibility for shelf location updates.</p>
 
-    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
-      <div style="font-family:'Poppins',sans-serif;font-size:11px;font-weight:700;color:var(--muted);" data-i18n="quickLoginTitle">Quick Select Stockman Profile:</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <div class="quick-user-chip" id="chipStockman1">
-          <div class="qu-name">Juan Dela Cruz</div>
-          <div class="qu-role" data-i18n="stockmanRole1">Stockman 1</div>
+    <!-- Quick Profile Selector -->
+    <div style="margin-bottom: 22px;">
+      <div style="font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;" data-i18n="quickLoginTitle">Quick Select Stockman Profile:</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="quick-user-chip" id="chipStockman1" style="border-radius:12px; padding:10px 12px; background:#ffffff; border:1.5px solid #e2e8f0; cursor:pointer; transition:all 0.2s ease;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:30px; height:30px; border-radius:50%; background:#eff6ff; color:#2563eb; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; border:1px solid #bfdbfe;">JD</div>
+            <div>
+              <div class="qu-name" style="font-size:12px; font-weight:600; color:#0f172a;">Juan Dela Cruz</div>
+              <div class="qu-role" style="font-size:10.5px; color:#64748b;" data-i18n="stockmanRole1">Stockman 1</div>
+            </div>
+          </div>
         </div>
-        <div class="quick-user-chip" id="chipStockman2">
-          <div class="qu-name">Pedro Santos</div>
-          <div class="qu-role" data-i18n="stockmanRole2">Stockman 2</div>
+        
+        <div class="quick-user-chip" id="chipStockman2" style="border-radius:12px; padding:10px 14px; background:#ffffff; border:1.5px solid #e2e8f0; cursor:pointer; transition:all 0.2s ease;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:30px; height:30px; border-radius:50%; background:#fffbe6; color:#d97706; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; border:1px solid #fef08a;">PS</div>
+            <div>
+              <div class="qu-name" style="font-size:12px; font-weight:600; color:#0f172a;">Pedro Santos</div>
+              <div class="qu-role" style="font-size:10.5px; color:#64748b;" data-i18n="stockmanRole2">Stockman 2</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
+    <!-- Login Form -->
     <form id="loginForm">
-      <div class="field">
-        <label for="loginUsername" data-i18n="usernameLabel">Username</label>
-        <input id="loginUsername" type="text" placeholder="e.g. stockman1" required>
+      <div class="field" style="margin-bottom:14px;">
+        <label for="loginUsername" style="font-weight:600; font-size:12px; color:#334155; margin-bottom:6px;" data-i18n="usernameLabel">Username</label>
+        <div style="position:relative;">
+          <input id="loginUsername" type="text" placeholder="e.g. stockman1" required style="padding-left:36px; height:42px; border-radius:10px; border:1px solid #cbd5e1; background:#ffffff; color:#0f172a; font-size:13px;">
+          <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
       </div>
-      <div class="field">
-        <label for="loginPassword" data-i18n="passwordLabel">Password</label>
-        <input id="loginPassword" type="password" placeholder="Enter your password" required>
+      
+      <div class="field" style="margin-bottom:18px;">
+        <label for="loginPassword" style="font-weight:600; font-size:12px; color:#334155; margin-bottom:6px;" data-i18n="passwordLabel">Password</label>
+        <div style="position:relative;">
+          <input id="loginPassword" type="password" placeholder="Enter password" required style="padding-left:36px; height:42px; border-radius:10px; border:1px solid #cbd5e1; background:#ffffff; color:#0f172a; font-size:13px;">
+          <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
       </div>
-      <div id="loginFormError" class="form-error" style="display:none;color:#ef4444;font-size:12px;margin-bottom:10px;">Invalid username or password.</div>
-      <div style="margin-top:20px;">
-        <button type="submit" class="submit-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-          <span data-i18n="signInBtn">Sign In as Stockman</span>
-        </button>
-      </div>
+
+      <div id="loginFormError" class="form-error" style="display:none; color:#ef4444; font-size:12px; margin-bottom:14px; font-weight:600;">Invalid username or password.</div>
+
+      <button type="submit" class="submit-btn" style="width:100%; height:44px; border-radius:10px; background:#7c3aed; color:white; font-weight:600; font-size:13.5px; border:none; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; transition:background 0.2s ease;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        <span data-i18n="signInBtn">Sign In as Stockman</span>
+      </button>
     </form>
   </div>
 </div>
@@ -458,6 +491,40 @@
     <div class="form-actions no-print" style="padding: 16px 30px 24px; background: #fafafa; border-top: 1px solid var(--line); margin: 0;">
       <button id="closeQrBoardBtn" class="btn-cancel" style="margin-top:0; flex:1;" type="button" data-i18n="cancel">Cancel</button>
       <button id="printQrBoardBtn" class="btn-save" style="margin-top:0; flex:1; background:var(--ink) !important; color: white !important;" type="button" data-i18n="printPoster">Print Poster</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONCURRENT MULTI-USER WARNING OVERLAY -->
+<div id="concurrentOverlay" class="modal-overlay" style="z-index: 10000;">
+  <div class="form-panel" style="max-width: 440px; border-radius: 20px; border: 2px solid #f97316; box-shadow: 0 20px 40px -15px rgba(249, 115, 22, 0.3);">
+    <div style="text-align: center; margin-bottom: 16px;">
+      <div style="width: 50px; height: 50px; background: #fff7ed; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px solid #fdba74;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #9a3412;">Concurrent Scan Warning!</h3>
+      <p style="margin: 6px 0 0 0; font-size: 12.5px; color: #c2410c;" id="concurrentSubText">Another stockman recently updated this item at this location.</p>
+    </div>
+
+    <div style="background: #fff7ed; border: 1px solid #ffedd5; padding: 14px; border-radius: 12px; font-size: 12.5px; margin-bottom: 20px; line-height: 1.5; color: #7c2d12;">
+      <div style="margin-bottom: 4px;">👤 <b>Stockman:</b> <span id="concurrentStockman">—</span></div>
+      <div style="margin-bottom: 4px;">📍 <b>Location:</b> <span id="concurrentLocation">—</span></div>
+      <div style="margin-bottom: 4px;">📦 <b>Logged Quantity:</b> <span id="concurrentLoggedQty" style="font-weight: 700;">—</span></div>
+      <div>⏱️ <b>Time Ago:</b> <span id="concurrentTimeAgo" style="font-weight: 700; color: #ea580c;">—</span></div>
+    </div>
+
+    <div style="font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 10px;">Select your action:</div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <button id="concurrentCancelBtn" type="button" class="btn-cancel" style="margin: 0; width: 100%; height: 42px; background: white; border: 1.5px solid var(--line); color: var(--ink); font-weight: 600;">
+        ❌ Cancel (Duplicate Scan - Do Not Save)
+      </button>
+      <button id="concurrentAddBtn" type="button" class="btn-save" style="margin: 0; width: 100%; height: 42px; background: #ea580c; border: none; color: white; font-weight: 700;">
+        ➕ Add +<span id="concurrentAddQty">0</span> to Existing Stock
+      </button>
+      <button id="concurrentReplaceBtn" type="button" class="btn-cancel" style="margin: 0; width: 100%; height: 42px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-weight: 600;">
+        ✏️ Set Total to <span id="concurrentReplaceQty">0</span> (Overwrite)
+      </button>
     </div>
   </div>
 </div>
