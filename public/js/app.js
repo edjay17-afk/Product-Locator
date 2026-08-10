@@ -409,6 +409,17 @@ function rebuildIndex() {
       if (b) {
         byBarcode[b] = p;
         byBarcodeMap.set(b, p);
+
+        const stripped = b.replace(/^0+/, '');
+        if (stripped && stripped !== b) {
+          byBarcodeMap.set(stripped, p);
+          byBarcode[stripped] = p;
+        }
+
+        const cleanAlpha = b.replace(/[^a-z0-9]/gi, '');
+        if (cleanAlpha && cleanAlpha !== b && cleanAlpha !== stripped) {
+          byBarcodeMap.set(cleanAlpha, p);
+        }
       }
     }
     if (p.stock_no || p.stock_code || p.s) {
@@ -416,6 +427,12 @@ function rebuildIndex() {
       if (s) {
         byStock[s] = p;
         byStockMap.set(s, p);
+
+        const strippedS = s.replace(/^0+/, '');
+        if (strippedS && strippedS !== s) {
+          byStockMap.set(strippedS, p);
+          byStock[strippedS] = p;
+        }
       }
     }
   }
@@ -475,20 +492,7 @@ async function fetchLocationsForProduct(product) {
   return getLocationsForProduct(product);
 }
 
-async function renderProduct(p) {
-  activeProduct = p;
-  document.getElementById('emptyState').style.display = 'none';
-  const card = document.getElementById('tagCard');
-  card.classList.add('show');
-  document.getElementById('extraRow').style.display = 'flex';
-  document.getElementById('cardActions').style.display = 'flex';
-
-  const barcode = p.barcode || p.b;
-  const stockCode = p.stock_no || p.stock_code || p.s;
-  document.getElementById('pBarcode').textContent = barcode || (stockCode ? ('#' + stockCode) : '—');
-
-  // Multi-location rendering (fresh fetch from DB)
-  const locs = await fetchLocationsForProduct(p);
+function renderProductLocationsUI(p, locs) {
   const totalQty = locs.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
   document.getElementById('pQty').textContent = totalQty;
 
@@ -512,7 +516,6 @@ async function renderProduct(p) {
 
     const hasLoc = floor !== '' || row !== '' || shelf !== '' || (item.status && String(item.status).toUpperCase() === 'MAPPED');
 
-    // Search for existing entry in grouped array
     const existing = uniqueLocs.find(u =>
       u.floor === floor &&
       u.row === row &&
@@ -522,7 +525,6 @@ async function renderProduct(p) {
 
     if (existing) {
       existing.qty = (parseInt(existing.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
-      // Retain the highest/most-recent database record ID for edit actions
       if (item.id && (!existing.id || item.id > existing.id)) {
         existing.id = item.id;
         existing.status = item.status;
@@ -549,7 +551,6 @@ async function renderProduct(p) {
     }
   });
 
-  // Filter unmapped cards if at least one mapped location card exists
   const mappedLocs = uniqueLocs.filter(item => item.hasLoc && (item.floor !== '' || item.row !== '' || item.shelf !== ''));
   const finalLocs = mappedLocs.length > 0 ? mappedLocs : uniqueLocs;
 
@@ -614,8 +615,25 @@ async function renderProduct(p) {
   } else {
     scanQrBtn.style.display = 'none';
   }
+}
 
-  if (navigator.vibrate) navigator.vibrate(60);
+function renderProduct(p) {
+  activeProduct = p;
+  document.getElementById('emptyState').style.display = 'none';
+  const card = document.getElementById('tagCard');
+  card.classList.add('show');
+  document.getElementById('extraRow').style.display = 'flex';
+  document.getElementById('cardActions').style.display = 'flex';
+
+  const barcode = p.barcode || p.b;
+  const stockCode = p.stock_no || p.stock_code || p.s;
+  document.getElementById('pBarcode').textContent = barcode || (stockCode ? ('#' + stockCode) : '—');
+
+  // 1. Instant local render (0ms latency!)
+  const localLocs = getLocationsForProduct(p);
+  renderProductLocationsUI(p, localLocs);
+
+  if (navigator.vibrate) navigator.vibrate(45);
 
   // push to persistent recent lookups
   recent = recent.filter(r => (r.id ? r.id !== p.id : (r.barcode || r.b) !== (p.barcode || p.b)));
@@ -630,11 +648,24 @@ async function renderProduct(p) {
 
   // If product has no location set yet and Rapid Logger is not open, automatically pop up the Edit/Location modal!
   const isRapidOpen = document.getElementById('rapidOverlay') && document.getElementById('rapidOverlay').classList.contains('show');
-  if (mappedLocs.length === 0 && !isRapidOpen) {
+  if (window.currentLocs && window.currentLocs.filter(i => i.hasLoc).length === 0 && !isRapidOpen) {
     setTimeout(() => {
       openEditForm();
     }, 150);
   }
+
+  // 2. Background non-blocking DB fetch for fresh locations
+  fetchLocationsForProduct(p).then(freshLocs => {
+    if (freshLocs && freshLocs.length > 0 && activeProduct && (
+      (activeProduct.id && activeProduct.id === p.id) ||
+      (activeProduct.barcode && (activeProduct.barcode === p.barcode || activeProduct.barcode === p.b)) ||
+      (activeProduct.stock_no && (activeProduct.stock_no === p.stock_no || activeProduct.stock_no === p.s))
+    )) {
+      renderProductLocationsUI(p, freshLocs);
+    }
+  }).catch(e => {
+    console.warn("Background fresh locations fetch error:", e);
+  });
 }
 
 function renderRecent() {
@@ -676,10 +707,16 @@ async function doSearch(q, isFinal = false) {
   q = q.trim().toLowerCase();
   if (!q) { hideResults(); return; }
 
-  // 1. Exact Match Lookups
-  let exactMatch = null;
-  if (byBarcodeMap.has(q)) exactMatch = byBarcodeMap.get(q);
-  else if (byStockMap.has(q)) exactMatch = byStockMap.get(q);
+  const qStripped = q.replace(/^0+/, '');
+  const qClean = q.replace(/[^a-z0-9]/gi, '');
+
+  // 1. Exact Match Lookups (0ms memory hit)
+  let exactMatch = byBarcodeMap.get(q) ||
+                   (qStripped ? byBarcodeMap.get(qStripped) : null) ||
+                   (qClean ? byBarcodeMap.get(qClean) : null) ||
+                   byStockMap.get(q) ||
+                   (qStripped ? byStockMap.get(qStripped) : null) ||
+                   (qClean ? byStockMap.get(qClean) : null);
 
   if (exactMatch && isFinal) {
     renderProduct(exactMatch);
@@ -692,7 +729,8 @@ async function doSearch(q, isFinal = false) {
     const barcode = (p.barcode || p.b || '').toString().toLowerCase();
     const stockCode = (p.stock_no || p.stock_code || p.s || '').toString().toLowerCase();
     const name = (p.product_name || p.name || p.n || '').toLowerCase();
-    return barcode.includes(q) || stockCode.includes(q) || name.includes(q);
+    return barcode.includes(q) || stockCode.includes(q) || name.includes(q) ||
+           (qStripped && barcode.includes(qStripped));
   });
 
   // Deduplicate by barcode
@@ -723,11 +761,24 @@ async function doSearch(q, isFinal = false) {
   }
 
   try {
+    // Try fast exact lookup endpoint first for barcode/stock queries
+    if (/^[0-9a-zA-Z\-_]{3,30}$/.test(q)) {
+      try {
+        const lookupRes = await fetch(`/api/products/lookup/${encodeURIComponent(q)}`).then(r => r.json());
+        if (lookupRes.success && lookupRes.product) {
+          renderProduct(lookupRes.product);
+          document.getElementById('searchInput').value = '';
+          return;
+        }
+      } catch (e) {}
+    }
+
     const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=50`).then(r => r.json());
     if (res.success && res.products.length > 0) {
       const serverExact = res.products.find(item =>
         (item.barcode || '').toLowerCase() === q ||
-        (item.stock_no || item.stock_code || '').toLowerCase() === q
+        (item.stock_no || item.stock_code || '').toLowerCase() === q ||
+        (qStripped && (item.barcode || '').toLowerCase() === qStripped)
       );
       if (serverExact) {
         renderProduct(serverExact);
@@ -834,7 +885,170 @@ if (scanAddLocQrBtnEl) scanAddLocQrBtnEl.addEventListener('click', () => startSc
 const closeScanEl = document.getElementById('closeScan');
 if (closeScanEl) closeScanEl.addEventListener('click', stopScanner);
 
+const testBeepBtnEl = document.getElementById('testBeepBtn');
+if (testBeepBtnEl) {
+  testBeepBtnEl.addEventListener('click', () => {
+    primeAudioEngine();
+    playScanBeep(false);
+    if (typeof showToast === 'function') showToast('🔊 Beep sound played!');
+  });
+}
+
+let barcodeAudioEl = null;
+let qrAudioEl = null;
+let globalAudioCtx = null;
+
+function createBeepWavDataUri(frequency = 1800, durationMs = 85, volume = 0.95) {
+  try {
+    const sampleRate = 22050;
+    const numSamples = Math.floor(sampleRate * (durationMs / 1000));
+    const buffer = new Uint8Array(44 + numSamples * 2);
+    const view = new DataView(buffer.buffer);
+
+    buffer.set([82, 73, 70, 70], 0); // "RIFF"
+    view.setUint32(4, 36 + numSamples * 2, true);
+    buffer.set([87, 65, 86, 69], 8); // "WAVE"
+    buffer.set([102, 109, 116, 32], 12); // "fmt "
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    buffer.set([100, 97, 116, 97], 36); // "data"
+    view.setUint32(40, numSamples * 2, true);
+
+    for (let i = 0; i < numSamples; i++) {
+      const t = i / sampleRate;
+      const fadeOut = (i > numSamples - 330) ? (numSamples - i) / 330 : 1;
+      const sample = Math.sin(2 * Math.PI * frequency * t) * volume * fadeOut;
+      const intSample = Math.max(-32768, Math.min(32767, Math.floor(sample * 32767)));
+      view.setInt16(44 + i * 2, intSample, true);
+    }
+
+    let binary = '';
+    for (let i = 0; i < buffer.length; i++) {
+      binary += String.fromCharCode(buffer[i]);
+    }
+    return 'data:audio/wav;base64,' + btoa(binary);
+  } catch (e) {
+    return '';
+  }
+}
+
+function initAudioElements() {
+  if (!barcodeAudioEl) {
+    const barcodeWav = createBeepWavDataUri(1800, 85, 0.95);
+    if (barcodeWav) {
+      barcodeAudioEl = new Audio(barcodeWav);
+      barcodeAudioEl.preload = 'auto';
+    }
+  }
+  if (!qrAudioEl) {
+    const qrWav = createBeepWavDataUri(2200, 110, 0.95);
+    if (qrWav) {
+      qrAudioEl = new Audio(qrWav);
+      qrAudioEl.preload = 'auto';
+    }
+  }
+}
+
+function primeAudioEngine() {
+  initAudioElements();
+
+  // 1. Prime Web Audio Context
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (AudioCtx) {
+      if (!globalAudioCtx) globalAudioCtx = new AudioCtx();
+      if (globalAudioCtx.state === 'suspended') {
+        globalAudioCtx.resume().catch(() => {});
+      }
+    }
+  } catch (e) {}
+
+  // 2. Pre-unlock HTML5 Audio elements on mobile Safari & Chrome
+  try {
+    if (barcodeAudioEl) {
+      const p1 = barcodeAudioEl.play();
+      if (p1 && typeof p1.then === 'function') {
+        p1.then(() => {
+          barcodeAudioEl.pause();
+          barcodeAudioEl.currentTime = 0;
+        }).catch(() => {});
+      }
+    }
+    if (qrAudioEl) {
+      const p2 = qrAudioEl.play();
+      if (p2 && typeof p2.then === 'function') {
+        p2.then(() => {
+          qrAudioEl.pause();
+          qrAudioEl.currentTime = 0;
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {}
+}
+
+// User touch/click listeners to pre-prime mobile audio engines
+if (typeof window !== 'undefined') {
+  ['touchstart', 'touchend', 'click', 'pointerdown'].forEach(evt => {
+    document.addEventListener(evt, () => {
+      primeAudioEngine();
+    }, { once: false, passive: true });
+  });
+}
+
+function playScanBeep(isQr = false) {
+  try {
+    // 1. Mobile haptic vibration
+    if (navigator.vibrate) {
+      navigator.vibrate(isQr ? [40, 30, 40] : 60);
+    }
+
+    // 2. Primary HTML5 Audio Element Playback (Media Stream Channel)
+    initAudioElements();
+    const targetAudio = isQr ? qrAudioEl : barcodeAudioEl;
+    if (targetAudio) {
+      try {
+        targetAudio.currentTime = 0;
+        targetAudio.play().catch(err => {
+          console.warn('HTML5 audio play error:', err);
+        });
+      } catch (e) {}
+    }
+
+    // 3. Web Audio API Oscillator Playback (Synth Channel)
+    if (globalAudioCtx) {
+      if (globalAudioCtx.state === 'suspended') {
+        globalAudioCtx.resume().catch(() => {});
+      }
+      const now = globalAudioCtx.currentTime;
+      const osc = globalAudioCtx.createOscillator();
+      const gain = globalAudioCtx.createGain();
+
+      const freq = isQr ? 2200 : 1800;
+      const duration = isQr ? 0.1 : 0.08;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.4, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      osc.connect(gain);
+      gain.connect(globalAudioCtx.destination);
+
+      osc.start(now);
+      osc.stop(now + duration);
+    }
+  } catch (e) {
+    console.warn('Scan beep error:', e);
+  }
+}
+
 async function startScanner(target) {
+  primeAudioEngine();
   scanTarget = target || 'search';
   const overlayEl = document.getElementById('scannerOverlay');
   if (overlayEl) overlayEl.classList.add('show');
@@ -853,33 +1067,56 @@ async function startScanner(target) {
     html5QrCode = null;
   }
 
-  let options = undefined;
+  let options = {
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: true
+    }
+  };
   const SupportedFormats = window.Html5QrcodeSupportedFormats || (window.Html5Qrcode && window.Html5Qrcode.SupportedFormats);
   if (SupportedFormats) {
-    options = {
-      formatsToSupport: [
-        SupportedFormats.EAN_13,
-        SupportedFormats.EAN_8,
-        SupportedFormats.UPC_A,
-        SupportedFormats.UPC_E,
-        SupportedFormats.CODE_128,
-        SupportedFormats.CODE_39,
-        SupportedFormats.QR_CODE
-      ]
-    };
+    options.formatsToSupport = [
+      SupportedFormats.EAN_13,
+      SupportedFormats.EAN_8,
+      SupportedFormats.UPC_A,
+      SupportedFormats.UPC_E,
+      SupportedFormats.CODE_128,
+      SupportedFormats.CODE_39,
+      SupportedFormats.QR_CODE
+    ];
   }
 
   html5QrCode = new Html5Qrcode("reader", options);
 
   const isQr = target.includes('qr') || target.includes('location');
-  const qrbox = isQr ? { width: 250, height: 250 } : { width: 260, height: 150 };
-  const config = { fps: 12, qrbox };
+  const qrbox = isQr ? { width: 250, height: 250 } : { width: 280, height: 160 };
+  const config = {
+    fps: 25,
+    qrbox,
+    aspectRatio: 1.777778,
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: true
+    }
+  };
   const onScan = (decodedText) => onScanSuccess(decodedText);
   const onError = () => {};
+
+  const applyAutofocus = () => {
+    try {
+      if (html5QrCode && typeof html5QrCode.getRunningTrack === 'function') {
+        const track = html5QrCode.getRunningTrack();
+        if (track && track.applyConstraints) {
+          track.applyConstraints({
+            advanced: [{ focusMode: "continuous" }]
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {}
+  };
 
   // 1. Try environment camera mode
   try {
     await html5QrCode.start({ facingMode: "environment" }, config, onScan, onError);
+    applyAutofocus();
     return;
   } catch (err1) {
     console.warn('facingMode environment start failed, trying camera device list:', err1);
@@ -891,6 +1128,7 @@ async function startScanner(target) {
     if (cameras && cameras.length > 0) {
       const backCam = cameras.find(c => /back|rear|environment|main/i.test(c.label)) || cameras[cameras.length - 1];
       await html5QrCode.start(backCam.id, config, onScan, onError);
+      applyAutofocus();
       return;
     }
   } catch (err2) {
@@ -900,6 +1138,7 @@ async function startScanner(target) {
   // 3. Try any user facing camera
   try {
     await html5QrCode.start({ facingMode: "user" }, config, onScan, onError);
+    applyAutofocus();
     return;
   } catch (err3) {
     console.error('All camera initialization modes failed:', err3);
@@ -914,6 +1153,8 @@ async function startScanner(target) {
 
 function onScanSuccess(code) {
   code = code.trim();
+  const isQr = Boolean(scanTarget && (scanTarget.includes('qr') || scanTarget.includes('location')));
+  playScanBeep(isQr);
   stopScanner();
   if (scanTarget === 'add') {
     document.getElementById('fBarcode').value = code;
@@ -2491,11 +2732,32 @@ if (closeQrBoardBtn) {
   });
 }
 
-if (printQrBoardBtn) {
-  printQrBoardBtn.addEventListener('click', () => {
-    window.print();
-  });
-}
+// Hardware Barcode Scanner (Keyboard Wedge) Global Fast Listener
+let hardwareScanBuffer = '';
+let lastKeyTime = 0;
+document.addEventListener('keydown', e => {
+  const tag = (e.target && e.target.tagName) ? e.target.tagName : '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+
+  const now = Date.now();
+  if (now - lastKeyTime > 120) {
+    hardwareScanBuffer = '';
+  }
+  lastKeyTime = now;
+
+  if (e.key === 'Enter') {
+    if (hardwareScanBuffer.length >= 3) {
+      const code = hardwareScanBuffer.trim();
+      hardwareScanBuffer = '';
+      playScanBeep();
+      const inputEl = document.getElementById('searchInput');
+      if (inputEl) inputEl.value = code;
+      doSearch(code, true);
+    }
+  } else if (e.key && e.key.length === 1) {
+    hardwareScanBuffer += e.key;
+  }
+});
 
 // Start app on DOM ready
 document.addEventListener('DOMContentLoaded', initApp);

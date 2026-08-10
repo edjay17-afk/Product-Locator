@@ -95,9 +95,9 @@ function initBetterSqlite() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
-    CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock_code);
-    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock_code COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE);
   `);
 
   const count = sqliteDb.prepare('SELECT COUNT(*) as count FROM products').get().count;
