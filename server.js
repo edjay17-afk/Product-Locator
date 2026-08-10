@@ -14,6 +14,14 @@ try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 const db = require('./db/supabase');
 const os = require('os');
 
+// Global error handlers to prevent the server from crashing entirely on unexpected errors
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled Rejection:', reason);
+});
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002', 10);
 
@@ -104,7 +112,7 @@ app.get('/api/seed-supabase', async (req, res) => {
   }
 });
 
-// Batch create products endpoint
+// batch create products endpoint
 app.post('/api/products/batch', async (req, res) => {
   try {
     const products = req.body.products;
@@ -155,29 +163,29 @@ app.post('/api/upload-excel', upload.single('file'), async (req, res) => {
       if (!name || name === 'Unnamed Item') continue;
 
       const category = cleanHtml(r[3] ? String(r[3]).trim() : '');
-      const subcategory = cleanHtml(r[4] ? String(r[4]).trim() : '');
+      const department = cleanHtml(r[4] ? String(r[4]).trim() : '');
       const locFull = r[5] ? cleanHtml(String(r[5]).trim()) : '';
       const floor = r[6] ? extractNum(r[6]).replace(/^0+/, '') : '';
-      const batch = r[7] ? extractNum(r[7]) : '';
+      const row = r[7] ? extractNum(r[7]) : '';
       const shelf = r[8] ? extractNum(r[8]) : '';
       const level = r[9] ? extractNum(r[9]) : '';
       const qty = typeof r[10] === 'number' ? r[10] : (parseInt(r[10], 10) || 0);
       const status = r[16] ? String(r[16]).trim() : '';
 
-      const loc = (floor || batch || shelf) ? `${floor}-${batch}-${shelf}-${level || '00'}` : '';
+      const loc = (floor || row || shelf) ? `${floor}-${row}-${shelf}-${level || '0'}` : '';
 
       itemsToInsert.push({
         barcode,
-        stock_code: stock,
+        stock_no: stock,
         name,
         category,
-        subcategory,
+        department,
         floor,
-        batch,
+        row,
         shelf,
-        level: level || '00',
+        level: level || '0',
         loc,
-        loc_full: locFull || loc,
+        storage_location: locFull || loc,
         qty,
         status
       });
@@ -243,6 +251,22 @@ app.get('/api/products/lookup/:code', async (req, res) => {
   }
 });
 
+// Get all products at a specific shelf location (for Checker Audit Mode)
+app.get('/api/products/by-location', async (req, res) => {
+  try {
+    const loc = req.query.loc || '';
+    const floor = req.query.floor || '';
+    const row = req.query.row || req.query.batch || '';
+    const shelf = req.query.shelf || '';
+    const level = req.query.level || '';
+
+    const products = await db.getProductsByLocation({ loc, floor, row, shelf, level });
+    res.json({ success: true, count: products.length, products });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get single product by ID
 app.get('/api/products/:id', async (req, res) => {
   try {
@@ -259,37 +283,42 @@ app.get('/api/products/:id', async (req, res) => {
 // Add new product
 app.post('/api/products', async (req, res) => {
   try {
-    const { name, floor, batch, shelf } = req.body;
+    const name = req.body.name || req.body.product_name;
+    const floor = req.body.floor;
+    const batch = req.body.batch || req.body.row;
+    const shelf = req.body.shelf;
+
     if (!name || !batch || !shelf) {
       return res.status(400).json({
         success: false,
-        error: 'Product name, row (batch), and shelf are required fields.'
+        error: 'Product name, batch, and shelf are required fields.'
       });
     }
 
-    // stock_code is optional — default to barcode if not supplied
-    if (!req.body.stock_code) {
-      req.body.stock_code = req.body.barcode || '';
-    }
+    const stock_code = req.body.stock_code || req.body.stock_no || req.body.barcode || '';
+    const subcategory = req.body.subcategory || req.body.department || '';
 
     const pad2 = (v) => {
       const s = (v || '').toString().trim();
       return s.length === 1 ? '0' + s : s;
     };
 
-    const row = pad2(batch);
+    const rw = pad2(batch);
     const sh = pad2(shelf);
-    const lev = pad2(req.body.level) || '00';
+    const lev = pad2(req.body.level) || '0';
     const fl = floor || '1';
 
-    const loc = `${fl}-${row}-${sh}-${lev}`;
+    const loc = `${fl}-${rw}-${sh}-${lev}`;
     const floorLabel = fl === '1' ? 'First Floor' : (fl === '2' ? 'Second Floor' : 'Third Floor');
-    const loc_full = `${loc} ${floorLabel} - Row ${row} - Shelves ${sh} - Level ${lev}`;
+    const loc_full = `${loc} ${floorLabel} - Batch ${rw} - Shelves ${sh} - Level ${lev}`;
 
     const newProduct = await db.createProduct({
       ...req.body,
+      name,
+      stock_code,
+      subcategory,
       floor: fl,
-      batch: row,
+      batch: rw,
       shelf: sh,
       level: lev,
       loc,
@@ -379,7 +408,7 @@ async function getSslCertificates() {
   ];
 
   const pems = await selfsigned.generate(
-    [{ name: 'commonName', value: 'Warehouse Product Locator' }],
+    [{ product_name: 'commonName', value: 'Warehouse Product Locator' }],
     { days: 365, altNames }
   );
 

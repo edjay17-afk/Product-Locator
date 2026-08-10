@@ -14,26 +14,28 @@
 <body>
 <div class="wrap">
 
-  <header style="display:flex; justify-content:space-between; align-items:flex-start;">
-    <div>
+  <header class="main-header">
+    <div class="header-row header-row-top">
       <div class="brand-eyebrow" data-i18n="brandEyebrow">Warehouse Product Locator</div>
-      <h1 data-i18n="appTitle">Product&nbsp;Locator</h1>
-      <div class="sub" data-i18n="appSub">Find where a product goes, or add a new one</div>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button id="showQrBoardBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700; display: inline-flex; align-items: center; gap: 4px;">
+      <div class="header-buttons">
+        <button id="showQrBoardBtn" type="button" class="user-auth-btn header-btn">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
           <span data-i18n="quickSearchBoard">Search Board QR</span>
         </button>
-        <button id="langToggleBtn" type="button" class="user-auth-btn" style="margin: 0; background: #f8fafc; border-color: var(--line); font-size:11px; padding:4px 8px; border-radius:12px; font-weight:700;">🌐 EN / 中文</button>
+        <button id="langToggleBtn" type="button" class="user-auth-btn header-btn">🌐 EN / 中文</button>
       </div>
-      <div class="user-pill-container" id="userBadge" style="background: none; border: none; padding: 0; box-shadow: none;">
+    </div>
+    <div class="header-row header-row-bottom">
+      <div>
+        <h1 id="appTitle" data-i18n="appTitle">Product&nbsp;Locator</h1>
+        <div class="sub" id="appSub" data-i18n="appSub">Find where a product goes, or add a new one</div>
+      </div>
+      <div class="user-pill-container" id="userBadge" style="background: none; border: none; padding: 0; box-shadow: none; margin: 0;">
         <div class="user-avatar-icon" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </div>
         <span class="user-name" id="userNameDisplay" style="display: none;">Guest</span>
-        <button id="authBtn" class="user-auth-btn login" type="button">Sign In</button>
+        <button id="authBtn" class="user-auth-btn login" type="button" style="margin: 0;">Sign In</button>
       </div>
     </div>
   </header>
@@ -55,6 +57,10 @@
       <button id="rapidLoggerBtn" type="button" style="flex:1; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         <span data-i18n="rapidBtn">⚡ Rapid Logger</span>
+      </button>
+      <button id="auditLocationQrBtn" type="button" style="flex:1; background: #7c3aed; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
+        <span>🔍 Audit Shelf QR</span>
       </button>
     </div>
   </div>
@@ -315,16 +321,30 @@
       <button id="closeLoginModal" type="button" style="background:#f1f5f9; border:none; font-size:16px; cursor:pointer; color:#64748b; width:28px; height:28px; border-radius:50%; display:none; align-items:center; justify-content:center;">&times;</button>
     </div>
 
+    <!-- Role Selection Tabs -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#f1f5f9; padding:4px; border-radius:12px; margin-bottom:18px;">
+      <button id="roleTabStockman" type="button" style="padding:8px 12px; border-radius:9px; border:none; background:#ffffff; color:#7c3aed; font-weight:700; font-size:12.5px; cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.05); display:flex; align-items:center; justify-content:center; gap:6px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <span>Stockman</span>
+      </button>
+      <button id="roleTabChecker" type="button" style="padding:8px 12px; border-radius:9px; border:none; background:transparent; color:#64748b; font-weight:600; font-size:12.5px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v6M8 11h6"/></svg>
+        <span>Checker</span>
+      </button>
+    </div>
+
     <!-- Quick Profile Selector -->
     <div style="margin-bottom: 22px;">
-      <div style="font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;" data-i18n="quickLoginTitle">Quick Select Stockman Profile:</div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+      <div style="font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:10px;" id="quickLoginTitle">Select Stockman Profile:</div>
+      
+      <!-- Stockman Chips -->
+      <div id="stockmanChipsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
         <div class="quick-user-chip" id="chipStockman1" style="border-radius:12px; padding:10px 12px; background:#ffffff; border:1.5px solid #e2e8f0; cursor:pointer; transition:all 0.2s ease;">
           <div style="display:flex; align-items:center; gap:8px;">
             <div style="width:30px; height:30px; border-radius:50%; background:#eff6ff; color:#2563eb; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; border:1px solid #bfdbfe;">JD</div>
             <div>
               <div class="qu-name" style="font-size:12px; font-weight:600; color:#0f172a;">Juan Dela Cruz</div>
-              <div class="qu-role" style="font-size:10.5px; color:#64748b;" data-i18n="stockmanRole1">Stockman 1</div>
+              <div class="qu-role" style="font-size:10.5px; color:#64748b;">Stockman 1</div>
             </div>
           </div>
         </div>
@@ -334,7 +354,30 @@
             <div style="width:30px; height:30px; border-radius:50%; background:#fffbe6; color:#d97706; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; border:1px solid #fef08a;">PS</div>
             <div>
               <div class="qu-name" style="font-size:12px; font-weight:600; color:#0f172a;">Pedro Santos</div>
-              <div class="qu-role" style="font-size:10.5px; color:#64748b;" data-i18n="stockmanRole2">Stockman 2</div>
+              <div class="qu-role" style="font-size:10.5px; color:#64748b;">Stockman 2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checker Chips -->
+      <div id="checkerChipsGrid" style="display:none; grid-template-columns:1fr 1fr; gap:10px;">
+        <div class="quick-user-chip" id="chipChecker1" style="border-radius:12px; padding:10px 12px; background:#ffffff; border:1.5px solid #e2e8f0; cursor:pointer; transition:all 0.2s ease;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:30px; height:30px; border-radius:50%; background:#f3e8ff; color:#7c3aed; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; border:1px solid #e9d5ff;">MS</div>
+            <div>
+              <div class="qu-name" style="font-size:12px; font-weight:600; color:#0f172a;">Maria Santos</div>
+              <div class="qu-role" style="font-size:10.5px; color:#64748b;">Checker 1</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="quick-user-chip" id="chipChecker2" style="border-radius:12px; padding:10px 14px; background:#ffffff; border:1.5px solid #e2e8f0; cursor:pointer; transition:all 0.2s ease;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="width:30px; height:30px; border-radius:50%; background:#ecfdf5; color:#059669; font-weight:700; font-size:12px; display:flex; align-items:center; justify-content:center; border:1px solid #a7f3d0;">AR</div>
+            <div>
+              <div class="qu-name" style="font-size:12px; font-weight:600; color:#0f172a;">Alex Reyes</div>
+              <div class="qu-role" style="font-size:10.5px; color:#64748b;">Checker 2</div>
             </div>
           </div>
         </div>
@@ -496,35 +539,78 @@
 </div>
 
 <!-- CONCURRENT MULTI-USER WARNING OVERLAY -->
-<div id="concurrentOverlay" class="modal-overlay" style="z-index: 10000;">
-  <div class="form-panel" style="max-width: 440px; border-radius: 20px; border: 2px solid #f97316; box-shadow: 0 20px 40px -15px rgba(249, 115, 22, 0.3);">
-    <div style="text-align: center; margin-bottom: 16px;">
-      <div style="width: 50px; height: 50px; background: #fff7ed; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px solid #fdba74;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+<div id="concurrentOverlay" class="modal-overlay">
+  <div class="form-panel">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 15px;">
+      <div>
+        <h2 style="color: #d9534f; margin:0;">Duplicate Scan Detected</h2>
+        <div class="form-sub" id="concurrentSubText" style="margin-top: 4px;">Another user recently updated this item at the same location. Please verify to prevent duplicates.</div>
       </div>
-      <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #9a3412;">Concurrent Scan Warning!</h3>
-      <p style="margin: 6px 0 0 0; font-size: 12.5px; color: #c2410c;" id="concurrentSubText">Another stockman recently updated this item at this location.</p>
     </div>
 
-    <div style="background: #fff7ed; border: 1px solid #ffedd5; padding: 14px; border-radius: 12px; font-size: 12.5px; margin-bottom: 20px; line-height: 1.5; color: #7c2d12;">
-      <div style="margin-bottom: 4px;">👤 <b>Stockman:</b> <span id="concurrentStockman">—</span></div>
-      <div style="margin-bottom: 4px;">📍 <b>Location:</b> <span id="concurrentLocation">—</span></div>
-      <div style="margin-bottom: 4px;">📦 <b>Logged Quantity:</b> <span id="concurrentLoggedQty" style="font-weight: 700;">—</span></div>
-      <div>⏱️ <b>Time Ago:</b> <span id="concurrentTimeAgo" style="font-weight: 700; color: #ea580c;">—</span></div>
+    <div class="loc-info-card" style="margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span class="clabel">Modified By</span>
+        <span id="concurrentStockman" class="cval">—</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span class="clabel">Location</span>
+        <span id="concurrentLocation" class="cval">—</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span class="clabel">Logged Quantity</span>
+        <span id="concurrentLoggedQty" class="cval">—</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px;">
+        <span class="clabel">Time Since Update</span>
+        <span id="concurrentTimeAgo" class="cval" style="color: #d9534f;">—</span>
+      </div>
     </div>
 
-    <div style="font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 10px;">Select your action:</div>
-
+    <label style="margin-bottom: 8px; display: block; font-weight: 600;">Resolve Conflict</label>
+    
     <div style="display: flex; flex-direction: column; gap: 8px;">
-      <button id="concurrentCancelBtn" type="button" class="btn-cancel" style="margin: 0; width: 100%; height: 42px; background: white; border: 1.5px solid var(--line); color: var(--ink); font-weight: 600;">
-        ❌ Cancel (Duplicate Scan - Do Not Save)
+      <button id="concurrentAddBtn" type="button" class="btn-save" style="width: 100%; height: auto; text-align: center; padding: 10px;">
+        Add +<span id="concurrentAddQty">0</span> to Existing Stock
       </button>
-      <button id="concurrentAddBtn" type="button" class="btn-save" style="margin: 0; width: 100%; height: 42px; background: #ea580c; border: none; color: white; font-weight: 700;">
-        ➕ Add +<span id="concurrentAddQty">0</span> to Existing Stock
+      <button id="concurrentReplaceBtn" type="button" class="btn-cancel" style="width: 100%; height: auto; text-align: center; padding: 10px; border: 1px solid #000; color: #000;">
+        Overwrite Total to <span id="concurrentReplaceQty">0</span>
       </button>
-      <button id="concurrentReplaceBtn" type="button" class="btn-cancel" style="margin: 0; width: 100%; height: 42px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-weight: 600;">
-        ✏️ Set Total to <span id="concurrentReplaceQty">0</span> (Overwrite)
+      <button id="concurrentCancelBtn" type="button" class="btn-cancel" style="width: 100%; height: auto; text-align: center; padding: 10px; border-color: #d9534f; color: #d9534f; background: #fff0f0;">
+        Cancel Scan
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCATION AUDIT MODAL FOR CHECKER ROLE -->
+<div id="locationAuditOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width: 620px; border-radius: 20px; padding: 24px; background: #ffffff; max-height: 90vh; overflow-y: auto;">
+    
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 14px;">
+      <div>
+        <div style="font-family:'Poppins',sans-serif; font-size:11px; font-weight:700; color:#7c3aed; letter-spacing:0.1em; text-transform:uppercase;">🔍 Checker Audit View</div>
+        <h2 style="font-size:20px; margin:2px 0 0 0; color:#0f172a; font-weight:700;" id="auditLocTitle">Location Audit</h2>
+      </div>
+      <button id="closeAuditModal" type="button" style="background:#f1f5f9; border:none; font-size:18px; cursor:pointer; color:#64748b; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;">&times;</button>
+    </div>
+
+    <!-- Location Stats Summary -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom: 20px;">
+      <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:12px; border-radius:12px; text-align:center;">
+        <div style="font-size:11px; font-weight:600; color:#64748b; text-transform:uppercase;">Registered SKUs at Shelf</div>
+        <div style="font-size:22px; font-weight:800; color:#0f172a;" id="auditTotalSku">0</div>
+      </div>
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; padding:12px; border-radius:12px; text-align:center;">
+        <div style="font-size:11px; font-weight:600; color:#166534; text-transform:uppercase;">Total On-Hand Stock</div>
+        <div style="font-size:22px; font-weight:800; color:#15803d;" id="auditTotalQty">0</div>
+      </div>
+    </div>
+
+    <!-- Product List at this shelf -->
+    <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:10px;">Registered Products at This Shelf Location:</div>
+    <div id="auditProductList" style="display:flex; flex-direction:column; gap:12px;">
+      <!-- Dynamically rendered location products -->
     </div>
   </div>
 </div>

@@ -50,14 +50,48 @@ body {
   padding: 18px 16px 48px;
 }
 
-header {
+header, .main-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  gap: 12px;
   padding: 6px 2px 20px;
   border-bottom: 1px dashed var(--line);
   margin-bottom: 18px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.header-row-top {
+  align-items: center;
+}
+
+.header-row-bottom {
+  align-items: flex-start;
+  margin-top: -2px;
+}
+
+.header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-btn {
+  margin: 0 !important;
+  background: #f8fafc !important;
+  border-color: var(--line) !important;
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
 }
 
 .brand-eyebrow {
@@ -171,6 +205,35 @@ h1 {
 @media (max-width: 480px) {
   #searchInput::placeholder {
     font-size: 12.5px;
+  }
+  .brand-eyebrow {
+    font-size: 10.5px !important;
+  }
+  h1 {
+    font-size: 20px !important;
+    margin: 4px 0 2px !important;
+  }
+  .sub {
+    font-size: 11px !important;
+  }
+  .header-buttons {
+    gap: 6px !important;
+  }
+  .header-btn {
+    padding: 5px 8px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+  }
+  #showQrBoardBtn span {
+    display: none !important;
+  }
+  #langToggleBtn {
+    font-size: 11px !important;
+    padding: 5px 8px !important;
+  }
+  .user-pill-container {
+    transform: scale(0.9) !important;
+    transform-origin: right center !important;
   }
 }
 
@@ -569,12 +632,13 @@ h1 {
   position: fixed;
   inset: 0;
   background: rgba(255, 255, 255, 0.97);
-  z-index: 100;
+  z-index: 999999;
   display: none;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   padding: 16px;
+  /* NO transform here — transform breaks position:fixed on mobile */
 }
 
 #scannerOverlay.show {
@@ -1207,17 +1271,25 @@ body.guest-mode .tagcard-bottom button {
     margin: 0 auto !important;
   }
 /* GPU Hardware Acceleration for 60fps silky smooth transitions */
-.modal-overlay,
-.form-panel,
+/* GPU acceleration only on non-fixed elements that benefit from compositing */
 .tagcard,
 .combobox-dropdown,
 .btn-save,
 .btn-cancel,
-#scannerOverlay,
 #resultsList {
   will-change: transform, opacity;
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+/* modal-overlay and scannerOverlay must NOT have transform — it breaks position:fixed on mobile */
+.modal-overlay {
+  transform: none !important;
+  will-change: auto;
+}
+#scannerOverlay {
+  transform: none !important;
+  will-change: auto;
 }
 
 
