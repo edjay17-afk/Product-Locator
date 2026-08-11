@@ -633,8 +633,6 @@ function renderProduct(p) {
   const localLocs = getLocationsForProduct(p);
   renderProductLocationsUI(p, localLocs);
 
-  if (navigator.vibrate) navigator.vibrate(45);
-
   // push to persistent recent lookups
   recent = recent.filter(r => (r.id ? r.id !== p.id : (r.barcode || r.b) !== (p.barcode || p.b)));
   recent.unshift(p);
@@ -968,24 +966,32 @@ function primeAudioEngine() {
     }
   } catch (e) {}
 
-  // 2. Pre-unlock HTML5 Audio elements on mobile Safari & Chrome
+  // 2. Pre-unlock HTML5 Audio elements on mobile Safari & Chrome SILENTLY (muted play)
   try {
-    if (barcodeAudioEl) {
+    if (barcodeAudioEl && barcodeAudioEl.paused) {
+      barcodeAudioEl.muted = true;
       const p1 = barcodeAudioEl.play();
       if (p1 && typeof p1.then === 'function') {
         p1.then(() => {
           barcodeAudioEl.pause();
+          barcodeAudioEl.muted = false;
           barcodeAudioEl.currentTime = 0;
-        }).catch(() => {});
+        }).catch(() => {
+          barcodeAudioEl.muted = false;
+        });
       }
     }
-    if (qrAudioEl) {
+    if (qrAudioEl && qrAudioEl.paused) {
+      qrAudioEl.muted = true;
       const p2 = qrAudioEl.play();
       if (p2 && typeof p2.then === 'function') {
         p2.then(() => {
           qrAudioEl.pause();
+          qrAudioEl.muted = false;
           qrAudioEl.currentTime = 0;
-        }).catch(() => {});
+        }).catch(() => {
+          qrAudioEl.muted = false;
+        });
       }
     }
   } catch (e) {}
@@ -1012,6 +1018,7 @@ function playScanBeep(isQr = false) {
     const targetAudio = isQr ? qrAudioEl : barcodeAudioEl;
     if (targetAudio) {
       try {
+        targetAudio.muted = false;
         targetAudio.currentTime = 0;
         targetAudio.play().catch(err => {
           console.warn('HTML5 audio play error:', err);
