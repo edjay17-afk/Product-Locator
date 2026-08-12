@@ -2,15 +2,15 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 
-const excelPath = path.join(__dirname, 'products(2026-08-08).xls');
+const excelPath = path.join(__dirname, 'products(2026-08-12).xls');
 const seedPath = path.join(__dirname, 'seed-data.json');
 
 if (!fs.existsSync(excelPath)) {
-  console.error('❌ Could not find "products(2026-08-08).xls" in project root.');
+  console.error('❌ Could not find "products(2026-08-12).xls" in project root.');
   process.exit(1);
 }
 
-console.log('📖 Reading "products(2026-08-08).xls"...');
+console.log('📖 Reading "products(2026-08-12).xls"...');
 const workbook = XLSX.readFile(excelPath);
 const sheetName = workbook.SheetNames[0];
 const sheet = workbook.Sheets[sheetName];

@@ -31,19 +31,20 @@ async function runSeed() {
 
   const formattedItems = items.map(p => ({
     barcode: p.b || p.barcode || '',
-    stock_code: p.s || p.stock_code || '',
-    name: p.n || p.name || 'Unnamed Item',
-    category: p.c || p.category || '',
-    subcategory: p.sc || p.subcategory || '',
+    stock_no: p.s || p.stock_no || p.stock_code || '',
+    product_name: p.n || p.product_name || p.name || 'Unnamed Item',
+    category: p.c || p.category || 'Uncategorized',
+    department: p.sc || p.department || p.subcategory || '',
     floor: p.floor || '',
-    batch: p.batch || '',
+    row: p.row || p.batch || '',
     shelf: p.shelf || '',
-    level: p.level || '00',
+    level: p.level || '',
     loc: p.loc || '',
-    loc_full: p.locFull || p.loc_full || '',
+    location_storage: p.locFull || p.loc_full || p.location_storage || '',
     qty: typeof p.qty === 'number' ? p.qty : 0,
-    status: p.status || '',
-    custom: p.custom ? true : false
+    status: p.status || 'UNMAPPED',
+    custom: p.custom ? true : false,
+    last_modified_by: p.last_modified_by || 'System Import'
   }));
 
   console.log('Testing table connection...');
