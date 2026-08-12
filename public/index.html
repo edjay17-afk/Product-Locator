@@ -583,6 +583,58 @@
   </div>
 </div>
 
+<!-- ADD ANOTHER LOCATION OVERLAY MODAL -->
+<div id="addAnotherLocOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width: 480px; border-radius: 20px; padding: 24px; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);">
+    
+    <!-- Header -->
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 16px;">
+      <div>
+        <div style="display: inline-flex; align-items: center; gap: 6px; background: #fff7ed; border: 1px solid #ffedd5; color: #c2410c; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Multi-Location Product</span>
+        </div>
+        <h2 style="color: #0f172a; margin: 0; font-size: 22px; font-weight: 800; font-family: 'Poppins', sans-serif;" data-i18n="addAnotherLocTitle">
+          Add Another Location
+        </h2>
+        <div class="form-sub" style="margin-top: 4px; font-size: 13px; color: #64748b;" data-i18n="addAnotherLocSub">
+          Tap a location below to update its stock, or click Add Another Location.
+        </div>
+      </div>
+    </div>
+
+    <!-- Product Info & Existing Locations Card -->
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; margin-bottom: 18px;">
+      <div style="font-weight: 700; font-size: 15px; color: #0f172a; margin-bottom: 2px;" id="addLocProductName">—</div>
+      <div style="font-size: 12px; color: #64748b; margin-bottom: 14px; font-family: monospace;" id="addLocProductMeta">Barcode: —</div>
+      
+      <div style="font-size: 11px; font-weight: 700; color: #475569; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;" data-i18n="currentlyMappedLocs">
+        Mapped Locations
+      </div>
+      <div id="addLocExistingList" style="display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto; padding-right: 2px;">
+        <!-- Existing location cards dynamically inserted here -->
+      </div>
+    </div>
+
+    <!-- New Location Highlight Box -->
+    <div style="background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe; border-radius: 14px; padding: 14px; margin-bottom: 22px; text-align: center; box-shadow: inset 0 1px 2px rgba(255,255,255,0.6);">
+      <div style="font-size: 12px; color: #3730a3; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;" data-i18n="newLocToAdd">➕ New Location Scanned:</div>
+      <div style="font-size: 20px; font-weight: 800; color: #4338ca; margin-top: 2px; font-family: 'Poppins', sans-serif;" id="addLocNewTarget">—</div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <button id="addLocCancelBtn" type="button" class="btn-cancel" style="flex: 1; height: 50px; border-radius: 12px; font-weight: 600; font-size: 14px; border: 1px solid #cbd5e1; background: #ffffff; color: #475569; margin: 0; cursor: pointer; transition: all 0.15s ease;" data-i18n="cancel">
+        Cancel
+      </button>
+      
+      <button id="addLocConfirmBtn" type="button" style="flex: 1.8; height: 50px; border-radius: 12px; font-weight: 700; font-size: 14px; font-family: 'Poppins', sans-serif; background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); color: #ffffff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35); transition: all 0.15s ease; margin: 0;">
+        <span data-i18n="addAnotherLocBtn">Add Another Location</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- LOCATION AUDIT MODAL FOR CHECKER ROLE -->
 <div id="locationAuditOverlay" class="modal-overlay">
   <div class="form-panel" style="max-width: 620px; border-radius: 20px; padding: 24px; background: #ffffff; max-height: 90vh; overflow-y: auto;">

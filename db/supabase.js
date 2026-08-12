@@ -380,10 +380,13 @@ module.exports = {
 
       if (!error && updated) {
         // 2. Propagate product-wide metadata updates to all other rows for the same product
-        const barcode = updated.barcode || '';
-        const stock_no = updated.stock_no || '';
+        const barcode = (updated.barcode || '').trim();
+        const stock_no = (updated.stock_no || '').trim();
         
         if (barcode || stock_no) {
+          const safeBar = barcode.replace(/"/g, '');
+          const safeStock = stock_no.replace(/"/g, '');
+
           const syncData = {
             product_name: updated.product_name,
             category: updated.category,
@@ -394,12 +397,12 @@ module.exports = {
           };
           
           let query = supabase.from('products').update(syncData);
-          if (barcode && stock_no) {
-            query = query.or(`barcode.eq."${barcode}",stock_no.eq."${stock_no}"`);
-          } else if (barcode) {
-            query = query.eq('barcode', barcode);
+          if (safeBar && safeStock) {
+            query = query.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`);
+          } else if (safeBar) {
+            query = query.eq('barcode', safeBar);
           } else {
-            query = query.eq('stock_no', stock_no);
+            query = query.eq('stock_no', safeStock);
           }
           
           const { error: syncError } = await query;

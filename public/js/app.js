@@ -102,7 +102,12 @@ const TRANSLATIONS = {
     qrBoardTitle: "Quick Search Display Board",
     qrBoardSub: "Print this board and post it on your warehouse walls or doors. Customers and staff can scan it to instantly find product locations on their phones without logging in.",
     qrBoardInstructions: "1. Scan the QR code below using your phone's camera.<br>2. Search by product name or scan a barcode to see its location immediately.",
-    printPoster: "Print Poster"
+    printPoster: "Print Poster",
+    addAnotherLocTitle: "Add Another Location",
+    addAnotherLocSub: "Tap a location below to update its stock, or click Add Another Location.",
+    currentlyMappedLocs: "Mapped Locations",
+    newLocToAdd: "New Location Scanned:",
+    addAnotherLocBtn: "Add Another Location"
   },
   zh: {
     brandEyebrow: "仓库商品定位系统",
@@ -191,7 +196,12 @@ const TRANSLATIONS = {
     qrBoardTitle: "自助查询引导看板",
     qrBoardSub: "打印此看板并贴在仓库墙壁或通道门上。理货员或客户只需用手机扫描即可免登录自助查询商品货位。",
     qrBoardInstructions: "1. 使用手机相机扫描下方二维码。<br>2. 输入商品名称或扫描商品条码，即可立即查看其架上位置。",
-    printPoster: "打印海报"
+    printPoster: "打印海报",
+    addAnotherLocTitle: "添加额外库位",
+    addAnotherLocSub: "点击下方库位更新库存，或点击添加额外库位。",
+    currentlyMappedLocs: "已映射库位",
+    newLocToAdd: "扫描到的新库位：",
+    addAnotherLocBtn: "添加额外库位"
   }
 };
 
@@ -1181,7 +1191,6 @@ function onScanSuccess(code) {
     rapidLocationBadgeVal.textContent = currentRapidLocation;
     rapidLocationBadge.style.display = 'block';
     checkRapidExistingLocationProduct();
-    rfQty.focus();
   } else {
     document.getElementById('searchInput').value = code;
     doSearch(code, true);
@@ -2427,12 +2436,137 @@ async function checkRapidExistingLocationProduct() {
     rapidLocationBadge.style.borderColor = '#bbf7d0';
     rapidLocationBadge.style.color = '#15803d';
   } else {
-    rfQty.value = '0';
-    rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#2563eb; font-size:11px; font-weight:500;">🆕 New location for this product</span>`;
-    rapidLocationBadge.style.background = '#eff6ff';
-    rapidLocationBadge.style.borderColor = '#bfdbfe';
-    rapidLocationBadge.style.color = '#1d4ed8';
+    // Exact location not matched. Check if product has existing locations elsewhere
+    let allProdRows = PRODUCTS.filter(p => {
+      const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+    });
+
+    try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=50`).then(r => r.json());
+      if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+        allProdRows = res.products.filter(item =>
+          (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
+          (item.stock_no || '').toLowerCase() === currentRapidBarcode.toLowerCase()
+        );
+      }
+    } catch (e) {}
+
+    const existingLocRows = allProdRows.filter(p => (p.loc && p.loc.trim() !== '') || (p.floor && String(p.floor).trim() !== ''));
+
+    if (existingLocRows.length > 0) {
+      const locSummary = existingLocRows.map(p => {
+        const l = p.loc || `${p.floor || '1'}-${p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '00')}-${p.shelf || '00'}-${p.level || '00'}`;
+        const q = p.qty !== undefined && p.qty !== null ? p.qty : 0;
+        return `${l} (Qty: ${q})`;
+      }).join(', ');
+
+      rfQty.value = '0';
+      rapidLocationBadgeVal.innerHTML = `${currentRapidLocation}<br>
+        <span style="color:#d97706; font-size:11px; font-weight:600; display:block; margin-top:2px;">📍 Existing Location(s): ${escapeHtml(locSummary)}</span>
+        <span style="color:#2563eb; font-size:11px; font-weight:600; display:block; margin-top:2px;">➕ Add another location: ${currentRapidLocation}</span>`;
+      rapidLocationBadge.style.background = '#fffbeb';
+      rapidLocationBadge.style.borderColor = '#fde68a';
+      rapidLocationBadge.style.color = '#b45309';
+
+      promptAddAnotherLocation(allProdRows[0] || { barcode: currentRapidBarcode }, existingLocRows, currentRapidLocation);
+    } else {
+      rfQty.value = '0';
+      rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#2563eb; font-size:11px; font-weight:500;">🆕 New location for this product</span>`;
+      rapidLocationBadge.style.background = '#eff6ff';
+      rapidLocationBadge.style.borderColor = '#bfdbfe';
+      rapidLocationBadge.style.color = '#1d4ed8';
+    }
   }
+}
+
+function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
+  const overlay = document.getElementById('addAnotherLocOverlay');
+  if (!overlay) return;
+
+  const nameEl = document.getElementById('addLocProductName');
+  const metaEl = document.getElementById('addLocProductMeta');
+  const listEl = document.getElementById('addLocExistingList');
+  const targetEl = document.getElementById('addLocNewTarget');
+  const cancelBtn = document.getElementById('addLocCancelBtn');
+  const confirmBtn = document.getElementById('addLocConfirmBtn');
+
+  const prodName = productObj.product_name || productObj.name || productObj.n || 'Product';
+  const prodBar = productObj.barcode || productObj.b || currentRapidBarcode || '—';
+  const prodStock = productObj.stock_no || productObj.stock_code || productObj.s || '—';
+
+  nameEl.textContent = prodName;
+  metaEl.textContent = `Barcode: ${prodBar} | Stock No: ${prodStock}`;
+
+  listEl.innerHTML = '';
+  existingLocRows.forEach(row => {
+    const locCode = row.loc || `${row.floor || '1'}-${row.batch !== undefined && row.batch !== null ? row.batch : (row.row || '00')}-${row.shelf || '00'}-${row.level || '00'}`;
+    const qtyVal = row.qty !== undefined && row.qty !== null ? row.qty : 0;
+    
+    const card = document.createElement('div');
+    card.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:12px; padding:10px 14px; font-size:13px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative;';
+    card.innerHTML = `
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-weight:700; color:#0f172a; font-family:'Poppins',sans-serif; font-size:13.5px;">📍 ${escapeHtml(locCode)}</span>
+          <span style="font-size:10px; font-weight:700; background:#e0f2fe; color:#0369a1; padding:2px 7px; border-radius:6px; text-transform:uppercase;">Select Existing</span>
+        </div>
+        <div style="color:#64748b; font-size:11px; margin-top:2px;">Floor ${row.floor || '1'}, Row ${row.batch !== undefined && row.batch !== null ? row.batch : (row.row || '—')}, Shelf ${row.shelf || '—'}, Level ${row.level || '—'}</div>
+      </div>
+      <div style="font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px; font-size:12px; text-align:right;">
+        Qty: ${qtyVal}
+      </div>
+    `;
+
+    card.onmouseenter = () => {
+      card.style.borderColor = '#0284c7';
+      card.style.background = '#f0f9ff';
+      card.style.boxShadow = '0 4px 6px -1px rgba(2, 132, 199, 0.15)';
+    };
+    card.onmouseleave = () => {
+      card.style.borderColor = '#cbd5e1';
+      card.style.background = '#ffffff';
+      card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+    };
+
+    card.onclick = () => {
+      overlay.classList.remove('show');
+      currentRapidLocation = locCode;
+      currentRapidExistingRow = row;
+      rfQty.value = qtyVal;
+
+      rapidLocationBadgeVal.innerHTML = `${locCode} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Selected existing location: Qty ${qtyVal} (will update)</span>`;
+      rapidLocationBadge.style.background = '#f0fdf4';
+      rapidLocationBadge.style.borderColor = '#bbf7d0';
+      rapidLocationBadge.style.color = '#15803d';
+
+      showToast(CURRENT_LANG === 'en' 
+        ? `Selected existing location ${locCode} (Qty ${qtyVal}). Modify quantity & tap Add & Next.` 
+        : `已选择现有库位 ${locCode}（现存 ${qtyVal}）。修改数量后点击 添加 & 下一个。`);
+    };
+
+    listEl.appendChild(card);
+  });
+
+  targetEl.textContent = newLocStr;
+  overlay.classList.add('show');
+
+  cancelBtn.onclick = () => {
+    overlay.classList.remove('show');
+    currentRapidLocation = '';
+    rapidLocationBadge.style.display = 'none';
+    rfQty.value = '0';
+  };
+
+  confirmBtn.onclick = () => {
+    overlay.classList.remove('show');
+    currentRapidExistingRow = null;
+    rfQty.value = '0';
+    showToast(CURRENT_LANG === 'en' 
+      ? `Location ${newLocStr} ready to add. Tap quantity field when ready.` 
+      : `已添加新库位 ${newLocStr}。可以在数量栏输入库存。`);
+  };
 }
 
 function promptConcurrentScan(existingRow, newQty) {
