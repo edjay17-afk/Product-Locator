@@ -1354,7 +1354,8 @@ function handleAddLocationQRScan(code) {
     if (typeof updateAddLocationSuggestions === 'function') {
       updateAddLocationSuggestions();
     }
-    document.getElementById('fQty').focus();
+    const fQtyEl = document.getElementById('fQty');
+    if (fQtyEl) fQtyEl.focus();
     showToast(`Location set: Floor ${parsed.floor}, Row ${parsed.row}, Shelf ${parsed.shelf}, Level ${parsed.level}`);
   } else {
     showToast("Invalid location QR format. Expected format like '1-02-01-03'.", 'error');
@@ -1412,6 +1413,9 @@ document.getElementById('cancelAddBtn').addEventListener('click', closeAddForm);
 document.getElementById('saveProductBtn').addEventListener('click', saveNewProduct);
 
 function openAddForm() {
+  if (document.activeElement && typeof document.activeElement.blur === 'function') {
+    document.activeElement.blur();
+  }
   const typed = document.getElementById('searchInput').value.trim();
   document.getElementById('fBarcode').value = /^\d+$/.test(typed) ? typed : '';
   document.getElementById('fName').value = /^\d+$/.test(typed) ? '' : typed;
@@ -1422,7 +1426,8 @@ function openAddForm() {
   document.getElementById('fCategory').value = activeCat;
   document.getElementById('fSubcategory').value = (activeProduct && (activeProduct.department || activeProduct.subcategory || activeProduct.sc)) || '';
   
-  document.getElementById('fQty').value = '';
+  const fQtyEl = document.getElementById('fQty');
+  if (fQtyEl) fQtyEl.value = '';
   document.getElementById('fStockman').value = currentUser ? currentUser.full_name : '';
   formError.classList.remove('show');
   addOverlay.classList.add('show');
@@ -1447,8 +1452,6 @@ function openAddForm() {
   
   document.getElementById('fCategoryDropdown').style.display = 'none';
   document.getElementById('fCategoryDropdown').innerHTML = '';
-  
-  setTimeout(() => document.getElementById('fName').focus(), 50);
 }
 
 function closeAddForm() {
@@ -1473,23 +1476,20 @@ async function saveNewProduct() {
   const row = pad2(document.getElementById('fRow').value);
   const shelf = pad2(document.getElementById('fShelf').value);
   const level = pad2(document.getElementById('fLevel').value);
-  const qtyRaw = document.getElementById('fQty').value.trim();
+  const fQtyEl = document.getElementById('fQty');
+  const qtyRaw = fQtyEl ? fQtyEl.value.trim() : '0';
   const stockmanRaw = document.getElementById('fStockman').value.trim();
 
   // stock_no is optional; if blank, use the barcode as fallback identifier
   const effective_stock_code = stock_no || barcode || '';
 
-  if (!name || !row || !shelf || qtyRaw === '') {
+  if (!name || !row || !shelf) {
     formError.classList.add('show');
     return;
   }
   formError.classList.remove('show');
 
-  const validQty = validateQty(qtyRaw);
-  if (validQty === null) {
-    showToast('Invalid quantity.', 'error');
-    return;
-  }
+  const validQty = 0;
 
   const btn = document.getElementById('saveNewBtn');
   if (btn && btn.disabled) return;
@@ -1723,6 +1723,8 @@ document.getElementById('authBtn').addEventListener('click', () => {
     renderRecent();
     showToast('Logged out.');
   } else {
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
     document.getElementById('loginFormError').style.display = 'none';
     document.getElementById('loginOverlay').classList.add('show');
   }
@@ -1732,79 +1734,7 @@ document.getElementById('closeLoginModal').addEventListener('click', () => {
   document.getElementById('loginOverlay').classList.remove('show');
 });
 
-let selectedRole = 'stockman';
-
-const roleTabStockman = document.getElementById('roleTabStockman');
-const roleTabChecker = document.getElementById('roleTabChecker');
-const stockmanChipsGrid = document.getElementById('stockmanChipsGrid');
-const checkerChipsGrid = document.getElementById('checkerChipsGrid');
-const quickLoginTitle = document.getElementById('quickLoginTitle');
-
-if (roleTabStockman && roleTabChecker) {
-  roleTabStockman.addEventListener('click', () => {
-    selectedRole = 'stockman';
-    roleTabStockman.style.background = '#ffffff';
-    roleTabStockman.style.color = '#7c3aed';
-    roleTabStockman.style.boxShadow = '0 2px 5px rgba(0,0,0,0.05)';
-    roleTabChecker.style.background = 'transparent';
-    roleTabChecker.style.color = '#64748b';
-    roleTabChecker.style.boxShadow = 'none';
-
-    if (stockmanChipsGrid) stockmanChipsGrid.style.display = 'grid';
-    if (checkerChipsGrid) checkerChipsGrid.style.display = 'none';
-    if (quickLoginTitle) quickLoginTitle.textContent = 'Select Stockman Profile:';
-    document.getElementById('loginUsername').value = 'stockman1';
-    document.getElementById('loginPassword').value = 'password123';
-  });
-
-  roleTabChecker.addEventListener('click', () => {
-    selectedRole = 'checker';
-    roleTabChecker.style.background = '#ffffff';
-    roleTabChecker.style.color = '#7c3aed';
-    roleTabChecker.style.boxShadow = '0 2px 5px rgba(0,0,0,0.05)';
-    roleTabStockman.style.background = 'transparent';
-    roleTabStockman.style.color = '#64748b';
-    roleTabStockman.style.boxShadow = 'none';
-
-    if (checkerChipsGrid) checkerChipsGrid.style.display = 'grid';
-    if (stockmanChipsGrid) stockmanChipsGrid.style.display = 'none';
-    if (quickLoginTitle) quickLoginTitle.textContent = 'Select Checker Profile:';
-    document.getElementById('loginUsername').value = 'checker1';
-    document.getElementById('loginPassword').value = 'password123';
-  });
-}
-
-const chip1 = document.getElementById('chipStockman1');
-if (chip1) {
-  chip1.addEventListener('click', () => {
-    document.getElementById('loginUsername').value = 'stockman1';
-    document.getElementById('loginPassword').value = 'password123';
-  });
-}
-
-const chip2 = document.getElementById('chipStockman2');
-if (chip2) {
-  chip2.addEventListener('click', () => {
-    document.getElementById('loginUsername').value = 'stockman2';
-    document.getElementById('loginPassword').value = 'password123';
-  });
-}
-
-const chipChecker1 = document.getElementById('chipChecker1');
-if (chipChecker1) {
-  chipChecker1.addEventListener('click', () => {
-    document.getElementById('loginUsername').value = 'checker1';
-    document.getElementById('loginPassword').value = 'password123';
-  });
-}
-
-const chipChecker2 = document.getElementById('chipChecker2');
-if (chipChecker2) {
-  chipChecker2.addEventListener('click', () => {
-    document.getElementById('loginUsername').value = 'checker2';
-    document.getElementById('loginPassword').value = 'password123';
-  });
-}
+let selectedRole = 'admin';
 
 if (document.getElementById('auditLocationQrBtn')) {
   document.getElementById('auditLocationQrBtn').addEventListener('click', () => startScanner('checker_location_qr'));
@@ -2504,7 +2434,7 @@ function openRapidLogger() {
   rfStock.value = '';
   rfCategory.value = '';
   rfSubcategory.value = '';
-  rfQty.value = '0';
+  if (rfQty) rfQty.value = '0';
   
   rapidBarcodeBadge.style.display = 'none';
   rapidLocationBadge.style.display = 'none';
@@ -2592,9 +2522,6 @@ rfCategory.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); rfSubcategory.focus(); }
 });
 rfSubcategory.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); rfQty.focus(); }
-});
-rfQty.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     saveRapidEntry();
@@ -2656,7 +2583,7 @@ async function checkRapidExistingLocationProduct() {
 
   if (match) {
     currentRapidExistingRow = match;
-    rfQty.value = match.qty !== undefined && match.qty !== null ? match.qty : 0;
+    if (rfQty) rfQty.value = match.qty !== undefined && match.qty !== null ? match.qty : 0;
     rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Existing location: Qty ${match.qty} (will update)</span>`;
     rapidLocationBadge.style.background = '#f0fdf4';
     rapidLocationBadge.style.borderColor = '#bbf7d0';
@@ -2688,7 +2615,7 @@ async function checkRapidExistingLocationProduct() {
         return `${l} (Qty: ${q})`;
       }).join(', ');
 
-      rfQty.value = '0';
+      if (rfQty) rfQty.value = '0';
       rapidLocationBadgeVal.innerHTML = `${currentRapidLocation}<br>
         <span style="color:#d97706; font-size:11px; font-weight:600; display:block; margin-top:2px;">📍 Existing Location(s): ${escapeHtml(locSummary)}</span>
         <span style="color:#2563eb; font-size:11px; font-weight:600; display:block; margin-top:2px;">➕ Add another location: ${currentRapidLocation}</span>`;
@@ -2698,7 +2625,7 @@ async function checkRapidExistingLocationProduct() {
 
       promptAddAnotherLocation(allProdRows[0] || { barcode: currentRapidBarcode }, existingLocRows, currentRapidLocation);
     } else {
-      rfQty.value = '0';
+      if (rfQty) rfQty.value = '0';
       rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#2563eb; font-size:11px; font-weight:500;">🆕 New location for this product</span>`;
       rapidLocationBadge.style.background = '#eff6ff';
       rapidLocationBadge.style.borderColor = '#bfdbfe';
@@ -2760,7 +2687,7 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
       overlay.classList.remove('show');
       currentRapidLocation = locCode;
       currentRapidExistingRow = row;
-      rfQty.value = qtyVal;
+      if (rfQty) rfQty.value = qtyVal;
 
       rapidLocationBadgeVal.innerHTML = `${locCode} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Selected existing location: Qty ${qtyVal} (will update)</span>`;
       rapidLocationBadge.style.background = '#f0fdf4';
@@ -2782,13 +2709,13 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
     overlay.classList.remove('show');
     currentRapidLocation = '';
     rapidLocationBadge.style.display = 'none';
-    rfQty.value = '0';
+    if (rfQty) rfQty.value = '0';
   };
 
   confirmBtn.onclick = () => {
     overlay.classList.remove('show');
     currentRapidExistingRow = null;
-    rfQty.value = '0';
+    if (rfQty) rfQty.value = '0';
     showToast(CURRENT_LANG === 'en' 
       ? `Location ${newLocStr} ready to add. Tap quantity field when ready.` 
       : `已添加新库位 ${newLocStr}。可以在数量栏输入库存。`);
@@ -2846,8 +2773,6 @@ function promptConcurrentScan(existingRow, newQty) {
 }
 
 async function saveRapidEntry() {
-  const qtyRaw = rfQty.value.trim();
-
   if (!currentRapidBarcode) {
     rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please scan a product barcode first.' : '请先扫描商品条码。';
     rapidFormError.classList.add('show');
@@ -2895,11 +2820,7 @@ async function saveRapidEntry() {
     return;
   }
 
-  const validQty = validateQty(qtyRaw);
-  if (validQty === null) {
-    showToast(CURRENT_LANG === 'en' ? 'Invalid quantity.' : '数量无效。', 'error');
-    return;
-  }
+  const validQty = 0;
 
   const btn = document.getElementById('rfSubmitBtn');
   if (btn && btn.disabled) return;
@@ -3024,7 +2945,7 @@ async function saveRapidEntry() {
       rfStock.value = '';
       rfCategory.value = '';
       rfSubcategory.value = '';
-      rfQty.value = '0';
+      if (rfQty) rfQty.value = '0';
 
       rapidBarcodeBadge.style.display = 'none';
       rapidLocationBadge.style.display = 'none';
