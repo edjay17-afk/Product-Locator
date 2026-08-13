@@ -588,12 +588,14 @@ function renderProductLocationsUI(p, locs) {
     cardEl.onclick = () => openAddQtyForLocation(index);
 
     cardEl.innerHTML = `
-      <div class="tagcard-top">
-        <p class="pname">${escapeHtml(item.product_name)}</p>
-        <div class="pmeta">
-          <span>${escapeHtml(item.category)}</span>
-          <span>${escapeHtml(item.department)}</span>
+      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+        <div style="flex:1;">
+          <p class="pname">${escapeHtml(item.product_name)}</p>
+          <div class="pmeta">
+            <span>${escapeHtml(item.category)}</span>
+          </div>
         </div>
+        ${item.department ? `<span class="dept-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; font-family:var(--display); white-space:nowrap; flex-shrink:0; margin-top:2px;">${escapeHtml(item.department)}</span>` : ''}
       </div>
       <div class="grid4">
         <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
@@ -608,9 +610,9 @@ function renderProductLocationsUI(p, locs) {
         </div>
         <div class="tagcard-bottom-actions">
           <span class="badge ${st.cls}">${st.label}</span>
-          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">🔄 Transfer</button>` : ''}
-          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">➕ Add Stock</button>
-          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">✏️ Edit</button>
+          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">Transfer</button>` : ''}
+          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">Add Stock</button>
+          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">Edit</button>
         </div>
       </div>
     `;
@@ -2183,7 +2185,7 @@ function updateAddStockMathPreview(existingQty, newAddQty) {
   }
 
   if (btnTextEl) {
-    btnTextEl.textContent = add !== 0 ? `Save & Add Stock (New Total: ${total})` : `Save Quantity (${total} Units)`;
+    btnTextEl.textContent = add !== 0 ? 'Save & Add Stock' : 'Save Quantity';
   }
 }
 

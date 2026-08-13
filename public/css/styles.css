@@ -814,8 +814,8 @@ h1 {
 
 .cell .cval {
   font-family: var(--display);
-  font-size: 30px;
-  font-weight: 700; /* Bold numbers so they are easily seen */
+  font-size: 36px;
+  font-weight: 800; /* Extra bold numbers for high visibility */
   line-height: 1;
   color: var(--ink);
 }
@@ -845,11 +845,11 @@ h1 {
 }
 
 .card-btn {
-  height: 32px;
-  padding: 0 12px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 8px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -876,7 +876,7 @@ h1 {
   background: #f8fafc;
   color: #475569;
   border-color: #cbd5e1;
-  padding: 0 10px;
+  padding: 0 12px;
 }
 
 /* Mobile responsive card layout */
@@ -895,7 +895,7 @@ h1 {
     letter-spacing: 0.05em;
   }
   .cell .cval {
-    font-size: 22px;
+    font-size: 26px;
   }
   .tagcard-bottom {
     padding: 12px 14px;
