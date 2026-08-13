@@ -2731,16 +2731,16 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
     const qtyVal = row.qty !== undefined && row.qty !== null ? row.qty : 0;
     
     const card = document.createElement('div');
-    card.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.03);';
+    card.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:8px 12px; font-size:12.5px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 3px rgba(0,0,0,0.04);';
     card.innerHTML = `
       <div>
-        <div style="display:flex; align-items:center; gap:5px;">
-          <span style="font-weight:700; color:#0f172a; font-size:12.5px;">📍 ${escapeHtml(locCode)}</span>
-          <span style="font-size:9.5px; font-weight:700; background:#e0f2fe; color:#0369a1; padding:1px 5px; border-radius:4px; text-transform:uppercase;">Select</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-weight:700; color:#0f172a; font-size:13px;">📍 ${escapeHtml(locCode)}</span>
+          <span style="font-size:10px; font-weight:700; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:5px; text-transform:uppercase;">Select</span>
         </div>
-        <div style="color:#64748b; font-size:10.5px; margin-top:1px;">Floor ${row.floor || '1'}, Row ${row.batch !== undefined && row.batch !== null ? row.batch : (row.row || '—')}, Shelf ${row.shelf || '—'}, Level ${row.level || '—'}</div>
+        <div style="color:#64748b; font-size:11px; margin-top:2px;">Floor ${row.floor || '1'}, Row ${row.batch !== undefined && row.batch !== null ? row.batch : (row.row || '—')}, Shelf ${row.shelf || '—'}, Level ${row.level || '—'}</div>
       </div>
-      <div style="font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px; font-size:11.5px; text-align:right;">
+      <div style="font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; padding:3px 9px; border-radius:6px; font-size:12px; text-align:right;">
         Qty: ${qtyVal}
       </div>
     `;
@@ -2748,12 +2748,12 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
     card.onmouseenter = () => {
       card.style.borderColor = '#0284c7';
       card.style.background = '#f0f9ff';
-      card.style.boxShadow = '0 2px 4px -1px rgba(2, 132, 199, 0.12)';
+      card.style.boxShadow = '0 3px 6px -1px rgba(2, 132, 199, 0.14)';
     };
     card.onmouseleave = () => {
       card.style.borderColor = '#cbd5e1';
       card.style.background = '#ffffff';
-      card.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)';
+      card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
     };
 
     card.onclick = () => {
