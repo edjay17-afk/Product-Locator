@@ -497,6 +497,75 @@ module.exports = {
 
     return { success: true, count: insertedCount };
   },
+  transferProductStock: async ({ sourceId, destLocation, transferQty, modifiedBy }) => {
+    const qtyToTransfer = parseInt(transferQty, 10);
+    if (!sourceId || isNaN(qtyToTransfer) || qtyToTransfer <= 0) {
+      return { error: 'Invalid transfer arguments.' };
+    }
+
+    const source = await module.exports.getProductById(sourceId);
+    if (!source) return { error: 'Source product record not found.' };
+
+    const currentQty = parseInt(source.qty, 10) || 0;
+    if (qtyToTransfer > currentQty) {
+      return { error: `Transfer quantity (${qtyToTransfer}) exceeds source available stock (${currentQty}).` };
+    }
+
+    const cleanDestLoc = (destLocation || '').trim();
+    const m = cleanDestLoc.match(/^(\d+)-(\d+)-(\d+)-(\d+)$/);
+    if (!m) {
+      return { error: 'Destination location must be formatted as Floor-Row-Shelf-Level (e.g. 1-05-02-01).' };
+    }
+
+    const destFloor = m[1];
+    const destRow = m[2];
+    const destShelf = m[3];
+    const destLevel = m[4];
+    const destFloorLabel = destFloor === '1' ? 'First Floor' : (destFloor === '2' ? 'Second Floor' : 'Third Floor');
+    const destLocFull = `${cleanDestLoc} ${destFloorLabel} - Row ${destRow} - Shelves ${destShelf} - Level ${destLevel}`;
+
+    // 1. Decrement source row quantity
+    const newSourceQty = currentQty - qtyToTransfer;
+    await module.exports.updateProduct(sourceId, {
+      qty: newSourceQty,
+      modifiedBy: modifiedBy || 'Stockman Transfer'
+    });
+
+    // 2. Find or create destination location row for this SKU
+    const existingLocs = await module.exports.getProductsByLocation({ loc: cleanDestLoc });
+    const targetDestRow = existingLocs.find(p =>
+      (p.barcode && source.barcode && p.barcode.toLowerCase() === source.barcode.toLowerCase()) ||
+      (p.stock_no && source.stock_no && p.stock_no.toLowerCase() === source.stock_no.toLowerCase())
+    );
+
+    if (targetDestRow) {
+      const existingDestQty = parseInt(targetDestRow.qty, 10) || 0;
+      await module.exports.updateProduct(targetDestRow.id, {
+        qty: existingDestQty + qtyToTransfer,
+        modifiedBy: modifiedBy || 'Stockman Transfer'
+      });
+    } else {
+      await module.exports.createProduct({
+        barcode: source.barcode,
+        stock_no: source.stock_no,
+        product_name: source.product_name,
+        category: source.category,
+        department: source.department,
+        floor: destFloor,
+        row: destRow,
+        shelf: destShelf,
+        level: destLevel,
+        loc: cleanDestLoc,
+        storage_location: destLocFull,
+        qty: qtyToTransfer,
+        status: 'MAPPED',
+        custom: true,
+        last_modified_by: modifiedBy || 'Stockman Transfer'
+      });
+    }
+
+    return { success: true, message: `Transferred ${qtyToTransfer} units to location ${cleanDestLoc}` };
+  },
   getStats: async () => {
     if (isConnectedToSupabase && supabase) {
       const { count: total } = await supabase.from('products').select('*', { count: 'exact', head: true });

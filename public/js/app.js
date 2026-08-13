@@ -584,6 +584,8 @@ function renderProductLocationsUI(p, locs) {
     const cardEl = document.createElement('div');
     cardEl.className = 'tagcard';
     cardEl.style.marginBottom = '16px';
+    cardEl.style.cursor = 'pointer';
+    cardEl.onclick = () => openAddQtyForLocation(index);
 
     cardEl.innerHTML = `
       <div class="tagcard-top">
@@ -600,13 +602,15 @@ function renderProductLocationsUI(p, locs) {
         <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardLevel}</div><div class="cval">${hasLoc ? level : '–'}</div></div>
       </div>
       <div class="tagcard-bottom">
-        <div style="font-size: 12px; display: flex; flex-direction: column; gap: 2px;">
+        <div class="tagcard-bottom-info">
           <div>${TRANSLATIONS[CURRENT_LANG].cardStockman}: <strong style="font-weight: 600;">${escapeHtml(stockmanVal)}</strong></div>
-          <div style="opacity: 0.95; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
+          <div style="opacity: 0.9; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <span class="badge ${st.cls}" style="font-size: 10px; padding: 4px 10px;">${st.label}</span>
-          <button class="user-auth-btn login" style="font-size: 11.5px; padding: 5px 12px; margin: 0; border-radius: 8px; background: white; color: var(--ink); border: none; font-weight: 600;" type="button" onclick="openEditFormForProductIndex(${index})">${TRANSLATIONS[CURRENT_LANG].cardEditBtn}</button>
+        <div class="tagcard-bottom-actions">
+          <span class="badge ${st.cls}">${st.label}</span>
+          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">🔄 Transfer</button>` : ''}
+          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">➕ Add Stock</button>
+          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">✏️ Edit</button>
         </div>
       </div>
     `;
@@ -1535,6 +1539,26 @@ document.getElementById('editProductBtn').addEventListener('click', openEditForm
 document.getElementById('cancelEditBtn').addEventListener('click', closeEditForm);
 document.getElementById('saveEditBtn').addEventListener('click', saveEditProduct);
 
+const efAddQtyEl = document.getElementById('efAddQty');
+if (efAddQtyEl) {
+  efAddQtyEl.addEventListener('input', e => {
+    const base = window.currentEditBaseQty !== undefined ? window.currentEditBaseQty : (parseInt(document.getElementById('efQty').value, 10) || 0);
+    const addVal = parseInt(e.target.value, 10) || 0;
+    const hint = document.getElementById('efQtyMathHint');
+    if (e.target.value.trim() !== '') {
+      const total = base + addVal;
+      document.getElementById('efQty').value = total;
+      if (hint) {
+        hint.style.display = 'block';
+        hint.innerHTML = `Calculation: <b>${base} (Existing) + ${addVal} (New) = ${total} Total Units</b>`;
+      }
+    } else {
+      document.getElementById('efQty').value = base;
+      if (hint) hint.style.display = 'none';
+    }
+  });
+}
+
 function openEditForm() {
   if (!activeProduct) return;
 
@@ -1548,7 +1572,14 @@ function openEditForm() {
   document.getElementById('efRow').value = activeProduct.row || activeProduct.row || '';
   document.getElementById('efShelf').value = activeProduct.shelf || '';
   document.getElementById('efLevel').value = activeProduct.level || '0';
-  document.getElementById('efQty').value = activeProduct.qty !== undefined ? activeProduct.qty : 0;
+  
+  const currentQty = activeProduct.qty !== undefined ? activeProduct.qty : 0;
+  window.currentEditBaseQty = currentQty;
+  document.getElementById('efQty').value = currentQty;
+  if (efAddQtyEl) efAddQtyEl.value = '';
+  const hint = document.getElementById('efQtyMathHint');
+  if (hint) hint.style.display = 'none';
+
   document.getElementById('efStockman').value = activeProduct.last_modified_by || activeProduct.modifiedBy || (currentUser ? currentUser.full_name : '');
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
@@ -2154,6 +2185,163 @@ function parseLocationQR(text) {
   return null;
 }
 
+window.openAddQtyForLocation = function(index) {
+  if (!window.currentLocs || !window.currentLocs[index]) return;
+  const item = window.currentLocs[index];
+
+  document.getElementById('addStockId').value = item.id || '';
+  const currentQty = parseInt(item.qty, 10) || 0;
+  document.getElementById('addStockExistingQty').value = currentQty;
+
+  const pName = item.product_name || (activeProduct ? activeProduct.product_name || activeProduct.name : 'Product');
+  const pBar = item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '—');
+  const pStock = item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '—');
+
+  document.getElementById('addStockProductName').textContent = pName;
+  document.getElementById('addStockProductMeta').textContent = `Barcode: ${pBar} | Stock No: ${pStock}`;
+
+  const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '1';
+  const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row !== undefined && item.row !== null ? String(item.row).trim() : '01');
+  const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '01';
+  const level = item.level !== undefined && item.level !== null ? String(item.level).trim() : '0';
+
+  document.getElementById('addStockLocBadge').textContent = `Floor ${floor} - Row ${row} - Shelf ${shelf} - Level ${level}`;
+
+  document.getElementById('addStockCurrentDisplay').value = currentQty;
+  document.getElementById('addStockNewInput').value = '';
+  document.getElementById('addStockmanInput').value = currentUser ? currentUser.full_name : (item.last_modified_by || '');
+
+  updateAddStockMathPreview(currentQty, 0);
+
+  window.currentEditingLocIndex = index;
+  const modal = document.getElementById('addStockModal');
+  if (modal) modal.classList.add('show');
+
+  setTimeout(() => {
+    const input = document.getElementById('addStockNewInput');
+    if (input) { input.focus(); }
+  }, 100);
+};
+
+function updateAddStockMathPreview(existingQty, newAddQty) {
+  const ex = parseInt(existingQty, 10) || 0;
+  const add = parseInt(newAddQty, 10) || 0;
+  const total = ex + add;
+
+  const previewEl = document.getElementById('addStockMathPreview');
+  const btnTextEl = document.getElementById('confirmAddStockBtnText');
+
+  if (previewEl) {
+    if (add > 0) {
+      previewEl.innerHTML = `<b style="color:#15803d;">${ex} (Existing) + ${add} (New) = ${total} Total Units</b>`;
+    } else if (add < 0) {
+      previewEl.innerHTML = `<b style="color:#b45309;">${ex} (Existing) - ${Math.abs(add)} (Removed) = ${total} Total Units</b>`;
+    } else {
+      previewEl.innerHTML = `<span>${ex} (Existing) + 0 (New) = <b>${ex} Total Units</b></span>`;
+    }
+  }
+
+  if (btnTextEl) {
+    btnTextEl.textContent = add !== 0 ? `Save & Add Stock (New Total: ${total})` : `Save Quantity (${total} Units)`;
+  }
+}
+
+async function saveAddStockToLocation() {
+  const id = document.getElementById('addStockId').value;
+  const existingQty = parseInt(document.getElementById('addStockExistingQty').value, 10) || 0;
+  const addQtyRaw = document.getElementById('addStockNewInput').value.trim();
+  const addQty = parseInt(addQtyRaw, 10) || 0;
+  const stockman = document.getElementById('addStockmanInput').value.trim();
+
+  const finalQty = existingQty + addQty;
+  if (finalQty < 0) {
+    showToast("Total quantity cannot be negative.", 'error');
+    return;
+  }
+
+  const btn = document.getElementById('confirmAddStockBtn');
+  if (btn && btn.disabled) return;
+  if (btn) btn.disabled = true;
+
+  try {
+    const idx = window.currentEditingLocIndex;
+
+    if (id) {
+      const payload = {
+        qty: finalQty,
+        last_modified_by: stockman || (currentUser ? currentUser.full_name : 'Staff Stockman'),
+        status: 'MAPPED'
+      };
+
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(r => r.json());
+
+      if (res.success) {
+        showToast(`✅ Added ${addQty} units! New total stock at location is ${finalQty}.`);
+        document.getElementById('addStockModal').classList.remove('show');
+
+        // Refresh products list
+        const productsRes = await fetch('/api/products/all').then(r => r.json());
+        if (productsRes.success && Array.isArray(productsRes.products)) {
+          PRODUCTS = productsRes.products;
+          rebuildIndex();
+          const targetItem = PRODUCTS.find(p => p.id === parseInt(id, 10)) || res.product;
+          if (targetItem) renderProduct(targetItem);
+        }
+      } else {
+        showToast("Failed to update stock: " + (res.error || "Unknown error"), 'error');
+      }
+    }
+  } catch (err) {
+    console.error("Error saving added stock:", err);
+    showToast("Network error updating stock.", 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Add Stock Modal Event Listeners
+const closeAddStockModalBtnEl = document.getElementById('closeAddStockModalBtn');
+if (closeAddStockModalBtnEl) closeAddStockModalBtnEl.addEventListener('click', () => {
+  document.getElementById('addStockModal').classList.remove('show');
+});
+
+const cancelAddStockBtnEl = document.getElementById('cancelAddStockBtn');
+if (cancelAddStockBtnEl) cancelAddStockBtnEl.addEventListener('click', () => {
+  document.getElementById('addStockModal').classList.remove('show');
+});
+
+const confirmAddStockBtnEl = document.getElementById('confirmAddStockBtn');
+if (confirmAddStockBtnEl) confirmAddStockBtnEl.addEventListener('click', saveAddStockToLocation);
+
+const addStockNewInputEl = document.getElementById('addStockNewInput');
+if (addStockNewInputEl) {
+  addStockNewInputEl.addEventListener('input', e => {
+    const existing = parseInt(document.getElementById('addStockExistingQty').value, 10) || 0;
+    const val = parseInt(e.target.value, 10) || 0;
+    updateAddStockMathPreview(existing, val);
+  });
+  addStockNewInputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveAddStockToLocation();
+    }
+  });
+}
+
+const openFullEditFromAddStockBtnEl = document.getElementById('openFullEditFromAddStockBtn');
+if (openFullEditFromAddStockBtnEl) {
+  openFullEditFromAddStockBtnEl.addEventListener('click', () => {
+    document.getElementById('addStockModal').classList.remove('show');
+    if (window.currentEditingLocIndex !== undefined) {
+      openEditFormForProductIndex(window.currentEditingLocIndex);
+    }
+  });
+}
+
 async function handleLocationQRScan(code) {
   if (!activeProduct) {
     showToast("No active product selected to link a location to.", 'error');
@@ -2162,6 +2350,25 @@ async function handleLocationQRScan(code) {
   const parsed = parseLocationQR(code);
   if (!parsed) {
     showToast("Invalid location QR code format. Expected e.g. '1-02-01-03'.", 'error');
+    return;
+  }
+
+  // Check if this location ALREADY exists for activeProduct
+  const existingIdx = (window.currentLocs || []).findIndex(item => {
+    const pf = String(item.floor !== undefined && item.floor !== null ? item.floor : '').trim();
+    const pb = String(item.batch !== undefined && item.batch !== null ? item.batch : (item.row || '')).trim();
+    const ps = String(item.shelf !== undefined && item.shelf !== null ? item.shelf : '').trim();
+    const pl = String(item.level !== undefined && item.level !== null ? item.level : '').trim();
+
+    return pf === String(parsed.floor) &&
+           pb === String(parsed.row) &&
+           ps === String(parsed.shelf) &&
+           pl === String(parsed.level);
+  });
+
+  if (existingIdx !== -1) {
+    showToast("📍 Existing location scanned! Add new incoming quantity below.");
+    openAddQtyForLocation(existingIdx);
     return;
   }
 
@@ -2223,7 +2430,15 @@ window.openEditFormForProductIndex = function(index) {
   document.getElementById('efRow').value = p.floor !== undefined ? (p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '')) : '';
   document.getElementById('efShelf').value = p.shelf || '';
   document.getElementById('efLevel').value = p.level || '0';
-  document.getElementById('efQty').value = p.qty !== undefined ? p.qty : '';
+
+  const currentQty = p.qty !== undefined && p.qty !== null ? p.qty : 0;
+  window.currentEditBaseQty = currentQty;
+  document.getElementById('efQty').value = currentQty;
+  const efAddQty = document.getElementById('efAddQty');
+  if (efAddQty) efAddQty.value = '';
+  const efHint = document.getElementById('efQtyMathHint');
+  if (efHint) efHint.style.display = 'none';
+
   document.getElementById('efStockman').value = p.last_modified_by || p.modifiedBy || (currentUser ? currentUser.full_name : '');
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
@@ -2738,6 +2953,14 @@ async function saveRapidEntry() {
     if (res.success) {
       showToast(TRANSLATIONS[CURRENT_LANG].rapidSaved);
 
+      rapidSessionCount++;
+      const rBadge = document.getElementById('rapidSessionBadge');
+      const rVal = document.getElementById('rapidSessionCountVal');
+      if (rBadge && rVal) {
+        rVal.textContent = rapidSessionCount;
+        rBadge.style.display = 'flex';
+      }
+
       // Add to session logs list
       const logText = `[${new Date().toLocaleTimeString()}] ${payload.product_name} (${payload.barcode}) &rarr; 📍 ${currentRapidLocation} [Qty: ${payload.qty}]`;
       rapidLogs.unshift(logText);
@@ -2899,6 +3122,268 @@ document.addEventListener('keydown', e => {
     hardwareScanBuffer += e.key;
   }
 });
+
+// --- UI/UX ENHANCEMENTS: QUICK QUANTITY ADJUSTMENT STEPPER & SEARCH HELPERS ---
+let rapidSessionCount = 0;
+
+window.quickAdjustQty = async function(id, delta) {
+  if (!id) return;
+  const target = (window.currentLocs || []).find(p => p.id === id) || (PRODUCTS || []).find(p => p.id === id);
+  if (!target) return;
+
+  const currentQty = parseInt(target.qty, 10) || 0;
+  const newQty = Math.max(0, currentQty + delta);
+  if (newQty === currentQty) return;
+
+  target.qty = newQty;
+  // Update total Qty display immediately
+  const totalQty = (window.currentLocs || []).reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+  const pQtyEl = document.getElementById('pQty');
+  if (pQtyEl) pQtyEl.textContent = totalQty;
+
+  if (activeProduct) {
+    renderProductLocationsUI(activeProduct, window.currentLocs || []);
+  }
+
+  showToast(CURRENT_LANG === 'en' ? `Updating quantity to ${newQty}...` : `正在更新库存为 ${newQty}...`);
+
+  try {
+    const res = await fetch(`/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qty: newQty, modifiedBy: currentUser ? currentUser.full_name : 'Stockman' })
+    }).then(r => r.json());
+
+    if (res.success) {
+      showToast(CURRENT_LANG === 'en' ? `Qty updated: ${newQty}` : `库存更新成功: ${newQty}`);
+      // Refresh PRODUCTS cache
+      const productsRes = await fetch('/api/products/all').then(r => r.json());
+      if (productsRes.success && Array.isArray(productsRes.products)) {
+        PRODUCTS = productsRes.products;
+      }
+    } else {
+      showToast(CURRENT_LANG === 'en' ? 'Failed to update quantity' : '更新库存失败', 'error');
+    }
+  } catch (err) {
+    showToast(CURRENT_LANG === 'en' ? 'Network error' : '网络错误', 'error');
+  }
+};
+
+// Search Input Clear Button (✕) and Keyboard Shortcut '/' or 'Ctrl+K'
+const searchInputEl = document.getElementById('searchInput');
+const clearSearchBtnEl = document.getElementById('clearSearchBtn');
+
+if (searchInputEl && clearSearchBtnEl) {
+  searchInputEl.addEventListener('input', () => {
+    if (searchInputEl.value.trim().length > 0) {
+      clearSearchBtnEl.style.display = 'block';
+    } else {
+      clearSearchBtnEl.style.display = 'none';
+      hideResults();
+    }
+  });
+
+  clearSearchBtnEl.addEventListener('click', () => {
+    searchInputEl.value = '';
+    clearSearchBtnEl.style.display = 'none';
+    searchInputEl.focus();
+    hideResults();
+  });
+}
+
+// Global Keyboard Shortcut: '/' or 'Ctrl+K' to focus search box
+document.addEventListener('keydown', (e) => {
+  const activeEl = document.activeElement;
+  const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+  const isModalOpen = document.querySelector('.modal-overlay.show');
+
+  if (!isInput && !isModalOpen) {
+    if (e.key === '/' || (e.ctrlKey && e.key.toLowerCase() === 'k')) {
+      e.preventDefault();
+      if (searchInputEl) {
+        searchInputEl.focus();
+        searchInputEl.select();
+      }
+    }
+  }
+});
+
+// --- OPTION 1: WAREHOUSE SHELF AUDIT & 1-TAP STOCK TRANSFER ---
+let currentTransferItem = null;
+
+window.openTransferModalForProductIndex = function(index) {
+  const locs = window.currentLocs || [];
+  const item = locs[index];
+  if (!item) return;
+
+  currentTransferItem = item;
+  document.getElementById('transferProductName').textContent = item.product_name || 'Unnamed Product';
+  document.getElementById('transferProductMeta').textContent = `Barcode: ${item.barcode || '—'} | Stock No: ${item.stock_no || '—'}`;
+  document.getElementById('transferSourceLoc').textContent = item.loc || `${item.floor}-${item.row}-${item.shelf}-${item.level}`;
+  document.getElementById('transferSourceMaxQty').textContent = item.qty || 0;
+  
+  const destInput = document.getElementById('transferDestLocInput');
+  const qtyInput = document.getElementById('transferQtyInput');
+  if (destInput) destInput.value = '';
+  if (qtyInput) {
+    qtyInput.value = item.qty || 1;
+    qtyInput.max = item.qty || 1;
+  }
+
+  const overlay = document.getElementById('transferOverlay');
+  if (overlay) overlay.classList.add('show');
+};
+
+window.closeTransferModal = function() {
+  const overlay = document.getElementById('transferOverlay');
+  if (overlay) overlay.classList.remove('show');
+  currentTransferItem = null;
+};
+
+const closeTransferModalBtn = document.getElementById('closeTransferModal');
+const cancelTransferBtn = document.getElementById('cancelTransferBtn');
+const confirmTransferBtn = document.getElementById('confirmTransferBtn');
+const scanDestLocBtn = document.getElementById('scanDestLocBtn');
+
+if (closeTransferModalBtn) closeTransferModalBtn.addEventListener('click', window.closeTransferModal);
+if (cancelTransferBtn) cancelTransferBtn.addEventListener('click', window.closeTransferModal);
+
+if (scanDestLocBtn) {
+  scanDestLocBtn.addEventListener('click', () => {
+    openScanner((scannedText) => {
+      const parsed = parseLocationQR(scannedText);
+      const destInput = document.getElementById('transferDestLocInput');
+      if (parsed && destInput) {
+        destInput.value = `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}`;
+        showToast(`Scanned destination: ${destInput.value}`);
+      } else if (destInput) {
+        destInput.value = scannedText.trim();
+      }
+    });
+  });
+}
+
+if (confirmTransferBtn) {
+  confirmTransferBtn.addEventListener('click', async () => {
+    if (!currentTransferItem) return;
+    const destLoc = document.getElementById('transferDestLocInput').value.trim();
+    const qtyVal = parseInt(document.getElementById('transferQtyInput').value.trim(), 10);
+
+    if (!destLoc) {
+      showToast(CURRENT_LANG === 'en' ? 'Please enter or scan destination location.' : '请输入或扫描目标库位。', 'error');
+      return;
+    }
+    if (isNaN(qtyVal) || qtyVal <= 0) {
+      showToast(CURRENT_LANG === 'en' ? 'Please enter a valid transfer quantity.' : '请输入有效的转移数量。', 'error');
+      return;
+    }
+    if (qtyVal > (parseInt(currentTransferItem.qty, 10) || 0)) {
+      showToast(CURRENT_LANG === 'en' ? 'Transfer quantity exceeds available stock.' : '转移数量超过现有库存。', 'error');
+      return;
+    }
+
+    showToast(CURRENT_LANG === 'en' ? 'Transferring stock...' : '正在转移库存...');
+
+    try {
+      const res = await fetch('/api/products/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceId: currentTransferItem.id,
+          destLocation: destLoc,
+          transferQty: qtyVal,
+          modifiedBy: currentUser ? currentUser.full_name : 'Stockman Transfer'
+        })
+      }).then(r => r.json());
+
+      if (res.success) {
+        showToast(CURRENT_LANG === 'en' ? `Transferred ${qtyVal} units to ${destLoc}!` : `成功转移 ${qtyVal} 件库存至 ${destLoc}！`);
+        window.closeTransferModal();
+
+        // Refresh product details
+        if (activeProduct) {
+          const freshRes = await fetch(`/api/products?q=${encodeURIComponent(activeProduct.barcode || activeProduct.stock_no)}`).then(r => r.json());
+          if (freshRes.success && freshRes.products.length > 0) {
+            renderProductLocationsUI(freshRes.products[0], freshRes.products);
+          }
+        }
+      } else {
+        showToast(res.error || 'Transfer failed.', 'error');
+      }
+    } catch (e) {
+      showToast(CURRENT_LANG === 'en' ? 'Network error during transfer.' : '网络错误，转移失败。', 'error');
+    }
+  });
+}
+
+// Audit Shelf QR Handler
+window.auditShelfLocation = async function(locCode) {
+  if (!locCode) return;
+  const overlay = document.getElementById('locationAuditOverlay');
+  const titleEl = document.getElementById('auditLocTitle');
+  const totalSkuEl = document.getElementById('auditTotalSku');
+  const totalQtyEl = document.getElementById('auditTotalQty');
+  const listEl = document.getElementById('auditProductList');
+
+  if (titleEl) titleEl.textContent = `Shelf Audit: 📍 ${locCode}`;
+  if (listEl) listEl.innerHTML = '<div style="color:#64748b; font-size:13px;">Loading shelf items...</div>';
+  if (overlay) overlay.classList.add('show');
+
+  try {
+    const res = await fetch(`/api/products/by-location?loc=${encodeURIComponent(locCode)}`).then(r => r.json());
+    if (res.success && Array.isArray(res.products)) {
+      const items = res.products;
+      const totalQty = items.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+      if (totalSkuEl) totalSkuEl.textContent = items.length;
+      if (totalQtyEl) totalQtyEl.textContent = totalQty;
+
+      if (items.length === 0) {
+        if (listEl) listEl.innerHTML = '<div style="color:#94a3b8; font-size:13px; text-align:center; padding:16px;">No products currently registered at this shelf location.</div>';
+        return;
+      }
+
+      if (listEl) {
+        listEl.innerHTML = '';
+        items.forEach(p => {
+          const rowEl = document.createElement('div');
+          rowEl.style.cssText = 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:center;';
+          rowEl.innerHTML = `
+            <div>
+              <div style="font-weight:700; color:#0f172a; font-size:14px;">${escapeHtml(p.product_name)}</div>
+              <div style="font-size:11px; color:#64748b; font-family:monospace; margin-top:2px;">Barcode: ${escapeHtml(p.barcode || '—')} | Stock No: ${escapeHtml(p.stock_no || '—')}</div>
+              <div style="font-size:11px; color:#94a3b8; margin-top:4px;">Logged by: ${escapeHtml(p.last_modified_by || 'System')}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:16px; font-weight:800; color:#15803d;">${p.qty} pcs</div>
+            </div>
+          `;
+          listEl.appendChild(rowEl);
+        });
+      }
+    }
+  } catch (e) {
+    if (listEl) listEl.innerHTML = '<div style="color:#ef4444; font-size:13px;">Error loading location audit data.</div>';
+  }
+};
+
+const auditLocationQrBtn = document.getElementById('auditLocationQrBtn');
+const closeAuditModal = document.getElementById('closeAuditModal');
+if (closeAuditModal) {
+  closeAuditModal.addEventListener('click', () => {
+    const overlay = document.getElementById('locationAuditOverlay');
+    if (overlay) overlay.classList.remove('show');
+  });
+}
+
+if (auditLocationQrBtn) {
+  auditLocationQrBtn.addEventListener('click', () => {
+    openScanner((scannedText) => {
+      const parsed = parseLocationQR(scannedText);
+      const locCode = parsed ? `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}` : scannedText.trim();
+      auditShelfLocation(locCode);
+    });
+  });
+}
 
 // Start app on DOM ready
 document.addEventListener('DOMContentLoaded', initApp);

@@ -823,11 +823,113 @@ h1 {
 .tagcard-bottom {
   background: var(--ink);
   color: #ffffff;
-  padding: 14px 22px;
+  padding: 12px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+}
+
+.tagcard-bottom-info {
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tagcard-bottom-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.card-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  font-family: var(--display);
+}
+
+.card-btn.btn-transfer {
+  background: #f0f9ff;
+  color: #0284c7;
+  border-color: #bae6fd;
+}
+
+.card-btn.btn-addstock {
+  background: #f0fdf4;
+  color: #16a34a;
+  border-color: #bbf7d0;
+}
+
+.card-btn.btn-edit {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #cbd5e1;
+  padding: 0 10px;
+}
+
+/* Mobile responsive card layout */
+@media (max-width: 600px) {
+  .tagcard-top {
+    padding: 14px 16px 10px;
+  }
+  .tagcard-top .pname {
+    font-size: 15.5px;
+  }
+  .cell {
+    padding: 10px 4px 8px;
+  }
+  .cell .clabel {
+    font-size: 8.5px;
+    letter-spacing: 0.05em;
+  }
+  .cell .cval {
+    font-size: 22px;
+  }
+  .tagcard-bottom {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .tagcard-bottom-info {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+  }
+  .tagcard-bottom-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+  }
+  .tagcard-bottom-actions .card-btn {
+    flex: 1;
+    height: 36px;
+    font-size: 11.5px;
+    padding: 0 4px;
+  }
+  .tagcard-bottom-actions .badge {
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    font-size: 9.5px;
+  }
 }
 
 .tagcard-bottom .fulltext {

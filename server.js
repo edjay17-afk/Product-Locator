@@ -267,6 +267,24 @@ app.get('/api/products/by-location', async (req, res) => {
   }
 });
 
+// Stock Transfer between shelf locations
+app.post('/api/products/transfer', async (req, res) => {
+  try {
+    const { sourceId, destLocation, transferQty, modifiedBy } = req.body;
+    if (!sourceId || !destLocation || !transferQty) {
+      return res.status(400).json({ success: false, error: 'sourceId, destLocation, and transferQty are required.' });
+    }
+
+    const result = await db.transferProductStock({ sourceId, destLocation, transferQty, modifiedBy });
+    if (result && result.error) {
+      return res.status(400).json({ success: false, error: result.error });
+    }
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Get single product by ID
 app.get('/api/products/:id', async (req, res) => {
   try {
