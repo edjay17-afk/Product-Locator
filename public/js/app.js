@@ -715,105 +715,116 @@ function hideResults() {
   rl.innerHTML = '';
 }
 
+function scoreProductMatch(p, q) {
+  if (!p || !q) return 0;
+  const qStripped = q.replace(/^0+/, '');
+
+  const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+  const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+  const n = (p.product_name || p.name || p.n || '').toString().trim().toLowerCase();
+  const c = (p.category || p.c || '').toString().trim().toLowerCase();
+  const d = (p.department || p.subcategory || p.sc || '').toString().trim().toLowerCase();
+
+  const bStripped = b.replace(/^0+/, '');
+  const sStripped = s.replace(/^0+/, '');
+
+  // 1. Exact matches (Score 100)
+  if (b === q || s === q || n === q) return 100;
+  if (qStripped && (b === qStripped || s === qStripped || bStripped === qStripped || sStripped === qStripped)) return 95;
+
+  // 2. StartsWith (Prefix) matches on Barcode or Stock No (Score 80)
+  if (b.startsWith(q) || s.startsWith(q)) return 80;
+  if (qStripped && (b.startsWith(qStripped) || s.startsWith(qStripped) || bStripped.startsWith(qStripped))) return 75;
+
+  // 3. StartsWith (Prefix) matches on Product Name (Score 70)
+  if (n.startsWith(q)) return 70;
+  const words = n.split(/\s+/);
+  if (words.some(w => w.startsWith(q))) return 65;
+
+  // 4. Substring matches on Barcode or Stock No (Score 50)
+  if (b.includes(q) || s.includes(q)) return 50;
+  if (qStripped && (b.includes(qStripped) || s.includes(qStripped))) return 45;
+
+  // 5. Substring matches on Name, Category, Department (Score 30)
+  if (n.includes(q)) return 30;
+  if (c.includes(q) || d.includes(q)) return 20;
+
+  return 0;
+}
+
 async function doSearch(q, isFinal = false) {
   q = q.trim().toLowerCase();
   if (!q) { hideResults(); return; }
 
-  const qStripped = q.replace(/^0+/, '');
-  const qClean = q.replace(/[^a-z0-9]/gi, '');
-
-  // 1. Exact Match Lookups (0ms memory hit)
-  let exactMatch = byBarcodeMap.get(q) ||
-                   (qStripped ? byBarcodeMap.get(qStripped) : null) ||
-                   (qClean ? byBarcodeMap.get(qClean) : null) ||
-                   byStockMap.get(q) ||
-                   (qStripped ? byStockMap.get(qStripped) : null) ||
-                   (qClean ? byStockMap.get(qClean) : null);
-
-  if (exactMatch && isFinal) {
-    renderProduct(exactMatch);
-    document.getElementById('searchInput').value = '';
-    return;
-  }
-
-  // 2. Local substring search (name/partial barcode/stock no)
-  const localMatches = PRODUCTS.filter(p => {
-    const barcode = (p.barcode || p.b || '').toString().toLowerCase();
-    const stockCode = (p.stock_no || p.stock_code || p.s || '').toString().toLowerCase();
-    const name = (p.product_name || p.name || p.n || '').toLowerCase();
-    return barcode.includes(q) || stockCode.includes(q) || name.includes(q) ||
-           (qStripped && barcode.includes(qStripped));
-  });
-
-  // Deduplicate by barcode
-  const seen = new Set();
-  const dedupedMatches = [];
-  for (const p of localMatches) {
-    const key = (p.barcode || p.b || p.stock_no || p.stock_code || p.s || p.product_name || p.name || p.n || '').toLowerCase();
-    if (!seen.has(key)) { seen.add(key); dedupedMatches.push(p); }
-    if (dedupedMatches.length >= 10) break;
-  }
-
-  if (isFinal && dedupedMatches.length === 1) {
-    renderProduct(dedupedMatches[0]);
-    document.getElementById('searchInput').value = '';
-    return;
-  }
-
-  if (dedupedMatches.length > 0) {
-    renderMatches(dedupedMatches);
-    return;
-  }
-
-  // 3. Server API Search Fallback
-  if (!isFinal) {
-    // If just typing and no local matches, show empty rather than spamming server
-    renderMatches([]);
-    return;
-  }
-
-  try {
-    // Try fast exact lookup endpoint first for barcode/stock queries
-    if (/^[0-9a-zA-Z\-_]{3,30}$/.test(q)) {
-      try {
-        const lookupRes = await fetch(`/api/products/lookup/${encodeURIComponent(q)}`).then(r => r.json());
-        if (lookupRes.success && lookupRes.product) {
-          renderProduct(lookupRes.product);
-          document.getElementById('searchInput').value = '';
-          return;
-        }
-      } catch (e) {}
+  // 1. Score and rank local memory PRODUCTS
+  const localCandidates = [];
+  for (let i = 0; i < PRODUCTS.length; i++) {
+    const score = scoreProductMatch(PRODUCTS[i], q);
+    if (score > 0) {
+      localCandidates.push({ p: PRODUCTS[i], score });
     }
+  }
 
-    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=50`).then(r => r.json());
-    if (res.success && res.products.length > 0) {
-      const serverExact = res.products.find(item =>
-        (item.barcode || '').toLowerCase() === q ||
-        (item.stock_no || item.stock_code || '').toLowerCase() === q ||
-        (qStripped && (item.barcode || '').toLowerCase() === qStripped)
-      );
-      if (serverExact) {
-        renderProduct(serverExact);
-        document.getElementById('searchInput').value = '';
-        return;
-      }
-      const seenSrv = new Set();
-      const dedupedSrv = [];
+  // Sort local matches by score descending
+  localCandidates.sort((a, b) => b.score - a.score);
+
+  const seen = new Set();
+  const candidateMatches = [];
+  for (const item of localCandidates) {
+    const p = item.p;
+    const key = (p.barcode || p.b || p.stock_no || p.stock_code || p.s || p.product_name || p.name || p.n || '').toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      candidateMatches.push(p);
+    }
+    if (candidateMatches.length >= 10) break;
+  }
+
+  // 2. Fetch server database results for broader queries
+  try {
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=25`).then(r => r.json());
+    if (res.success && Array.isArray(res.products) && res.products.length > 0) {
       for (const p of res.products) {
         const key = (p.barcode || p.stock_no || p.product_name || '').toLowerCase();
-        if (!seenSrv.has(key)) { seenSrv.add(key); dedupedSrv.push(p); }
-        if (dedupedSrv.length >= 10) break;
+        if (!seen.has(key)) {
+          const score = scoreProductMatch(p, q);
+          if (score > 0) {
+            seen.add(key);
+            candidateMatches.push(p);
+          }
+        }
       }
-      renderMatches(dedupedSrv);
-      return;
     }
   } catch (err) {
     console.error('API search failed:', err);
   }
 
-  renderMatches([]);
+  // Re-sort all candidate items by prefix/exact match score descending
+  candidateMatches.sort((a, b) => scoreProductMatch(b, q) - scoreProductMatch(a, q));
+
+  // If user pressed Enter
   if (isFinal) {
-    showNotFoundModal(document.getElementById('searchInput').value.trim());
+    if (candidateMatches.length > 0) {
+      renderProduct(candidateMatches[0]);
+      document.getElementById('searchInput').value = '';
+    } else {
+      showNotFoundModal(document.getElementById('searchInput').value.trim());
+    }
+    return;
+  }
+
+  // Render progressive matches in dropdown
+  if (candidateMatches.length > 0) {
+    // If top item is 100% exact match (score 95+), show only exact matches
+    const topScore = scoreProductMatch(candidateMatches[0], q);
+    if (topScore >= 95) {
+      const exactOnly = candidateMatches.filter(p => scoreProductMatch(p, q) >= 95);
+      renderMatches(exactOnly);
+    } else {
+      renderMatches(candidateMatches.slice(0, 10));
+    }
+  } else {
+    renderMatches([]);
   }
 }
 
@@ -2720,16 +2731,16 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
     const qtyVal = row.qty !== undefined && row.qty !== null ? row.qty : 0;
     
     const card = document.createElement('div');
-    card.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:12px; padding:10px 14px; font-size:13px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 3px rgba(0,0,0,0.05); position:relative;';
+    card.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.03);';
     card.innerHTML = `
       <div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span style="font-weight:700; color:#0f172a; font-family:'Poppins',sans-serif; font-size:13.5px;">📍 ${escapeHtml(locCode)}</span>
-          <span style="font-size:10px; font-weight:700; background:#e0f2fe; color:#0369a1; padding:2px 7px; border-radius:6px; text-transform:uppercase;">Select Existing</span>
+        <div style="display:flex; align-items:center; gap:5px;">
+          <span style="font-weight:700; color:#0f172a; font-size:12.5px;">📍 ${escapeHtml(locCode)}</span>
+          <span style="font-size:9.5px; font-weight:700; background:#e0f2fe; color:#0369a1; padding:1px 5px; border-radius:4px; text-transform:uppercase;">Select</span>
         </div>
-        <div style="color:#64748b; font-size:11px; margin-top:2px;">Floor ${row.floor || '1'}, Row ${row.batch !== undefined && row.batch !== null ? row.batch : (row.row || '—')}, Shelf ${row.shelf || '—'}, Level ${row.level || '—'}</div>
+        <div style="color:#64748b; font-size:10.5px; margin-top:1px;">Floor ${row.floor || '1'}, Row ${row.batch !== undefined && row.batch !== null ? row.batch : (row.row || '—')}, Shelf ${row.shelf || '—'}, Level ${row.level || '—'}</div>
       </div>
-      <div style="font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px; font-size:12px; text-align:right;">
+      <div style="font-weight:700; color:#15803d; background:#f0fdf4; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px; font-size:11.5px; text-align:right;">
         Qty: ${qtyVal}
       </div>
     `;
@@ -2737,12 +2748,12 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
     card.onmouseenter = () => {
       card.style.borderColor = '#0284c7';
       card.style.background = '#f0f9ff';
-      card.style.boxShadow = '0 4px 6px -1px rgba(2, 132, 199, 0.15)';
+      card.style.boxShadow = '0 2px 4px -1px rgba(2, 132, 199, 0.12)';
     };
     card.onmouseleave = () => {
       card.style.borderColor = '#cbd5e1';
       card.style.background = '#ffffff';
-      card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+      card.style.boxShadow = '0 1px 2px rgba(0,0,0,0.03)';
     };
 
     card.onclick = () => {

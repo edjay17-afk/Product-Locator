@@ -240,40 +240,73 @@ module.exports = {
   },
   searchProducts: async (query, limit = 20) => {
     const q = (query || '').trim();
+    if (!q) return [];
+    const qStripped = q.replace(/^0+/, '');
+
     if (isConnectedToSupabase && supabase) {
       const pattern = `%${q}%`;
+      const patternStripped = qStripped ? `%${qStripped}%` : pattern;
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .or(`product_name.ilike.${pattern},barcode.ilike.${pattern},stock_no.ilike.${pattern},category.ilike.${pattern},department.ilike.${pattern}`)
+        .or(`product_name.ilike.${pattern},barcode.ilike.${pattern},barcode.ilike.${patternStripped},stock_no.ilike.${pattern},category.ilike.${pattern},department.ilike.${pattern}`)
         .limit(limit);
 
       if (!error && data) return data.map(normalizeProduct);
     }
 
     const qLower = q.toLowerCase();
-    return memoryProducts.filter(p =>
-      p.product_name.toLowerCase().includes(qLower) ||
-      p.barcode.toLowerCase().includes(qLower) ||
-      p.stock_no.toLowerCase().includes(qLower) ||
-      p.category.toLowerCase().includes(qLower) ||
-      p.department.toLowerCase().includes(qLower)
-    ).slice(0, limit).map(normalizeProduct);
+    const qStrippedLower = qStripped.toLowerCase();
+    return memoryProducts.filter(p => {
+      const name = (p.product_name || p.name || '').toLowerCase();
+      const barcode = (p.barcode || p.b || '').toLowerCase();
+      const stock = (p.stock_no || p.stock_code || '').toLowerCase();
+      const cat = (p.category || '').toLowerCase();
+      const dept = (p.department || p.subcategory || '').toLowerCase();
+
+      return name.includes(qLower) ||
+             barcode.includes(qLower) ||
+             (qStrippedLower && barcode.includes(qStrippedLower)) ||
+             stock.includes(qLower) ||
+             cat.includes(qLower) ||
+             dept.includes(qLower);
+    }).slice(0, limit).map(normalizeProduct);
   },
   getProductByBarcodeOrStock: async (code) => {
     const clean = (code || '').trim();
+    if (!clean) return null;
+    const cleanStripped = clean.replace(/^0+/, '');
+
     if (isConnectedToSupabase && supabase) {
-      const safeClean = clean.replace(/"/g, ''); // strip quotes to avoid breaking PostgREST syntax
+      const safeClean = clean.replace(/"/g, '');
+      const safeStripped = cleanStripped.replace(/"/g, '');
+
+      // Check exact match or zero-stripped match first
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .or(`barcode.eq."${safeClean}",stock_no.eq."${safeClean}"`)
+        .or(`barcode.eq."${safeClean}",stock_no.eq."${safeClean}",barcode.eq."${safeStripped}",stock_no.eq."${safeStripped}"`)
         .limit(1);
 
       if (!error && data && data.length > 0) return normalizeProduct(data[0]);
+
+      // Fallback to ilike match if eq fails
+      const { data: dataLike, error: errorLike } = await supabase
+        .from('products')
+        .select('*')
+        .or(`barcode.ilike.%${safeClean}%,stock_no.ilike.%${safeClean}%`)
+        .limit(1);
+
+      if (!errorLike && dataLike && dataLike.length > 0) return normalizeProduct(dataLike[0]);
     }
+
     const cleanLower = clean.toLowerCase();
-    const found = memoryProducts.find(p => p.barcode.toLowerCase() === cleanLower || p.stock_no.toLowerCase() === cleanLower);
+    const cleanStrippedLower = cleanStripped.toLowerCase();
+    const found = memoryProducts.find(p => {
+      const b = (p.barcode || p.b || '').toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toLowerCase();
+      return b === cleanLower || s === cleanLower || (cleanStrippedLower && (b === cleanStrippedLower || s === cleanStrippedLower));
+    });
     return normalizeProduct(found);
   },
   getProductById: async (id) => {
