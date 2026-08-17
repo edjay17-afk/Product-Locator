@@ -4,7 +4,11 @@
   functions = "functions"
 
 [functions]
-  included_files = ["seed-data.json", "db/**"]
+  included_files = ["db/**"]
+  node_bundler = "esbuild"
+
+[functions."api"]
+  timeout = 26
 
 [[redirects]]
   from = "/api/*"
