@@ -1,5 +1,5 @@
 const serverless = require('serverless-http');
-const app = require('../server');
+const app = require('../../server');
 
 const serverlessHandler = serverless(app, {
   request(request, event) {
@@ -16,7 +16,6 @@ const serverlessHandler = serverless(app, {
 });
 
 exports.handler = async (event, context) => {
-  // Prevent Lambda from hanging on open database connections/timers
   if (context) {
     context.callbackWaitsForEmptyEventLoop = false;
   }
