@@ -8,11 +8,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/vendor/qrcode.min.js"></script>
-<link rel="stylesheet" href="css/styles.css">
+<link rel="stylesheet" href="css/styles.css?v=2.3">
 </head>
 <body>
-<div class="wrap">
+<div id="mainAppWrapper" class="wrap">
 
   <header class="main-header">
     <div class="header-row header-row-top">
@@ -43,24 +44,25 @@
   <div class="controls">
     <div class="search-row">
       <input id="searchInput" type="text" autocomplete="off" placeholder="Search barcode, code, or name..." data-i18n-placeholder="searchPlaceholder">
-      <button id="scanBtn" type="button">
+      <button id="scanBtn" type="button" title="Scan Barcode" aria-label="Scan Barcode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
-        <span data-i18n="scanBtn">Scan</span>
+      </button>
+      <button id="scanQrLocBtn" type="button" title="Scan Location QR" aria-label="Scan Location QR">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="4" height="4" rx="0.5"/><line x1="21" y1="14" x2="21" y2="17"/><line x1="17" y1="21" x2="21" y2="21"/></svg>
       </button>
     </div>
     <div id="resultsList" class="results-list"></div>
-    <div class="add-row" style="display:flex;gap:8px;">
-      <button id="addProductBtn" type="button" style="flex:1;">
+    <div class="add-row" style="display:flex;gap:6px;flex-wrap:nowrap;width:100%;">
+      <button id="addProductBtn" type="button" style="flex:1 1 0%; min-width:0;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span data-i18n="addBtn">Add Product</span>
       </button>
-      <button id="rapidLoggerBtn" type="button" style="flex:1; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
+      <button id="cartonPutawayBtn" type="button" style="flex:1 1 0%; min-width:0; background: #0284c7; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:13.5px; border:none; border-radius:10px; cursor:pointer;">
+        <span data-i18n="cartonBtn">Carton / Big Items</span>
+      </button>
+      <button id="rapidLoggerBtn" type="button" style="flex:1 1 0%; min-width:0; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:13.5px; border:none; border-radius:10px; cursor:pointer;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
         <span data-i18n="rapidBtn">⚡ Rapid Logger</span>
-      </button>
-      <button id="auditLocationQrBtn" type="button" style="flex:1; background: #7c3aed; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer;">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
-        <span>🔍 Audit Shelf QR</span>
       </button>
     </div>
   </div>
@@ -112,6 +114,231 @@
   <div class="recent-strip" id="recentStrip"></div>
 
   <footer id="footerText" data-i18n="databaseConnected">Database Connected</footer>
+</div>
+
+<!-- DEDICATED SUPER ADMIN PORTAL (Modern Enterprise Light Console) -->
+<div id="superAdminPortalView" class="portal-root" style="display:none;">
+  <div class="portal-frame">
+    
+    <!-- LEFT NAVIGATION SIDEBAR -->
+    <aside class="portal-sidebar">
+      <div>
+        <!-- Brand Header -->
+        <div class="portal-brand">
+          <div class="portal-brand-content">
+            <div class="portal-brand-icon">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <div>
+              <div class="portal-brand-title">Product Locator</div>
+              <div class="portal-brand-subtitle">
+                <span data-i18n="saEnterpriseAdmin">Enterprise Admin</span>
+              </div>
+            </div>
+          </div>
+          <button id="saMobileLogoutBtn" type="button" class="portal-mobile-logout-btn" title="Sign Out">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span data-i18n="saSignOut">Sign Out</span>
+          </button>
+        </div>
+
+        <!-- Navigation Menu Items -->
+        <div class="portal-nav-section-title" data-i18n="saNavigation">Navigation</div>
+        <nav class="portal-nav-list">
+          <button id="saNavMasterBtn" type="button" class="portal-nav-item active">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span data-i18n="saNavMaster">Master Inventory</span>
+          </button>
+          <button id="saNavCartonBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            <span data-i18n="saNavCartonBtn">Carton Putaway</span>
+          </button>
+          <button id="saNavOrdersBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            <span data-i18n="saNavOrders">Delivery Routes</span>
+          </button>
+          <button id="saNavAddProductBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span data-i18n="saNavAddProduct">Add New Product</span>
+          </button>
+          <button id="saNavAuditBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
+            <span data-i18n="saNavAudit">Audit Shelf QR</span>
+          </button>
+        </nav>
+      </div>
+
+      <!-- Lower-Left Profile & Logout -->
+      <div class="portal-sidebar-footer">
+        <div class="portal-user-card">
+          <div class="portal-user-avatar">SA</div>
+          <div>
+            <div class="portal-user-name" data-i18n="saRole">Super Admin</div>
+            <div class="portal-user-role" data-i18n="saRoleSub">Online · Full Access</div>
+          </div>
+        </div>
+        <button id="saLogoutBtn" type="button" class="portal-btn-signout">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span data-i18n="saSignOut">Sign Out</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT PANEL -->
+    <main class="portal-main">
+      
+      <!-- Top Bar -->
+      <div class="portal-topbar">
+        <div>
+          <h1 class="portal-header-title" data-i18n="saHeaderTitle">Master Inventory</h1>
+          <div class="portal-header-sub" data-i18n="saHeaderSub">Live warehouse catalog, storage coordinates, mapping health, and SKU stock tracking</div>
+        </div>
+
+        <div class="portal-actions-group">
+          <button id="saSwitchAppBtn" type="button" class="portal-btn-secondary" title="Switch to user lookup mode">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span data-i18n="searchViewBtn">Search View</span>
+          </button>
+          
+          <input type="file" id="saImportFile" accept=".csv, .xls, .xlsx" style="display:none;" />
+          <button id="saImportBtn" type="button" class="portal-btn-secondary" title="Import Data">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span data-i18n="importDataBtn">Import Data</span>
+          </button>
+          
+          <button id="saExportBtn" type="button" class="portal-btn-primary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span data-i18n="exportDataBtn">Export XLSX</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Metrics Bar -->
+      <div class="portal-kpi-grid">
+        <div class="portal-kpi-card kpi-total">
+          <div class="portal-kpi-header">
+            <span class="portal-kpi-label" data-i18n="saKpiTotal">Total SKUs</span>
+            <div class="portal-kpi-icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            </div>
+          </div>
+          <div id="portalTotalProducts" class="portal-kpi-value">—</div>
+          <div class="portal-kpi-footer" style="color:#64748b;">
+            <span data-i18n="saKpiTotalSub">All catalog items</span>
+          </div>
+        </div>
+
+        <div class="portal-kpi-card kpi-mapped">
+          <div class="portal-kpi-header">
+            <span class="portal-kpi-label" data-i18n="saKpiMapped">Mapped Locations</span>
+            <div class="portal-kpi-icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+          </div>
+          <div id="portalMappedCount" class="portal-kpi-value">—</div>
+          <div class="portal-kpi-footer" id="portalMappedPct" style="color:#047857;">
+            <span data-i18n="saKpiMappedSub">Active shelf coordinates</span>
+          </div>
+        </div>
+
+        <div class="portal-kpi-card kpi-unmapped">
+          <div class="portal-kpi-header">
+            <span class="portal-kpi-label" data-i18n="saKpiUnmapped">Unmapped Items</span>
+            <div class="portal-kpi-icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+          </div>
+          <div id="portalUnmappedCount" class="portal-kpi-value">—</div>
+          <div class="portal-kpi-footer" style="color:#be123c;">
+            <span data-i18n="saKpiUnmappedSub">Requires shelf assignment</span>
+          </div>
+        </div>
+
+        <div class="portal-kpi-card kpi-qty">
+          <div class="portal-kpi-header">
+            <span class="portal-kpi-label" data-i18n="saKpiQty">Total Quantity</span>
+            <div class="portal-kpi-icon">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
+            </div>
+          </div>
+          <div id="portalTotalQty" class="portal-kpi-value">—</div>
+          <div class="portal-kpi-footer" style="color:#0284c7;">
+            <span data-i18n="saKpiQtySub">Total on-hand units</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Master Inventory Data Table Card -->
+      <div class="portal-table-panel">
+        
+        <!-- Controls Toolbar -->
+        <div class="portal-toolbar">
+          <div class="portal-search-box">
+            <svg class="portal-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="portalTableSearch" type="text" placeholder="Search by name, barcode, stock no..." data-i18n-placeholder="saSearchPlaceholder" autocomplete="off">
+          </div>
+          
+          <div class="portal-filter-group">
+            <select id="portalStatusFilter" class="portal-select" aria-label="Filter by mapping status">
+              <option value="ALL" data-i18n="saFilterStatusAll">All Status</option>
+              <option value="MAPPED" data-i18n="saFilterStatusMapped">Mapped Only</option>
+              <option value="UNMAPPED" data-i18n="saFilterStatusUnmapped">Unmapped Only</option>
+            </select>
+            
+            <select id="portalFloorFilter" class="portal-select" aria-label="Filter by floor">
+              <option value="ALL" data-i18n="saFilterFloorAll">All Floors</option>
+              <option value="1" data-i18n="saFilterFloor1">1st Floor</option>
+              <option value="2" data-i18n="saFilterFloor2">2nd Floor</option>
+              <option value="3" data-i18n="saFilterFloor3">3rd Floor</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="portal-table-wrapper">
+          <table class="portal-table">
+            <thead>
+              <tr>
+                <th style="width: 48px;">#</th>
+                <th data-i18n="thProdName">Product Name</th>
+                <th data-i18n="thStockNo">Stock No</th>
+                <th data-i18n="thBarcode">Barcode</th>
+                <th data-i18n="thCategory">Department / Category</th>
+                <th data-i18n="thLocation">Shelf Location</th>
+                <th data-i18n="thQty">On-Hand Qty</th>
+                <th data-i18n="thStatus">Status</th>
+                <th style="text-align:center; width: 100px;" data-i18n="thReset">Reset Loc</th>
+                <th style="text-align:right;" data-i18n="thAction">Action</th>
+              </tr>
+            </thead>
+            <tbody id="portalTableBody">
+              <!-- Dynamic rows populated via JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Mobile Card View List -->
+        <div id="portalMobileCardsList" class="portal-mobile-cards"></div>
+
+        <!-- Pagination Controls -->
+        <div class="portal-pagination">
+          <div id="portalPaginationInfo">Showing 1 to 25 of filtered items</div>
+          <div class="portal-pagination-controls">
+            <button id="portalPrevPageBtn" type="button" class="portal-pagination-btn">
+              <span style="font-weight:700;">&larr;</span> <span data-i18n="pagePrev">Previous</span>
+            </button>
+            <span id="portalCurrentPageLabel" class="portal-page-indicator">Page 1</span>
+            <button id="portalNextPageBtn" type="button" class="portal-pagination-btn">
+              <span data-i18n="pageNext">Next</span> <span style="font-weight:700;">&rarr;</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
 </div>
 
 <!-- ADD PRODUCT MODAL OVERLAY -->
@@ -301,14 +528,14 @@
 <!-- ADD STOCK TO EXISTING LOCATION MODAL OVERLAY -->
 <div id="addStockModal" class="modal-overlay">
   <div class="form-panel" style="max-width: 440px;">
-    <h2>Add Stock to Location</h2>
-    <div class="form-sub">Sum incoming stock to existing location quantity</div>
+    <h2 data-i18n="addStockTitle">Add Stock to Location</h2>
+    <div class="form-sub" data-i18n="addStockSub">Sum incoming stock to existing location quantity</div>
 
     <div style="background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
       <div id="addStockProductName" style="font-weight: 700; color: var(--ink); font-size: 14px; margin-bottom: 2px;">Product Name</div>
       <div id="addStockProductMeta" style="font-size: 11.5px; color: var(--muted); margin-bottom: 8px; font-family: monospace;">Barcode: — | Stock No: —</div>
       <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 12px;">
-        <span style="font-weight: 600; color: var(--ink);">📍 Target Location:</span>
+        <span style="font-weight: 600; color: var(--ink);" data-i18n="addStockTargetLoc">📍 Target Location:</span>
         <span id="addStockLocBadge" style="font-weight: 700; color: #0284c7;">Floor 1 - Row 01 - Shelf 01 - Level 0</span>
       </div>
     </div>
@@ -318,32 +545,32 @@
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
       <div class="field" style="margin: 0;">
-        <label style="font-size: 12px;">Current Stock</label>
+        <label style="font-size: 12px;" data-i18n="addStockCurrent">Current Stock</label>
         <input id="addStockCurrentDisplay" type="text" readonly style="background: #f1f5f9; color: var(--ink); font-weight: 700; text-align: center; font-size: 16px;">
       </div>
       <div class="field" style="margin: 0;">
-        <label style="font-size: 12px; color: #0284c7; font-weight: 700;">+ Add New Qty</label>
+        <label style="font-size: 12px; color: #0284c7; font-weight: 700;" data-i18n="addStockNew">+ Add New Qty</label>
         <input id="addStockNewInput" type="number" inputmode="numeric" placeholder="e.g. 5" style="border-color: #38bdf8; font-weight: 700; text-align: center; font-size: 16px; background: #f0f9ff;">
       </div>
     </div>
 
     <div style="background: #f0fdf4; border: 1px dashed #4ade80; border-radius: 10px; padding: 8px 12px; text-align: center; margin-bottom: 16px; font-size: 12px;">
-      <span style="color: #166534;">Calculation: </span>
+      <span style="color: #166534;" data-i18n="addStockCalc">Calculation: </span>
       <span id="addStockMathPreview" style="font-weight: 700; color: #15803d;">10 (Existing) + 0 (New) = 10 Total Units</span>
     </div>
 
     <div class="field" style="margin-bottom: 16px;">
-      <label style="font-size: 12px;">Responsible Stockman</label>
+      <label style="font-size: 12px;" data-i18n="stockmanLabel">Responsible Stockman</label>
       <input id="addStockmanInput" type="text" placeholder="Stockman Name">
     </div>
 
     <div class="form-actions" style="margin-top: 14px;">
-      <button id="cancelAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 14px; flex: 1;">Cancel</button>
+      <button id="cancelAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 14px; flex: 1;" data-i18n="cancel">Cancel</button>
       <button id="confirmAddStockBtn" type="button" class="btn-save" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 16px; flex: 1.3;"><span id="confirmAddStockBtnText">Save Quantity</span></button>
     </div>
 
     <div style="text-align: center; margin-top: 10px;">
-      <button id="openFullEditFromAddStockBtn" type="button" style="background: none; border: none; color: #6366f1; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline;">✏️ Edit All Location Details</button>
+      <button id="openFullEditFromAddStockBtn" type="button" style="background: none; border: none; color: #6366f1; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline;" data-i18n="addStockEditAll">✏️ Edit All Location Details</button>
     </div>
   </div>
 </div>
@@ -673,7 +900,238 @@
   </div>
 </div>
 
+<!-- CARTON / BIG ITEMS PUTAWAY MODAL -->
+<div id="cartonOverlay" class="modal-overlay">
+  <div class="form-panel carton-modal">
+
+    <!-- Header -->
+    <div class="carton-header">
+      <div>
+        <h2 data-i18n="cartonModalTitle" class="carton-title">Carton Putaway</h2>
+        <p data-i18n="cartonModalSub" class="carton-subtitle">Set shelf location for bulk carton items</p>
+      </div>
+      <button id="closeCartonModal" type="button" class="carton-close-btn">&times;</button>
+    </div>
+
+    <!-- Step 1: Item Code -->
+    <div class="carton-section">
+      <label data-i18n="cartonStep1" class="carton-step-label">Step 1: Enter Item Code</label>
+      <input id="cartonStockNoInput" type="text" placeholder="Stock number (e.g. OR6868-5L, C330)" autocomplete="off" class="carton-input carton-input--code">
+    </div>
+
+    <!-- Product Matched -->
+    <div id="cartonMatchBox" style="display:none;">
+
+      <!-- Product Info -->
+      <div class="carton-product-card">
+        <div class="carton-product-card__header">
+          <span data-i18n="cartonItemFound" class="carton-badge carton-badge--success">Item Found</span>
+          <span id="cartonMatchSkuBadge" class="carton-sku-code"></span>
+        </div>
+        <div id="cartonMatchedName" class="carton-product-name">&mdash;</div>
+        <div id="cartonMatchedMeta" class="carton-product-meta">Category: &mdash;</div>
+        <div id="cartonExistingLocs" class="carton-existing-locs"></div>
+      </div>
+
+      <!-- Step 2: Location -->
+      <div class="carton-section">
+        <div class="carton-section__row">
+          <label data-i18n="cartonStep2" class="carton-step-label">Step 2: Shelf Location</label>
+          <button id="cartonScanLocBtn" data-i18n="cartonScanQR" type="button" class="carton-scan-btn">&#128247; Scan QR</button>
+        </div>
+        <div class="carton-loc-grid">
+          <div class="carton-loc-field">
+            <label>Floor</label>
+            <select id="cartonManualFloor">
+              <option value="1">1F</option>
+              <option value="2">2F</option>
+              <option value="3">3F</option>
+            </select>
+          </div>
+          <div class="carton-loc-field">
+            <label>Row</label>
+            <input id="cartonManualRow" type="text" placeholder="01">
+          </div>
+          <div class="carton-loc-field">
+            <label>Shelf</label>
+            <input id="cartonManualShelf" type="text" placeholder="01">
+          </div>
+          <div class="carton-loc-field">
+            <label>Level</label>
+            <input id="cartonManualLevel" type="text" placeholder="00" value="00">
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Quantity -->
+      <div class="carton-section">
+        <label data-i18n="cartonStep3" class="carton-step-label">Step 3: Quantity</label>
+        <input id="cartonQtyInput" type="number" min="0" placeholder="Number of units (e.g. 24)" class="carton-input">
+      </div>
+
+      <!-- Save -->
+      <button id="cartonSaveLocationBtn" data-i18n="cartonSaveBtn" type="button" class="carton-save-btn">
+        Confirm &amp; Save Location
+      </button>
+    </div>
+
+    <!-- Not Found -->
+    <div id="cartonNoMatchBox" style="display:none;" class="carton-notfound">
+      <div data-i18n="cartonNotFoundTitle" class="carton-notfound__title">Item Not Found in Database</div>
+      <div data-i18n="cartonNotFoundSub" class="carton-notfound__sub">This stock code is not registered yet.</div>
+      <button id="cartonAddNewBtn" data-i18n="cartonAddNew" type="button" class="carton-add-btn">
+        Add New Product to System
+      </button>
+    </div>
+
+    <div class="carton-footer">
+      <button id="cancelCartonBtn" data-i18n="cancel" type="button" class="carton-cancel-link">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUPER ADMIN DASHBOARD & XLSX EXPORTER MODAL -->
+<!-- SUPER ADMIN DASHBOARD & XLSX EXPORTER MODAL -->
+<div id="adminDashboardOverlay" class="modal-overlay">
+  <div class="form-panel admin-modal-card">
+    <div class="admin-modal-header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:40px; height:40px; border-radius:11px; background:linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); color:#4338ca; display:flex; align-items:center; justify-content:center; font-size:18px; box-shadow:0 2px 6px rgba(79, 70, 229, 0.15);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        </div>
+        <div>
+          <h2 style="font-size:18px; margin:0; color:#0f172a; font-weight:800; letter-spacing:-0.01em;">Admin & XLSX Exporter</h2>
+          <div style="font-size:12px; color:#64748b; margin-top:2px;">Warehouse mapping health metrics & custom catalog export</div>
+        </div>
+      </div>
+      <button id="closeAdminDashboardModal" type="button" style="background:#f1f5f9; border:none; font-size:18px; cursor:pointer; color:#64748b; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; transition:background 0.15s ease;">&times;</button>
+    </div>
+
+    <!-- Health Metrics Grid -->
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px;">
+      <div class="admin-stat-card" style="border-top:3px solid #6366f1;">
+        <div style="font-size:11px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Total Items</div>
+        <div id="admStatTotal" style="font-size:24px; font-weight:800; color:#0f172a; margin-top:4px;">—</div>
+      </div>
+      <div class="admin-stat-card" style="border-top:3px solid #10b981;">
+        <div style="font-size:11px; color:#047857; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Mapped</div>
+        <div id="admStatMapped" style="font-size:24px; font-weight:800; color:#047857; margin-top:4px;">—</div>
+      </div>
+      <div class="admin-stat-card" style="border-top:3px solid #e11d48;">
+        <div style="font-size:11px; color:#be123c; font-weight:700; text-transform:uppercase; letter-spacing:0.04em;">Unmapped</div>
+        <div id="admStatUnmapped" style="font-size:24px; font-weight:800; color:#be123c; margin-top:4px;">—</div>
+      </div>
+    </div>
+
+    <!-- Excel Export Filters Section -->
+    <div class="admin-export-box">
+      <div style="font-size:14px; font-weight:700; color:#4338ca; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Custom Excel (.xlsx) Report Generator</span>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+        <div>
+          <label style="font-size:12px; font-weight:700; color:#334155; display:block; margin-bottom:6px;">Status Scope</label>
+          <select id="expStatusFilter" class="portal-select" style="width:100%;">
+            <option value="ALL">All Products (Full Database)</option>
+            <option value="MAPPED">Mapped Products Only</option>
+            <option value="UNMAPPED">Unmapped Products Only</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px; font-weight:700; color:#334155; display:block; margin-bottom:6px;">Floor Scope</label>
+          <select id="expFloorFilter" class="portal-select" style="width:100%;">
+            <option value="ALL">All Warehouse Floors</option>
+            <option value="1">1st Floor</option>
+            <option value="2">2nd Floor</option>
+            <option value="3">3rd Floor</option>
+          </select>
+        </div>
+      </div>
+
+      <button id="downloadXlsxBtn" type="button" class="portal-btn-primary" style="width:100%; height:44px; justify-content:center; font-size:13.5px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Generate & Download Excel (.xlsx)</span>
+      </button>
+    </div>
+
+    <div class="form-actions" style="margin-top:0;">
+      <button id="cancelAdminModalBtn" type="button" class="btn-cancel" style="height:38px; min-height:38px; font-size:13px; border-radius:10px; flex:1;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAILY DELIVERY ORDERS & PICK ROUTE MODALS -->
+<div id="ordersOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width: 520px; padding: 22px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="width:36px; height:36px; border-radius:10px; background:#ecfdf5; color:#059669; display:flex; align-items:center; justify-content:center; font-size:18px;">🚚</div>
+        <div>
+          <h2 style="font-size:17px; margin:0; color:#0f172a; font-weight:700;">Daily Delivery Orders</h2>
+          <div style="font-size:11.5px; color:#64748b;">Generate S-Shape picking routes for staff</div>
+        </div>
+      </div>
+      <button id="closeOrdersModal" type="button" style="background:#f1f5f9; border:none; font-size:18px; cursor:pointer; color:#64748b; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;">&times;</button>
+    </div>
+
+    <div id="ordersListContainer" style="display:flex; flex-direction:column; gap:10px; max-height:300px; overflow-y:auto; margin-bottom:16px;">
+      <!-- Dynamic orders will be appended here -->
+    </div>
+
+    <div class="form-actions">
+      <button id="cancelOrdersBtn" type="button" class="btn-cancel" style="height:38px; min-height:38px; font-size:13px; border-radius:9px;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- PICKER STEP-BY-STEP ROUTE MODAL -->
+<div id="pickerRouteOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width: 480px; padding: 22px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px dashed #e2e8f0; padding-bottom:12px;">
+      <div>
+        <h2 style="font-size:17px; margin:0; color:#0f172a; font-weight:700;" id="routeOrderTitle">Order Pick Route</h2>
+        <div style="font-size:11.5px; color:#059669; font-weight:600;" id="routeProgressText">Step 1 of 5</div>
+      </div>
+      <button id="closeRouteModal" type="button" style="background:#f1f5f9; border:none; font-size:18px; cursor:pointer; color:#64748b; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;">&times;</button>
+    </div>
+
+    <!-- Active Step Card -->
+    <div id="activeStepBox" style="background:#f0fdf4; border:1.5px solid #4ade80; border-radius:14px; padding:16px; margin-bottom:16px;">
+      <div style="font-size:11px; font-weight:800; color:#15803d; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px;" id="activeStepLocationBadge">📍 LOCATION: FLOOR 1 - ROW 02 - SHELF 05</div>
+      <div id="activeStepProductName" style="font-size:16px; font-weight:800; color:#0f172a; margin-bottom:4px;">—</div>
+      <div id="activeStepMeta" style="font-size:12px; color:#475569; font-family:monospace; margin-bottom:14px;">Stock No: — | Barcode: —</div>
+      
+      <div style="background:white; border:1px solid #bbf7d0; border-radius:10px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <span style="font-size:12.5px; font-weight:700; color:#166534;">Action Required:</span>
+        <span id="activeStepQtyBadge" style="font-size:14px; font-weight:800; color:#15803d;">Pick 5 Units</span>
+      </div>
+
+      <button id="confirmStepBtn" type="button" style="width:100%; height:44px; background:#059669; color:white; font-weight:700; font-size:14px; border:none; border-radius:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+        <span>✓ Confirm Pick & Move to Next Stop</span>
+      </button>
+    </div>
+
+    <div class="form-actions">
+      <button id="cancelRouteBtn" type="button" class="btn-cancel" style="height:38px; min-height:38px; font-size:13px; border-radius:9px;">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="successToast"></div>
+
+<div id="locProductsModal" class="modal-overlay">
+  <div class="form-panel" style="max-width:420px;width:94%;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 id="locProductsTitle" data-i18n="locProductsTitle" style="margin:0;font-family:var(--body);font-size:16px;font-weight:700;color:var(--ink);">Products at Location</h3>
+      <button id="closeLocProductsModal" data-i18n="closeBtn" type="button" style="background:none;border:1px solid var(--card-border);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink);font-family:var(--body);">Close</button>
+    </div>
+    <div id="locProductsBadge" style="background:var(--safety);color:#fff;display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:700;font-family:var(--mono);margin-bottom:12px;letter-spacing:0.04em;"></div>
+    <div id="locProductsList" style="max-height:55vh;overflow-y:auto;"></div>
+    <div id="locProductsEmpty" data-i18n="locProductsEmpty" style="display:none;text-align:center;padding:24px 0;color:var(--muted);font-family:var(--body);font-size:14px;">No products found at this location.</div>
+  </div>
+</div>
 
 <div id="scannerOverlay">
   <div class="scanner-head">
@@ -687,6 +1145,6 @@
   <div class="scan-hint">Hold the item barcode steady inside the frame.</div>
 </div>
 
-<script src="js/app.js"></script>
+<script src="js/app.js?v=3.8"></script>
 </body>
 </html>

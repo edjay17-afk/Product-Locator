@@ -170,6 +170,8 @@ async function initTurso() {
   }
 }
 
+const { SEARCH_SYNONYMS } = require('./search-synonyms');
+
 module.exports = {
   getAllProducts: () => {
     if (driver === 'better-sqlite3') {
@@ -179,25 +181,39 @@ module.exports = {
   },
   searchProducts: (query, limit = 20) => {
     const q = (query || '').trim().toLowerCase();
+    if (!q) return [];
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return [];
+
     if (driver === 'better-sqlite3') {
-      const param = `%${q}%`;
+      const clauses = [];
+      const params = [];
+      tokens.forEach(t => {
+        const syns = SEARCH_SYNONYMS[t] || [t];
+        const synClauses = syns.map(() => `
+          (LOWER(name) LIKE ? OR LOWER(barcode) LIKE ? OR LOWER(stock_code) LIKE ? OR LOWER(category) LIKE ? OR LOWER(subcategory) LIKE ?)
+        `).join(' OR ');
+        clauses.push(`(${synClauses})`);
+        syns.forEach(syn => {
+          const pattern = `%${syn}%`;
+          params.push(pattern, pattern, pattern, pattern, pattern);
+        });
+      });
+      params.push(limit);
       return sqliteDb.prepare(`
         SELECT * FROM products
-        WHERE LOWER(name) LIKE ?
-           OR LOWER(barcode) LIKE ?
-           OR LOWER(stock_code) LIKE ?
-           OR LOWER(category) LIKE ?
-           OR LOWER(subcategory) LIKE ?
+        WHERE ${clauses.join(' AND ')}
         LIMIT ?
-      `).all(param, param, param, param, param, limit);
+      `).all(...params);
     }
-    return memoryProducts.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.barcode.toLowerCase().includes(q) ||
-      p.stock_code.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q) ||
-      p.subcategory.toLowerCase().includes(q)
-    ).slice(0, limit);
+
+    return memoryProducts.filter(p => {
+      const fullText = `${p.name || ''} ${p.barcode || ''} ${p.stock_code || ''} ${p.category || ''} ${p.subcategory || ''}`.toLowerCase();
+      return tokens.every(t => {
+        const syns = SEARCH_SYNONYMS[t] || [t];
+        return syns.some(syn => fullText.includes(syn));
+      });
+    }).slice(0, limit);
   },
   getProductByBarcodeOrStock: (code) => {
     const clean = (code || '').trim().toLowerCase();
@@ -327,5 +343,26 @@ module.exports = {
       total: memoryProducts.length,
       customCount: memoryProducts.filter(p => p.custom === 1).length
     };
+  },
+  resetProductLocation: (id) => {
+    const numId = parseInt(id, 10);
+    if (driver === 'better-sqlite3') {
+      sqliteDb.prepare(`
+        UPDATE products
+        SET floor = NULL, batch = NULL, shelf = NULL, level = NULL, loc_full = NULL, status = 'UNMAPPED'
+        WHERE id = ?
+      `).run(numId);
+      return sqliteDb.prepare('SELECT * FROM products WHERE id = ?').get(numId);
+    }
+    const item = memoryProducts.find(p => p.id === numId);
+    if (item) {
+      item.floor = null;
+      item.batch = null;
+      item.shelf = null;
+      item.level = null;
+      item.loc_full = null;
+      item.status = 'UNMAPPED';
+    }
+    return item;
   }
 };

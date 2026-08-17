@@ -1,11 +1,24 @@
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 const fs = require('fs');
+const { SEARCH_SYNONYMS } = require('./search-synonyms');
 
 const seedPath = path.join(__dirname, '..', 'seed-data.json');
 let memoryProducts = [];
 let isConnectedToSupabase = false;
 let supabase = null;
+
+// Short-lived in-memory cache for the full product catalog so that
+// /api/products/all (used by the client for instant local search) does not
+// re-download tens of thousands of rows on every page load.
+const ALL_PRODUCTS_TTL_MS = 300000;
+let allProductsCache = { data: null, time: 0 };
+let allProductsPromise = null; // in-flight fetch shared by concurrent callers
+// Only the columns the app actually uses — keeps the Supabase transfer small.
+const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,status,custom,last_modified_by,created_at';
+function invalidateAllProductsCache() {
+  allProductsCache.time = 0;
+}
 
 let memoryUsers = [
   { id: 1, username: 'stockman1', password: 'password123', full_name: 'Juan Dela Cruz', role: 'stockman' },
@@ -227,13 +240,55 @@ module.exports = {
   // Products API
   getAllProducts: async () => {
     if (isConnectedToSupabase && supabase) {
+      const now = Date.now();
+      if (allProductsCache.data && now - allProductsCache.time < ALL_PRODUCTS_TTL_MS) {
+        return allProductsCache.data;
+      }
+      // Concurrent callers (e.g. /api/stats + /api/products/all at app boot)
+      // share a single in-flight download instead of each pulling 50k rows.
+      if (allProductsPromise) return allProductsPromise;
+
+      allProductsPromise = (async () => {
+        // PostgREST caps each response at 1000 rows, so page through the
+        // whole catalog in parallel chunks — the client needs every SKU
+        // locally for instant (zero-network) search.
+        const PAGE = 1000;
+        const MAX_ROWS = 200000; // safety cap
+        const CONCURRENCY = 6;
+        const { count, error: countErr } = await supabase
+          .from('products').select('id', { count: 'exact', head: true });
+        if (countErr) throw new Error(countErr.message);
+        const total = Math.min(count || 0, MAX_ROWS);
+        const pageCount = Math.max(1, Math.ceil(total / PAGE));
+        const all = [];
+        for (let startPage = 0; startPage < pageCount; startPage += CONCURRENCY) {
+          const batch = [];
+          for (let pg = startPage; pg < Math.min(startPage + CONCURRENCY, pageCount); pg++) {
+            const from = pg * PAGE;
+            batch.push(
+              supabase.from('products').select(PRODUCT_COLUMNS).order('id', { ascending: true }).range(from, from + PAGE - 1)
+                .then(({ data, error }) => {
+                  if (error) throw new Error(error.message);
+                  return data || [];
+                })
+            );
+          }
+          for (const rows of await Promise.all(batch)) {
+            all.push(...rows);
+          }
+        }
+        const mapped = all.map(normalizeProduct);
+        allProductsCache = { data: mapped, time: Date.now() };
+        return mapped;
+      })();
+
       try {
-        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 10000));
-        const query = supabase.from('products').select('*').order('id', { ascending: true }).limit(1000);
-        const { data, error } = await Promise.race([query, timeout]);
-        if (!error && data) return data.map(normalizeProduct);
+        return await allProductsPromise;
       } catch (err) {
-        console.warn('getAllProducts Supabase timeout/error:', err.message);
+        console.warn('getAllProducts Supabase error:', err.message);
+        if (allProductsCache.data) return allProductsCache.data; // serve stale rather than nothing
+      } finally {
+        allProductsPromise = null;
       }
     }
     return memoryProducts.map(normalizeProduct);
@@ -249,7 +304,7 @@ module.exports = {
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .or(`product_name.ilike.${pattern},barcode.ilike.${pattern},barcode.ilike.${patternStripped},stock_no.ilike.${pattern},category.ilike.${pattern},department.ilike.${pattern}`)
+        .or(`product_name.ilike.${pattern},barcode.ilike.${pattern},barcode.ilike.${patternStripped},barcode_2.ilike.${pattern},barcode_2.ilike.${patternStripped},stock_no.ilike.${pattern},category.ilike.${pattern},department.ilike.${pattern}`)
         .limit(limit);
 
       if (!error && data) return data.map(normalizeProduct);
@@ -271,6 +326,47 @@ module.exports = {
              cat.includes(qLower) ||
              dept.includes(qLower);
     }).slice(0, limit).map(normalizeProduct);
+  },
+  getPaginatedProducts: async ({ page = 1, limit = 25, search = '', status = 'ALL', floor = 'ALL' } = {}) => {
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || 25));
+
+    // Filter the (60s-cached) full catalog in memory — 50k rows filter in
+    // milliseconds and the semantics stay identical to the export endpoint.
+    let products = await module.exports.getAllProducts();
+
+    if (status && status !== 'ALL') {
+      if (status === 'MAPPED') {
+        products = products.filter(p => (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf);
+      } else if (status === 'UNMAPPED') {
+        products = products.filter(p => (p.status || '').toUpperCase() !== 'MAPPED' && !p.floor && !p.row && !p.shelf);
+      }
+    }
+
+    if (floor && floor !== 'ALL') {
+      products = products.filter(p => String(p.floor) === String(floor));
+    }
+
+    if (search && search.trim()) {
+      const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      products = products.filter(p => {
+        const fullText = `${p.product_name || ''} ${p.barcode || ''} ${p.barcode_2 || ''} ${p.stock_no || ''} ${p.category || ''} ${p.department || ''}`.toLowerCase();
+        return tokens.every(t => {
+          const syns = SEARCH_SYNONYMS[t] || [t];
+          return syns.some(syn => fullText.includes(syn));
+        });
+      });
+    }
+
+    const total = products.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (pageNum - 1) * pageSize;
+    return {
+      products: products.slice(start, start + pageSize),
+      total,
+      page: pageNum,
+      totalPages
+    };
   },
   getProductByBarcodeOrStock: async (code) => {
     const clean = (code || '').trim();
@@ -348,6 +444,7 @@ module.exports = {
     }).map(normalizeProduct);
   },
   createProduct: async (data) => {
+    invalidateAllProductsCache();
     const payload = {
       barcode: data.barcode || '',
       stock_no: data.stock_no || data.stock_code || '',
@@ -379,6 +476,7 @@ module.exports = {
     return normalizeProduct(newProduct);
   },
   updateProduct: async (id, data) => {
+    invalidateAllProductsCache();
     const updatePayload = {};
     if (data.product_name !== undefined || data.name !== undefined) updatePayload.product_name = data.product_name || data.name;
     if (data.stock_no !== undefined || data.stock_code !== undefined) updatePayload.stock_no = data.stock_no || data.stock_code;
@@ -473,6 +571,7 @@ module.exports = {
     return normalizeProduct(item);
   },
   deleteProduct: async (id) => {
+    invalidateAllProductsCache();
     if (isConnectedToSupabase && supabase) {
       const { error } = await supabase.from('products').delete().eq('id', id);
       return !error;
@@ -482,6 +581,7 @@ module.exports = {
     return memoryProducts.length < len;
   },
   bulkCreateProducts: async (items) => {
+    invalidateAllProductsCache();
     if (!isConnectedToSupabase || !supabase) {
       return {
         success: false,
@@ -492,8 +592,9 @@ module.exports = {
 
     const formattedItems = items.map(data => ({
       barcode: data.barcode || '',
+      barcode_2: data.barcode_2 || '',
       stock_no: data.stock_no || '',
-      product_name: data.product_name,
+      product_name: data.product_name || data.name,
       category: data.category || 'Uncategorized',
       department: data.department || '',
       floor: data.floor || '1',
@@ -529,6 +630,105 @@ module.exports = {
     }
 
     return { success: true, count: insertedCount };
+  },
+  // Upsert the master SKU list by barcode (falling back to stock_no when the
+  // barcode is blank). Existing rows only get their catalog fields refreshed —
+  // shelf locations, quantities and in-app flags are left untouched — so
+  // re-importing a list never duplicates a SKU or wipes a location mapping.
+  upsertMasterProducts: async (items) => {
+    invalidateAllProductsCache();
+    if (!isConnectedToSupabase || !supabase) {
+      return {
+        success: false,
+        error: 'SUPABASE_NOT_CONNECTED',
+        message: 'SUPABASE_URL or SUPABASE_KEY environment variables are missing.'
+      };
+    }
+
+    const clean = [];
+    const seen = new Set();
+    for (const data of items) {
+      const barcode = (data.barcode || '').toString().trim();
+      const stock_no = (data.stock_no || '').toString().trim();
+      const name = (data.product_name || data.name || '').toString().trim();
+      if (!name || name === 'Unnamed Item') continue;
+      if (!barcode && !stock_no) continue;
+      const key = (barcode || stock_no).toLowerCase();
+      if (seen.has(key)) continue; // duplicated inside the uploaded file itself
+      seen.add(key);
+      clean.push({
+        barcode,
+        stock_no,
+        product_name: name,
+        category: data.category || 'Uncategorized',
+        department: data.department || '',
+        barcode_2: (data.barcode_2 || '').toString().trim()
+      });
+    }
+
+    // Page through the existing id + key columns once to split updates from inserts.
+    const existingByBarcode = new Map();
+    const existingByStock = new Map();
+    const PAGE = 1000;
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await supabase.from('products').select('id,barcode,stock_no').range(offset, offset + PAGE - 1);
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        const b = (row.barcode || '').trim().toLowerCase();
+        const s = (row.stock_no || '').trim().toLowerCase();
+        if (b && !existingByBarcode.has(b)) existingByBarcode.set(b, row.id);
+        if (s && !existingByStock.has(s)) existingByStock.set(s, row.id);
+      }
+    }
+
+    const updates = [];
+    const inserts = [];
+    for (const item of clean) {
+      const b = item.barcode.toLowerCase();
+      const s = item.stock_no.toLowerCase();
+      const id = (b && existingByBarcode.get(b)) || (s && existingByStock.get(s));
+      if (id) {
+        const payload = { id, ...item };
+        if (!payload.barcode_2) delete payload.barcode_2; // never wipe a known barcode_2
+        updates.push(payload);
+      } else {
+        const payload = {
+          ...item,
+          floor: '', row: '', shelf: '', level: '0',
+          loc: '', location_storage: '',
+          qty: 0, status: 'UNMAPPED', custom: false,
+          last_modified_by: 'System Import'
+        };
+        if (!payload.barcode_2) delete payload.barcode_2;
+        inserts.push(payload);
+      }
+    }
+
+    let insertedCount = 0;
+    const chunkSize = 500;
+    for (let i = 0; i < inserts.length; i += chunkSize) {
+      const chunk = inserts.slice(i, i + chunkSize);
+      const { data, error } = await supabase.from('products').insert(chunk).select('id');
+      if (error) return { success: false, error: error.message };
+      insertedCount += data ? data.length : 0;
+    }
+
+    // Supabase has no bulk update — run small parallel batches keyed by id.
+    let updatedCount = 0;
+    const CONCURRENCY = 20;
+    for (let i = 0; i < updates.length; i += CONCURRENCY) {
+      const results = await Promise.all(updates.slice(i, i + CONCURRENCY).map(u => {
+        const { id, ...fields } = u;
+        return supabase.from('products').update(fields).eq('id', id);
+      }));
+      for (const r of results) {
+        if (r.error) return { success: false, error: r.error.message };
+        updatedCount++;
+      }
+    }
+
+    return { success: true, count: clean.length, inserted: insertedCount, updated: updatedCount };
   },
   transferProductStock: async ({ sourceId, destLocation, transferQty, modifiedBy }) => {
     const qtyToTransfer = parseInt(transferQty, 10);
@@ -600,15 +800,95 @@ module.exports = {
     return { success: true, message: `Transferred ${qtyToTransfer} units to location ${cleanDestLoc}` };
   },
   getStats: async () => {
+    const isMappedRow = p => (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf;
+    // A SKU's identity is its barcode (falling back to stock_no, then row id).
+    // The same product legitimately appears in several rows — one per shelf
+    // location — so stats must count distinct SKUs, not physical rows;
+    // registering one more location for an item must not inflate the total.
+    const skuKey = p => {
+      const b = (p.barcode || '').toString().trim().toLowerCase();
+      if (b) return 'b:' + b;
+      const s = (p.stock_no || p.stock_code || '').toString().trim().toLowerCase();
+      if (s) return 's:' + s;
+      return 'id:' + p.id;
+    };
+    try {
+      const all = await module.exports.getAllProducts();
+      const skuMapped = new Map(); // skuKey -> true if any of its rows is mapped
+      let customCount = 0;
+      for (const p of all) {
+        skuMapped.set(skuKey(p), (skuMapped.get(skuKey(p)) === true) || isMappedRow(p));
+        if (p.custom) customCount++;
+      }
+      const total = skuMapped.size;
+      let mappedCount = 0;
+      for (const mapped of skuMapped.values()) if (mapped) mappedCount++;
+      return {
+        total,
+        customCount,
+        mappedCount,
+        unmappedCount: total - mappedCount,
+        isSupabase: Boolean(isConnectedToSupabase && supabase)
+      };
+    } catch (e) {
+      console.warn('getStats distinct-SKU computation failed, falling back to row counts:', e.message);
+    }
     if (isConnectedToSupabase && supabase) {
       const { count: total } = await supabase.from('products').select('*', { count: 'exact', head: true });
       const { count: customCount } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('custom', true);
       return { total: total || 0, customCount: customCount || 0, isSupabase: true };
     }
+    const mappedCount = memoryProducts.filter(isMappedRow).length;
     return {
       total: memoryProducts.length,
       customCount: memoryProducts.filter(p => p.custom).length,
+      mappedCount,
+      unmappedCount: memoryProducts.length - mappedCount,
       isSupabase: false
     };
+  },
+  resetProductLocation: async (id) => {
+    invalidateAllProductsCache();
+    if (isConnectedToSupabase && supabase) {
+      const updatePayload = {
+        floor: null,
+        batch: null,
+        shelf: null,
+        level: null,
+        loc_full: null,
+        status: 'UNMAPPED'
+      };
+
+      const { data: updated, error } = await supabase
+        .from('products')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (!error && updated) {
+        addOrUpdateSkuRegistry(updated);
+        const idx = memoryProducts.findIndex(p => p.id === parseInt(id, 10));
+        if (idx !== -1) {
+          memoryProducts[idx] = { ...memoryProducts[idx], ...updated };
+        }
+        return normalizeProduct(updated);
+      }
+    }
+
+    const idx = memoryProducts.findIndex(p => String(p.id) === String(id));
+    if (idx !== -1) {
+      memoryProducts[idx].floor = null;
+      memoryProducts[idx].row = null;
+      memoryProducts[idx].batch = null;
+      memoryProducts[idx].shelf = null;
+      memoryProducts[idx].level = null;
+      memoryProducts[idx].location_storage = null;
+      memoryProducts[idx].loc_full = null;
+      memoryProducts[idx].status = 'UNMAPPED';
+      addOrUpdateSkuRegistry(memoryProducts[idx]);
+      return normalizeProduct(memoryProducts[idx]);
+    }
+    return null;
   }
 };

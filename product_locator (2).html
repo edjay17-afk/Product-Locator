@@ -831,23 +831,14 @@ function doSearch(q){
   q = q.trim().toLowerCase();
   if(!q){ hideResults(); return; }
 
-  // exact barcode match -> jump straight to card
-  if(byBarcode[q]){
-    renderProduct(byBarcode[q]);
-    document.getElementById('searchInput').value = '';
-    return;
-  }
-  if(byStock[q]){
-    renderProduct(byStock[q]);
-    document.getElementById('searchInput').value = '';
-    return;
-  }
-
-  const matches = PRODUCTS.filter(p=>{
-    return (p.b && p.b.includes(q)) ||
-           (p.s && p.s.toLowerCase().includes(q)) ||
-           (p.n && p.n.toLowerCase().includes(q));
-  }).slice(0,10);
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const matches = PRODUCTS.filter(p => {
+    const fullText = `${p.b || ''} ${p.s || ''} ${p.n || ''} ${p.c || ''}`.toLowerCase();
+    return tokens.every(t => {
+      const syns = SEARCH_SYNONYMS[t] || [t];
+      return syns.some(syn => fullText.includes(syn));
+    });
+  }).slice(0, 10);
 
   const rl = document.getElementById('resultsList');
   rl.innerHTML = '';

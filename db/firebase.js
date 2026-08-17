@@ -138,34 +138,111 @@ module.exports = {
     }
     return memoryProducts;
   },
+const SEARCH_SYNONYMS = {
+  'black': ['black', 'blk'],
+  'blk': ['black', 'blk'],
+  'white': ['white', 'wht', 'wt'],
+  'wht': ['white', 'wht', 'wt'],
+  'wt': ['white', 'wht', 'wt'],
+  'blue': ['blue', 'blu', 'bl'],
+  'blu': ['blue', 'blu', 'bl'],
+  'red': ['red', 'rd'],
+  'rd': ['red', 'rd'],
+  'green': ['green', 'grn'],
+  'grn': ['green', 'grn'],
+  'yellow': ['yellow', 'ylw', 'yl'],
+  'ylw': ['yellow', 'ylw', 'yl'],
+  'orange': ['orange', 'orn', 'org'],
+  'orn': ['orange', 'orn', 'org'],
+  'brown': ['brown', 'brn'],
+  'brn': ['brown', 'brn'],
+  'gray': ['gray', 'grey', 'gry'],
+  'grey': ['gray', 'grey', 'gry'],
+  'gry': ['gray', 'grey', 'gry'],
+  'silver': ['silver', 'slv', 'silv'],
+  'gold': ['gold', 'gld'],
+  'clear': ['clear', 'clr'],
+  'clr': ['clear', 'clr'],
+  'transparent': ['transparent', 'trans', 'clr'],
+
+  'small': ['small', 'sml', 'sm'],
+  'sml': ['small', 'sml', 'sm'],
+  'sm': ['small', 'sml', 'sm'],
+  'medium': ['medium', 'med', 'md'],
+  'med': ['medium', 'med', 'md'],
+  'md': ['medium', 'med', 'md'],
+  'large': ['large', 'lrg', 'lg'],
+  'lrg': ['large', 'lrg', 'lg'],
+  'lg': ['large', 'lrg', 'lg'],
+  'xlarge': ['xlarge', 'xl'],
+  'xl': ['xlarge', 'xl'],
+
+  'piece': ['piece', 'pieces', 'pc', 'pcs'],
+  'pieces': ['piece', 'pieces', 'pc', 'pcs'],
+  'pc': ['piece', 'pieces', 'pc', 'pcs'],
+  'pcs': ['piece', 'pieces', 'pc', 'pcs'],
+  'pack': ['pack', 'package', 'pk', 'pkg'],
+  'package': ['pack', 'package', 'pk', 'pkg'],
+  'pk': ['pack', 'package', 'pk', 'pkg'],
+  'pkg': ['pack', 'package', 'pk', 'pkg'],
+  'box': ['box', 'bx'],
+  'bx': ['box', 'bx'],
+  'set': ['set', 'st'],
+  'st': ['set', 'st'],
+  'carton': ['carton', 'ctn'],
+  'ctn': ['carton', 'ctn'],
+  'bottle': ['bottle', 'btl'],
+  'btl': ['bottle', 'btl'],
+  'roll': ['roll', 'rl'],
+  'rl': ['roll', 'rl'],
+  'pair': ['pair', 'pr'],
+  'pr': ['pair', 'pr'],
+  'dozen': ['dozen', 'dz'],
+  'dz': ['dozen', 'dz'],
+
+  'plastic': ['plastic', 'plstc', 'plast', 'pl'],
+  'plstc': ['plastic', 'plstc', 'plast', 'pl'],
+  'stainless': ['stainless', 'stain', 'ss'],
+  'ss': ['stainless', 'stain', 'ss'],
+  'heavy': ['heavy', 'hvy'],
+  'hvy': ['heavy', 'hvy'],
+  'duty': ['duty', 'dty'],
+  'tarpaulin': ['tarpaulin', 'trapal', 'tarps'],
+  'trapal': ['tarpaulin', 'trapal', 'tarps'],
+  'basket': ['basket', 'bskt'],
+  'bskt': ['basket', 'bskt']
+};
+
   searchProducts: async (query, limit = 20) => {
     const q = (query || '').trim().toLowerCase();
+    if (!q) return [];
+    const tokens = q.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return [];
+
     if (isConnectedToFirebase && db) {
       // In Firestore, fetch and filter matching products
       const snapshot = await db.collection('products').get();
       const matches = [];
       snapshot.forEach(doc => {
         const p = doc.data();
-        const name = (p.name || '').toLowerCase();
-        const barcode = (p.barcode || '').toLowerCase();
-        const stock = (p.stock_code || '').toLowerCase();
-        const cat = (p.category || '').toLowerCase();
-        const subcat = (p.subcategory || '').toLowerCase();
-
-        if (name.includes(q) || barcode.includes(q) || stock.includes(q) || cat.includes(q) || subcat.includes(q)) {
+        const fullText = `${p.name || ''} ${p.barcode || ''} ${p.stock_code || ''} ${p.category || ''} ${p.subcategory || ''}`.toLowerCase();
+        if (tokens.every(t => {
+          const syns = SEARCH_SYNONYMS[t] || [t];
+          return syns.some(syn => fullText.includes(syn));
+        })) {
           matches.push({ id: doc.id, ...p });
         }
       });
       return matches.slice(0, limit);
     }
 
-    return memoryProducts.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.barcode.toLowerCase().includes(q) ||
-      p.stock_code.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q) ||
-      p.subcategory.toLowerCase().includes(q)
-    ).slice(0, limit);
+    return memoryProducts.filter(p => {
+      const fullText = `${p.name || ''} ${p.barcode || ''} ${p.stock_code || ''} ${p.category || ''} ${p.subcategory || ''}`.toLowerCase();
+      return tokens.every(t => {
+        const syns = SEARCH_SYNONYMS[t] || [t];
+        return syns.some(syn => fullText.includes(syn));
+      });
+    }).slice(0, limit);
   },
   getProductByBarcodeOrStock: async (code) => {
     const clean = (code || '').trim().toLowerCase();
