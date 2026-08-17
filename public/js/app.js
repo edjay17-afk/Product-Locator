@@ -73,7 +73,7 @@ const TRANSLATIONS = {
     rapidSaved: "Location mapped successfully!",
     notFoundTitle: "Product Not Found",
     notFoundBtn: "Add Product",
-    loginTitle: "Stockman Sign In",
+    loginTitle: "Sign In",
     loginSub: "Warehouse Accountability Access",
     loginTip: "Sign in with your stockman profile to take responsibility for shelf location updates.",
     quickLoginTitle: "Quick Select Stockman Profile:",
@@ -107,7 +107,71 @@ const TRANSLATIONS = {
     addAnotherLocSub: "Tap a location below to update its stock, or click Add Another Location.",
     currentlyMappedLocs: "Mapped Locations",
     newLocToAdd: "New Location Scanned:",
-    addAnotherLocBtn: "Add Another Location"
+    addAnotherLocBtn: "Add Another Location",
+    locProductsTitle: "Products at Location",
+    closeBtn: "Close",
+    locProductsEmpty: "No products found at this location.",
+    importDataBtn: "Import Data",
+    exportDataBtn: "Export XLSX",
+    searchViewBtn: "Search View",
+    importingBtn: "Importing...",
+    cartonBtn: "Carton / Big Items",
+    saNavCartonBtn: "Carton Putaway",
+    cartonModalTitle: "Carton Putaway",
+    cartonModalSub: "Set shelf location for bulk carton items",
+    cartonStep1: "Step 1: Enter Item Code",
+    cartonItemFound: "Item Found",
+    cartonStep2: "Step 2: Shelf Location",
+    cartonScanQR: "📷 Scan QR Code",
+    cartonStep3: "Step 3: Quantity",
+    cartonSaveBtn: "Confirm & Save Location",
+    cartonAddNew: "Add New Product to System",
+    saEnterpriseAdmin: "Enterprise Admin",
+    saSignOut: "Sign Out",
+    saNavigation: "Navigation",
+    saNavMaster: "Master Inventory",
+    saNavOrders: "Delivery Routes",
+    saNavAddProduct: "Add New Product",
+    saNavAudit: "Audit Shelf QR",
+    saRole: "Super Admin",
+    saRoleSub: "Online · Full Access",
+    saHeaderTitle: "Master Inventory",
+    saHeaderSub: "Live warehouse catalog, storage coordinates, mapping health, and SKU stock tracking",
+    saKpiTotal: "Total SKUs",
+    saKpiTotalSub: "All catalog items",
+    saKpiMapped: "Mapped Locations",
+    saKpiMappedSub: "Active shelf coordinates",
+    saKpiUnmapped: "Unmapped Items",
+    saKpiUnmappedSub: "Requires shelf assignment",
+    saKpiQty: "Total Quantity",
+    saKpiQtySub: "Total on-hand units",
+    saSearchPlaceholder: "Search by name, barcode, stock no...",
+    saFilterStatusAll: "All Status",
+    saFilterStatusMapped: "Mapped Only",
+    saFilterStatusUnmapped: "Unmapped Only",
+    saFilterFloorAll: "All Floors",
+    saFilterFloor1: "1st Floor",
+    saFilterFloor2: "2nd Floor",
+    saFilterFloor3: "3rd Floor",
+    thProdName: "Product Name",
+    thStockNo: "Stock No",
+    thBarcode: "Barcode",
+    thCategory: "Department / Category",
+    thLocation: "Shelf Location",
+    thQty: "On-Hand Qty",
+    thStatus: "Status",
+    thReset: "Reset Loc",
+    thAction: "Action",
+    pagePrev: "Previous",
+    pageNext: "Next",
+    scanLocationQrBtn: "Scan Location QR",
+    addStockTitle: "Add Stock to Location",
+    addStockSub: "Sum incoming stock to existing location quantity",
+    addStockCurrent: "Current Stock",
+    addStockNew: "+ Add New Qty",
+    addStockCalc: "Calculation: ",
+    addStockEditAll: "✏️ Edit All Location Details",
+    addStockTargetLoc: "📍 Target Location:"
   },
   zh: {
     brandEyebrow: "仓库商品定位系统",
@@ -201,7 +265,71 @@ const TRANSLATIONS = {
     addAnotherLocSub: "点击下方库位更新库存，或点击添加额外库位。",
     currentlyMappedLocs: "已映射库位",
     newLocToAdd: "扫描到的新库位：",
-    addAnotherLocBtn: "添加额外库位"
+    addAnotherLocBtn: "添加额外库位",
+    locProductsTitle: "该位置的商品",
+    closeBtn: "关闭",
+    locProductsEmpty: "未找到属于该位置的商品。",
+    importDataBtn: "导入数据",
+    exportDataBtn: "导出 XLSX",
+    searchViewBtn: "搜索视图",
+    importingBtn: "导入中...",
+    cartonBtn: "纸箱 / 大件商品",
+    saNavCartonBtn: "纸箱上架",
+    cartonModalTitle: "纸箱上架",
+    cartonModalSub: "设置大件纸箱商品的货架位置",
+    cartonStep1: "第 1 步：输入商品代码",
+    cartonItemFound: "已找到商品",
+    cartonStep2: "第 2 步：货架位置",
+    cartonScanQR: "📷 扫描二维码",
+    cartonStep3: "第 3 步：数量",
+    cartonSaveBtn: "确认并保存位置",
+    cartonAddNew: "在系统中注册新商品",
+    saEnterpriseAdmin: "企业管理员",
+    saSignOut: "退出登录",
+    saNavigation: "导航栏",
+    saNavMaster: "主库存",
+    saNavOrders: "配送路线",
+    saNavAddProduct: "添加新商品",
+    saNavAudit: "审核货架二维码",
+    saRole: "超级管理员",
+    saRoleSub: "在线 · 完全访问",
+    saHeaderTitle: "主库存",
+    saHeaderSub: "实时仓库目录、存储坐标、映射健康状况及SKU库存跟踪",
+    saKpiTotal: "总 SKU 数",
+    saKpiTotalSub: "所有目录商品",
+    saKpiMapped: "已映射位置",
+    saKpiMappedSub: "有效货架坐标",
+    saKpiUnmapped: "未映射商品",
+    saKpiUnmappedSub: "需分配货架",
+    saKpiQty: "总数量",
+    saKpiQtySub: "总现有库存数",
+    saSearchPlaceholder: "通过名称、条码、存货号搜索...",
+    saFilterStatusAll: "所有状态",
+    saFilterStatusMapped: "仅已映射",
+    saFilterStatusUnmapped: "仅未映射",
+    saFilterFloorAll: "所有楼层",
+    saFilterFloor1: "1楼",
+    saFilterFloor2: "2楼",
+    saFilterFloor3: "3楼",
+    thProdName: "商品名称",
+    thStockNo: "存货号",
+    thBarcode: "条形码",
+    thCategory: "部门 / 类别",
+    thLocation: "货架位置",
+    thQty: "现有库存",
+    thStatus: "状态",
+    thReset: "重置位置",
+    thAction: "操作",
+    pagePrev: "上一页",
+    pageNext: "下一页",
+    scanLocationQrBtn: "扫描位置二维码",
+    addStockTitle: "添加库存到库位",
+    addStockSub: "将新进库存与现有位置数量相加",
+    addStockCurrent: "当前库存",
+    addStockNew: "+ 添加新数量",
+    addStockCalc: "计算方式：",
+    addStockEditAll: "✏️ 编辑所有位置详情",
+    addStockTargetLoc: "📍 目标库位："
   }
 };
 
@@ -209,6 +337,7 @@ let CURRENT_LANG = localStorage.getItem('wh_lang') || 'en';
 let isGuestMode = false;
 
 let PRODUCTS = [];
+let productsData = [];
 let byBarcode = {};
 let byStock = {};
 let byBarcodeMap = new Map();
@@ -242,15 +371,42 @@ function updateUserUI() {
   const scanQrBtn = document.getElementById('scanLocationQrBtn');
   const rapidBtn = document.getElementById('rapidLoggerBtn');
   const auditBtn = document.getElementById('auditLocationQrBtn');
+  const mainAppWrapper = document.getElementById('mainAppWrapper');
+  const superAdminPortalView = document.getElementById('superAdminPortalView');
+
+  const cartonBtn = document.getElementById('cartonPutawayBtn');
+  const ordersBtn = document.getElementById('ordersBtn');
+  const adminBtn = document.getElementById('adminDashboardBtn');
+
+  const isCartonHandler = currentUser && (currentUser.role === 'carton_handler' || currentUser.username === 'carton' || currentUser.username === 'cartonhandler');
+  const isAdminOrSuper = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.username === 'admin' || currentUser.username === 'superadmin');
+
+  if (cartonBtn) cartonBtn.style.display = (isAdminOrSuper || isCartonHandler || (currentUser && currentUser.role === 'stockman')) ? 'inline-flex' : 'none';
+  if (ordersBtn) ordersBtn.style.display = isAdminOrSuper ? 'flex' : 'none';
+  if (adminBtn) adminBtn.style.display = isAdminOrSuper ? 'flex' : 'none';
 
   if (currentUser) {
     userBadge.style.display = 'flex';
-    const roleIcon = currentUser.role === 'checker' ? '🔍 ' : '👤 ';
+    const roleIcon = currentUser.role === 'superadmin' ? '🛡️ ' : (currentUser.role === 'carton_handler' ? '📦 ' : (currentUser.role === 'checker' ? '🔍 ' : '👤 '));
     userNameDisplay.textContent = `${roleIcon}${currentUser.full_name}`;
     authBtn.textContent = CURRENT_LANG === 'en' ? 'Logout' : '登出';
     authBtn.className = 'user-auth-btn logout';
     closeLoginModal.style.display = 'block';
     loginOverlay.classList.remove('show');
+
+    const superAdminPortalView = document.getElementById('superAdminPortalView');
+    if (currentUser.role === 'superadmin' || currentUser.username === 'superadmin') {
+      if (mainAppWrapper && !window.forceUserAppMode) mainAppWrapper.style.display = 'none';
+      if (superAdminPortalView && !window.forceUserAppMode) {
+        superAdminPortalView.style.display = 'block';
+        renderPortalDataTable();
+      }
+      if (mainAppWrapper && window.forceUserAppMode) mainAppWrapper.style.display = 'block';
+      if (superAdminPortalView && window.forceUserAppMode) superAdminPortalView.style.display = 'none';
+    } else {
+      if (mainAppWrapper) mainAppWrapper.style.display = 'block';
+      if (superAdminPortalView) superAdminPortalView.style.display = 'none';
+    }
 
     if (activeProduct && scanQrBtn) {
       scanQrBtn.style.display = 'inline-flex';
@@ -259,11 +415,17 @@ function updateUserUI() {
     if (currentUser.role === 'checker') {
       if (rapidBtn) rapidBtn.style.display = 'none';
       if (auditBtn) auditBtn.style.display = 'inline-flex';
+    } else if (currentUser.role === 'carton_handler' || currentUser.username === 'carton' || currentUser.username === 'cartonhandler') {
+      if (rapidBtn) rapidBtn.style.display = 'none';
+      if (auditBtn) auditBtn.style.display = 'none';
     } else {
       if (rapidBtn) rapidBtn.style.display = 'inline-flex';
       if (auditBtn) auditBtn.style.display = 'none';
     }
   } else {
+    const superAdminPortalView = document.getElementById('superAdminPortalView');
+    if (mainAppWrapper) mainAppWrapper.style.display = 'block';
+    if (superAdminPortalView) superAdminPortalView.style.display = 'none';
     userBadge.style.display = 'none';
     closeLoginModal.style.display = 'none';
     document.getElementById('loginFormError').style.display = 'none';
@@ -343,27 +505,38 @@ async function initApp() {
   });
   updateUserUI();
 
+  // Paint the app shell immediately — data syncs in behind it instead of
+  // holding the UI hostage behind a full-catalog download.
+  document.getElementById('skeletonState').style.display = 'none';
   document.getElementById('emptyState').style.display = 'block';
-  document.getElementById('skeletonState').style.display = 'flex';
-  document.getElementById('emptyPrompt').style.display = 'none';
+  if (!activeProduct) {
+    document.getElementById('emptyPrompt').style.display = 'flex';
+  }
+  renderRecent();
 
   try {
-    const [statsRes, productsRes] = await Promise.all([
-      fetch('/api/stats').then(r => r.json()),
-      fetch('/api/products/all').then(r => r.json())
-    ]);
+    // Stats badge updates whenever the server answers (non-blocking).
+    fetch('/api/stats').then(r => r.json()).then(statsRes => {
+      if (statsRes && statsRes.success) {
+        const skuStamp = document.getElementById('skuStamp');
+        if (skuStamp) skuStamp.textContent = `${statsRes.total} SKUs mapped`;
+        document.getElementById('footerText').textContent = `Database Connected · ${statsRes.total} SKUs mapped`;
+      }
+    }).catch(e => console.warn('Stats fetch failed:', e));
 
-    if (statsRes.success) {
-      const skuStamp = document.getElementById('skuStamp');
-      if (skuStamp) skuStamp.textContent = `${statsRes.total} SKUs mapped`;
-      document.getElementById('footerText').textContent = `Database Connected · ${statsRes.total} SKUs mapped`;
-    }
-
-    if (productsRes.success && Array.isArray(productsRes.products)) {
-      PRODUCTS = productsRes.products;
-      rebuildIndex();
-      updateCategoryDatalist();
-    }
+    // Full catalog syncs in the background so the UI is usable instantly;
+    // search transparently falls back to the server until the local index is ready.
+    fetch('/api/products/all').then(r => r.json()).then(productsRes => {
+      if (productsRes && productsRes.success && Array.isArray(productsRes.products)) {
+        PRODUCTS = productsRes.products;
+        productsData = PRODUCTS;
+        rebuildIndex();
+        updateCategoryDatalist();
+        if (superAdminPortalView && superAdminPortalView.style.display !== 'none') {
+          renderPortalDataTable();
+        }
+      }
+    }).catch(e => console.warn('Catalog sync failed:', e));
 
     // Supabase Realtime WebSocket Subscription for instant multi-stockman push updates!
     try {
@@ -383,7 +556,7 @@ async function initApp() {
               }
               rebuildIndex();
 
-              if (activeProduct && ((activeProduct.barcode && activeProduct.barcode === item.barcode) || (activeProduct.stock_no && activeProduct.stock_no === item.stock_no))) {
+              if (activeProduct && ((activeProduct.barcode && activeProduct.barcode === item.barcode) || (activeProduct.barcode_2 && activeProduct.barcode_2 === item.barcode_2) || (activeProduct.stock_no && activeProduct.stock_no === item.stock_no))) {
                 renderProduct(activeProduct);
               }
             }
@@ -398,12 +571,6 @@ async function initApp() {
     const skuStamp = document.getElementById('skuStamp');
     if (skuStamp) skuStamp.textContent = `Offline mode`;
   }
-
-  document.getElementById('skeletonState').style.display = 'none';
-  if (!activeProduct) {
-    document.getElementById('emptyPrompt').style.display = 'flex';
-  }
-  renderRecent();
 }
 
 function rebuildIndex() {
@@ -414,35 +581,62 @@ function rebuildIndex() {
 
   for (let i = 0; i < PRODUCTS.length; i++) {
     const p = PRODUCTS[i];
-    if (p.barcode || p.b) {
-      const b = (p.barcode || p.b).toString().trim().toLowerCase();
-      if (b) {
-        byBarcode[b] = p;
-        byBarcodeMap.set(b, p);
+    const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+    const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+    const n = (p.product_name || p.name || p.n || '').toString().trim().toLowerCase();
+    const c = (p.category || p.c || '').toString().trim().toLowerCase();
+    const d = (p.department || p.subcategory || p.sc || '').toString().trim().toLowerCase();
 
-        const stripped = b.replace(/^0+/, '');
-        if (stripped && stripped !== b) {
-          byBarcodeMap.set(stripped, p);
-          byBarcode[stripped] = p;
-        }
+    p._b = b;
+    p._b2 = b2;
+    p._s = s;
+    p._n = n;
+    p._c = c;
+    p._d = d;
+    p._bStripped = b ? b.replace(/^0+/, '') : '';
+    p._b2Stripped = b2 ? b2.replace(/^0+/, '') : '';
+    p._sStripped = s ? s.replace(/^0+/, '') : '';
+    p._searchStr = `${b} ${b2} ${s} ${n} ${c} ${d}`;
+    p._searchStrStripped = p._searchStr.replace(/0+/g, '');
+    p._words = n ? n.split(/\s+/) : [];
 
-        const cleanAlpha = b.replace(/[^a-z0-9]/gi, '');
-        if (cleanAlpha && cleanAlpha !== b && cleanAlpha !== stripped) {
-          byBarcodeMap.set(cleanAlpha, p);
-        }
+    if (b) {
+      byBarcode[b] = p;
+      byBarcodeMap.set(b, p);
+
+      if (p._bStripped && p._bStripped !== b) {
+        byBarcodeMap.set(p._bStripped, p);
+        byBarcode[p._bStripped] = p;
+      }
+
+      const cleanAlpha = b.replace(/[^a-z0-9]/gi, '');
+      if (cleanAlpha && cleanAlpha !== b && cleanAlpha !== p._bStripped) {
+        byBarcodeMap.set(cleanAlpha, p);
       }
     }
-    if (p.stock_no || p.stock_code || p.s) {
-      const s = (p.stock_no || p.stock_code || p.s).toString().trim().toLowerCase();
-      if (s) {
-        byStock[s] = p;
-        byStockMap.set(s, p);
+    
+    if (b2) {
+      byBarcode[b2] = p;
+      byBarcodeMap.set(b2, p);
 
-        const strippedS = s.replace(/^0+/, '');
-        if (strippedS && strippedS !== s) {
-          byStockMap.set(strippedS, p);
-          byStock[strippedS] = p;
-        }
+      if (p._b2Stripped && p._b2Stripped !== b2) {
+        byBarcodeMap.set(p._b2Stripped, p);
+        byBarcode[p._b2Stripped] = p;
+      }
+
+      const cleanAlpha2 = b2.replace(/[^a-z0-9]/gi, '');
+      if (cleanAlpha2 && cleanAlpha2 !== b2 && cleanAlpha2 !== p._b2Stripped) {
+        byBarcodeMap.set(cleanAlpha2, p);
+      }
+    }
+    if (s) {
+      byStock[s] = p;
+      byStockMap.set(s, p);
+
+      if (p._sStripped && p._sStripped !== s) {
+        byStockMap.set(p._sStripped, p);
+        byStock[p._sStripped] = p;
       }
     }
   }
@@ -458,22 +652,70 @@ function statusInfo(status) {
   return { cls: 'neutral', label: status };
 }
 
-function getLocationsForProduct(product) {
-  const barcode = (product.barcode || product.b || '').toString().trim().toLowerCase();
-  const stockCode = (product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase();
-  
-  if (!barcode && !stockCode) return [product];
-  
-  const matched = PRODUCTS.filter(p => {
-    const pBarcode = (p.barcode || p.b || '').toString().trim().toLowerCase();
-    const pStock = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-    
-    if (barcode && pBarcode && barcode === pBarcode) return true;
-    if (stockCode && pStock && stockCode === pStock) return true;
-    return false;
+function expandLocationsList(items) {
+  const result = [];
+  items.forEach(item => {
+    if (Array.isArray(item.locations) && item.locations.length > 0) {
+      item.locations.forEach(subLoc => {
+        result.push({
+          ...item,
+          ...subLoc,
+          floor: (subLoc.floor !== undefined && subLoc.floor !== null && String(subLoc.floor).trim() !== '') ? String(subLoc.floor).trim() : (item.floor || ''),
+          row: (subLoc.row !== undefined && subLoc.row !== null && String(subLoc.row).trim() !== '') ? String(subLoc.row).trim() : (subLoc.batch || item.batch || item.row || ''),
+          shelf: (subLoc.shelf !== undefined && subLoc.shelf !== null && String(subLoc.shelf).trim() !== '') ? String(subLoc.shelf).trim() : (item.shelf || ''),
+          level: (subLoc.level !== undefined && subLoc.level !== null && String(subLoc.level).trim() !== '') ? String(subLoc.level).trim() : (item.level || ''),
+          qty: subLoc.qty !== undefined ? subLoc.qty : item.qty,
+          status: subLoc.status || item.status || (subLoc.floor ? 'MAPPED' : 'UNMAPPED'),
+          last_modified_by: subLoc.last_modified_by || item.last_modified_by
+        });
+      });
+    } else {
+      result.push(item);
+    }
   });
-  
-  return matched.length > 0 ? matched : [product];
+  return result;
+}
+
+function getLocationsForProduct(product) {
+  if (!product) return [];
+
+  const barcode = (product.barcode || product.b || '').toString().trim().toLowerCase();
+  const barcode2 = (product.barcode_2 || product.b2 || '').toString().trim().toLowerCase();
+  const stockCode = (product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase();
+
+  let matched = [];
+  if (barcode || barcode2 || stockCode) {
+    matched = PRODUCTS.filter(p => {
+      const pBarcode = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const pBarcode2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const pStock = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+
+      if (barcode && pBarcode && barcode === pBarcode) return true;
+      if (barcode && pBarcode2 && barcode === pBarcode2) return true;
+      if (barcode2 && pBarcode && barcode2 === pBarcode) return true;
+      if (barcode2 && pBarcode2 && barcode2 === pBarcode2) return true;
+      if (stockCode && pStock && stockCode === pStock) return true;
+      return false;
+    });
+  }
+
+  const sourceList = matched.length > 0 ? matched : [product];
+  return expandLocationsList(sourceList);
+}
+
+// True when the product (or any row sharing its barcode / stock no.) already
+// has a shelf location mapped. Mirrors the hasLoc logic in renderProductLocationsUI.
+function productHasAnyLocation(product) {
+  if (!product) return false;
+  return getLocationsForProduct(product).some(item => {
+    const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '';
+    const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() :
+      (item.row !== undefined && item.row !== null ? String(item.row).trim() : '');
+    const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '';
+    const locText = (item.loc || item.loc_full || item.storage_location || item.location_storage || '').trim();
+    return floor !== '' || row !== '' || shelf !== '' || locText !== '' ||
+      Boolean(item.status && String(item.status).toUpperCase() === 'MAPPED');
+  });
 }
 
 async function fetchLocationsForProduct(product) {
@@ -481,19 +723,21 @@ async function fetchLocationsForProduct(product) {
   const stockCode = (product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase();
   const q = barcode || stockCode;
 
-  if (!q) return [product];
+  if (!q) return getLocationsForProduct(product);
 
   try {
     const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=50`).then(r => r.json());
     if (res.success && Array.isArray(res.products) && res.products.length > 0) {
       const exact = res.products.filter(item => {
-        const itemBarcode = (item.barcode || '').toString().trim().toLowerCase();
-        const itemStock = (item.stock_no || item.stock_code || '').toString().trim().toLowerCase();
+        const itemBarcode = (item.barcode || item.b || '').toString().trim().toLowerCase();
+        const itemStock = (item.stock_no || item.stock_code || item.s || '').toString().trim().toLowerCase();
         if (barcode && itemBarcode === barcode) return true;
         if (stockCode && itemStock === stockCode) return true;
         return false;
       });
-      if (exact.length > 0) return exact;
+      if (exact.length > 0) {
+        return expandLocationsList(exact);
+      }
     }
   } catch (e) {
     console.warn("Failed to fetch fresh locations, falling back to local cache:", e);
@@ -502,29 +746,44 @@ async function fetchLocationsForProduct(product) {
   return getLocationsForProduct(product);
 }
 
+let lastLocsRenderSig = null;
+
 function renderProductLocationsUI(p, locs) {
-  const totalQty = locs.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
+  const expandedLocs = expandLocationsList(locs || []);
+  // Skip the DOM rebuild when nothing visible changed — the background
+  // "fresh locations" refetch usually returns identical data, and rebuilding
+  // the card anyway is what made it look like it was "loading" twice.
+  const renderSig =
+    (p.barcode || p.b || '') + '#' + (p.stock_no || p.stock_code || p.s || '') + '#' +
+    (p.product_name || p.name || p.n || '') + '#' +
+    (currentUser ? currentUser.username : 'guest') + '#' + CURRENT_LANG + '#' +
+    expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || ''].join('|')).join(';');
+  if (renderSig === lastLocsRenderSig) return;
+  lastLocsRenderSig = renderSig;
+
+  const totalQty = expandedLocs.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
   document.getElementById('pQty').textContent = totalQty;
 
   // Deduplicate and group locations by exact coordinates (floor, row, shelf, level)
   const uniqueLocs = [];
-  locs.forEach(item => {
+  expandedLocs.forEach(item => {
     let floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '';
     let row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row !== undefined && item.row !== null ? String(item.row).trim() : (item.row || '').trim());
     let shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '';
     let level = item.level !== undefined && item.level !== null ? String(item.level).trim() : '';
 
-    if (!floor && (item.loc || item.loc_full)) {
-      const parsed = parseLocationQR((item.loc || item.loc_full || '').trim());
+    const locText = (item.loc || item.loc_full || item.storage_location || item.location_storage || '').trim();
+    if ((!floor || !row || !shelf) && locText) {
+      const parsed = parseLocationQR(locText);
       if (parsed) {
-        floor = parsed.floor;
+        if (!floor) floor = parsed.floor;
         if (!row) row = parsed.row;
         if (!shelf) shelf = parsed.shelf;
-        if (!level) level = parsed.level;
+        if (!level || level === '0') level = parsed.level;
       }
     }
 
-    const hasLoc = floor !== '' || row !== '' || shelf !== '' || (item.status && String(item.status).toUpperCase() === 'MAPPED');
+    const hasLoc = floor !== '' || row !== '' || shelf !== '' || locText !== '' || (item.status && String(item.status).toUpperCase() === 'MAPPED');
 
     const existing = uniqueLocs.find(u =>
       u.floor === floor &&
@@ -554,14 +813,18 @@ function renderProductLocationsUI(p, locs) {
         level,
         hasLoc,
         qty: parseInt(item.qty, 10) || 0,
-        status: item.status,
+        is_carton: item.is_carton || p.is_carton,
+        loc_type: item.loc_type || p.loc_type,
+        location_storage: item.location_storage || item.storage_location || p.location_storage || p.storage_location || locText || '',
+        storage_location: item.storage_location || item.location_storage || p.storage_location || p.location_storage || locText || '',
+        status: item.status || (hasLoc ? 'MAPPED' : 'UNMAPPED'),
         last_modified_by: (item.last_modified_by && item.last_modified_by !== 'System Import') ? item.last_modified_by : '',
         custom: item.custom || p.custom
       });
     }
   });
 
-  const mappedLocs = uniqueLocs.filter(item => item.hasLoc && (item.floor !== '' || item.row !== '' || item.shelf !== ''));
+  const mappedLocs = uniqueLocs.filter(item => item.hasLoc && (item.floor !== '' || item.row !== '' || item.shelf !== '' || item.location_storage !== ''));
   const finalLocs = mappedLocs.length > 0 ? mappedLocs : uniqueLocs;
 
   window.currentLocs = finalLocs;
@@ -581,6 +844,23 @@ function renderProductLocationsUI(p, locs) {
     const rawStockman = item.last_modified_by || item.modifiedBy || '';
     const stockmanVal = (rawStockman && rawStockman !== 'System Import' && rawStockman !== 'Guest Stockman' && rawStockman !== 'Staff Scanner' && rawStockman !== 'Rapid Logger') ? rawStockman : '';
 
+    const isCartonLocation = Boolean(
+      item.is_carton ||
+      p.is_carton ||
+      item.loc_type === 'CARTON' ||
+      p.loc_type === 'CARTON' ||
+      item.storage_type === 'CARTON' ||
+      (item.location_storage && item.location_storage.toUpperCase().includes('CARTON')) ||
+      (item.storage_location && item.storage_location.toUpperCase().includes('CARTON')) ||
+      (p.location_storage && p.location_storage.toUpperCase().includes('CARTON')) ||
+      (p.storage_location && p.storage_location.toUpperCase().includes('CARTON')) ||
+      (item.last_modified_by && item.last_modified_by.toLowerCase().includes('carton'))
+    );
+
+    const cartonBadgeHtml = isCartonLocation 
+      ? `<span class="badge-carton-tag" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(180, 83, 9, 0.08); margin-right:6px;">📦 Carton/Sack</span>`
+      : '';
+
     const cardEl = document.createElement('div');
     cardEl.className = 'tagcard';
     cardEl.style.marginBottom = '16px';
@@ -590,7 +870,10 @@ function renderProductLocationsUI(p, locs) {
     cardEl.innerHTML = `
       <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
         <div style="flex:1;">
-          <p class="pname">${escapeHtml(item.product_name)}</p>
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
+            <p class="pname" style="margin:0;">${escapeHtml(item.product_name)}</p>
+            ${cartonBadgeHtml}
+          </div>
           <div class="pmeta">
             <span>${escapeHtml(item.category)}</span>
           </div>
@@ -660,19 +943,12 @@ function renderProduct(p) {
   renderRecent();
   hideResults();
 
-  // If product has no location set yet and Rapid Logger is not open, automatically pop up the Edit/Location modal!
-  const isRapidOpen = document.getElementById('rapidOverlay') && document.getElementById('rapidOverlay').classList.contains('show');
-  if (window.currentLocs && window.currentLocs.filter(i => i.hasLoc).length === 0 && !isRapidOpen) {
-    setTimeout(() => {
-      openEditForm();
-    }, 150);
-  }
-
   // 2. Background non-blocking DB fetch for fresh locations
   fetchLocationsForProduct(p).then(freshLocs => {
     if (freshLocs && freshLocs.length > 0 && activeProduct && (
       (activeProduct.id && activeProduct.id === p.id) ||
       (activeProduct.barcode && (activeProduct.barcode === p.barcode || activeProduct.barcode === p.b)) ||
+      (activeProduct.barcode_2 && (activeProduct.barcode_2 === p.barcode_2)) ||
       (activeProduct.stock_no && (activeProduct.stock_no === p.stock_no || activeProduct.stock_no === p.s))
     )) {
       renderProductLocationsUI(p, freshLocs);
@@ -708,7 +984,7 @@ function renderRecent() {
 function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
-  return d.innerHTML;
+  return d.innerHTML.replace(/"/g, '&quot;');
 }
 
 function hideResults() {
@@ -717,124 +993,377 @@ function hideResults() {
   rl.innerHTML = '';
 }
 
-function scoreProductMatch(p, q) {
-  if (!p || !q) return 0;
-  const qStripped = q.replace(/^0+/, '');
+const SEARCH_SYNONYMS = {
+  'black': ['black', 'blk'],
+  'blk': ['black', 'blk'],
+  'white': ['white', 'wht', 'wt'],
+  'wht': ['white', 'wht', 'wt'],
+  'wt': ['white', 'wht', 'wt'],
+  'blue': ['blue', 'blu', 'bl'],
+  'blu': ['blue', 'blu', 'bl'],
+  'red': ['red', 'rd'],
+  'rd': ['red', 'rd'],
+  'green': ['green', 'grn'],
+  'grn': ['green', 'grn'],
+  'yellow': ['yellow', 'ylw', 'yl'],
+  'ylw': ['yellow', 'ylw', 'yl'],
+  'orange': ['orange', 'orn', 'org'],
+  'orn': ['orange', 'orn', 'org'],
+  'brown': ['brown', 'brn'],
+  'brn': ['brown', 'brn'],
+  'gray': ['gray', 'grey', 'gry'],
+  'grey': ['gray', 'grey', 'gry'],
+  'gry': ['gray', 'grey', 'gry'],
+  'silver': ['silver', 'slv', 'silv'],
+  'gold': ['gold', 'gld'],
+  'clear': ['clear', 'clr'],
+  'clr': ['clear', 'clr'],
+  'transparent': ['transparent', 'trans', 'clr'],
 
-  const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
-  const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-  const n = (p.product_name || p.name || p.n || '').toString().trim().toLowerCase();
-  const c = (p.category || p.c || '').toString().trim().toLowerCase();
-  const d = (p.department || p.subcategory || p.sc || '').toString().trim().toLowerCase();
+  'small': ['small', 'sml', 'sm'],
+  'sml': ['small', 'sml', 'sm'],
+  'sm': ['small', 'sml', 'sm'],
+  'medium': ['medium', 'med', 'md'],
+  'med': ['medium', 'med', 'md'],
+  'md': ['medium', 'med', 'md'],
+  'large': ['large', 'lrg', 'lg'],
+  'lrg': ['large', 'lrg', 'lg'],
+  'lg': ['large', 'lrg', 'lg'],
+  'xlarge': ['xlarge', 'xl'],
+  'xl': ['xlarge', 'xl'],
 
-  const bStripped = b.replace(/^0+/, '');
-  const sStripped = s.replace(/^0+/, '');
+  'piece': ['piece', 'pieces', 'pc', 'pcs'],
+  'pieces': ['piece', 'pieces', 'pc', 'pcs'],
+  'pc': ['piece', 'pieces', 'pc', 'pcs'],
+  'pcs': ['piece', 'pieces', 'pc', 'pcs'],
+  'pack': ['pack', 'package', 'pk', 'pkg'],
+  'package': ['pack', 'package', 'pk', 'pkg'],
+  'pk': ['pack', 'package', 'pk', 'pkg'],
+  'pkg': ['pack', 'package', 'pk', 'pkg'],
+  'box': ['box', 'bx'],
+  'bx': ['box', 'bx'],
+  'set': ['set', 'st'],
+  'st': ['set', 'st'],
+  'carton': ['carton', 'ctn'],
+  'ctn': ['carton', 'ctn'],
+  'bottle': ['bottle', 'btl'],
+  'btl': ['bottle', 'btl'],
+  'roll': ['roll', 'rl'],
+  'rl': ['roll', 'rl'],
+  'pair': ['pair', 'pr'],
+  'pr': ['pair', 'pr'],
+  'dozen': ['dozen', 'dz'],
+  'dz': ['dozen', 'dz'],
+
+  'plastic': ['plastic', 'plstc', 'plast', 'pl'],
+  'plstc': ['plastic', 'plstc', 'plast', 'pl'],
+  'stainless': ['stainless', 'stain', 'ss'],
+  'ss': ['stainless', 'stain', 'ss'],
+  'heavy': ['heavy', 'hvy'],
+  'hvy': ['heavy', 'hvy'],
+  'duty': ['duty', 'dty'],
+  'tarpaulin': ['tarpaulin', 'trapal', 'tarps'],
+  'trapal': ['tarpaulin', 'trapal', 'tarps'],
+  'basket': ['basket', 'bskt'],
+  'bskt': ['basket', 'bskt']
+};
+
+function scoreProductMatch(p, qTrim, qStripped, tokens) {
+  if (!p || !qTrim) return 0;
+  if (!qStripped) qStripped = qTrim.replace(/^0+/, '');
+
+  const b = p._b !== undefined ? p._b : (p.barcode || p.b || '').toString().trim().toLowerCase();
+  const b2 = p._b2 !== undefined ? p._b2 : (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+  const s = p._s !== undefined ? p._s : (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+  const n = p._n !== undefined ? p._n : (p.product_name || p.name || p.n || '').toString().trim().toLowerCase();
+  const c = p._c !== undefined ? p._c : (p.category || p.c || '').toString().trim().toLowerCase();
+  const d = p._d !== undefined ? p._d : (p.department || p.subcategory || p.sc || '').toString().trim().toLowerCase();
+
+  const bStripped = p._bStripped !== undefined ? p._bStripped : (b ? b.replace(/^0+/, '') : '');
+  const b2Stripped = p._b2Stripped !== undefined ? p._b2Stripped : (b2 ? b2.replace(/^0+/, '') : '');
+  const sStripped = p._sStripped !== undefined ? p._sStripped : (s ? s.replace(/^0+/, '') : '');
 
   // 1. Exact matches (Score 100)
-  if (b === q || s === q || n === q) return 100;
-  if (qStripped && (b === qStripped || s === qStripped || bStripped === qStripped || sStripped === qStripped)) return 95;
+  if (b === qTrim || b2 === qTrim || s === qTrim || n === qTrim) return 100;
+  if (qStripped && (b === qStripped || b2 === qStripped || s === qStripped || bStripped === qStripped || b2Stripped === qStripped || sStripped === qStripped)) return 95;
 
-  // 2. StartsWith (Prefix) matches on Barcode or Stock No (Score 80)
-  if (b.startsWith(q) || s.startsWith(q)) return 80;
-  if (qStripped && (b.startsWith(qStripped) || s.startsWith(qStripped) || bStripped.startsWith(qStripped))) return 75;
+  // 2. StartsWith (Prefix) matches on Barcode or Stock No (Score 85)
+  if (b.startsWith(qTrim) || b2.startsWith(qTrim) || s.startsWith(qTrim)) return 85;
+  if (qStripped && (b.startsWith(qStripped) || b2.startsWith(qStripped) || s.startsWith(qStripped) || bStripped.startsWith(qStripped) || b2Stripped.startsWith(qStripped))) return 80;
 
-  // 3. StartsWith (Prefix) matches on Product Name (Score 70)
-  if (n.startsWith(q)) return 70;
-  const words = n.split(/\s+/);
-  if (words.some(w => w.startsWith(q))) return 65;
+  // 3. StartsWith (Prefix) matches on Product Name (Score 75)
+  if (n.startsWith(qTrim)) return 75;
+  const words = p._words || (n ? n.split(/\s+/) : []);
+  if (words.some(w => w.startsWith(qTrim))) return 70;
 
-  // 4. Substring matches on Barcode or Stock No (Score 50)
-  if (b.includes(q) || s.includes(q)) return 50;
-  if (qStripped && (b.includes(qStripped) || s.includes(qStripped))) return 45;
+  // 4. Substring matches on Barcode or Stock No (Score 65)
+  if (b.includes(qTrim) || b2.includes(qTrim) || s.includes(qTrim)) return 65;
+  if (qStripped && (b.includes(qStripped) || b2.includes(qStripped) || s.includes(qStripped))) return 60;
 
-  // 5. Substring matches on Name, Category, Department (Score 30)
-  if (n.includes(q)) return 30;
-  if (c.includes(q) || d.includes(q)) return 20;
+  // 5. Contiguous Substring matches on Name, Category, Department (Score 55 - 50)
+  if (n.includes(qTrim)) return 55;
+  if (c.includes(qTrim) || d.includes(qTrim)) return 50;
+
+  // 6. Multi-Token / Word-Split Matching (with Synonym Expansion e.g. black <-> blk, trapal <-> tarpaulin)
+  const tokList = tokens || qTrim.split(/\s+/).filter(Boolean);
+  if (tokList.length > 0) {
+    const fullText = p._searchStr || `${b} ${b2} ${s} ${n} ${c} ${d}`;
+    const fullTextStripped = p._searchStrStripped || fullText.replace(/0+/g, '');
+
+    let matchedCount = 0;
+    let codeMatched = false;
+    let wordBoundaryMatched = false;
+
+    for (const t of tokList) {
+      const tStripped = t.replace(/^0+/, '');
+      const syns = SEARCH_SYNONYMS[t] || [t];
+      const matchesToken = syns.some(syn => fullText.includes(syn)) || (tStripped && fullTextStripped.includes(tStripped));
+      if (matchesToken) {
+        matchedCount++;
+        if (syns.some(syn => b.includes(syn) || b2.includes(syn) || s.includes(syn) || bStripped.includes(syn) || b2Stripped.includes(syn) || sStripped.includes(syn))) {
+          codeMatched = true;
+        }
+        if (syns.some(syn => words.some(w => w.startsWith(syn)))) {
+          wordBoundaryMatched = true;
+        }
+      }
+    }
+
+    if (matchedCount === tokList.length) {
+      let tokenScore = 45;
+      if (codeMatched) tokenScore += 10;
+      if (wordBoundaryMatched) tokenScore += 5;
+      return tokenScore;
+    } else if (matchedCount >= Math.max(2, Math.ceil(tokList.length * 0.6))) {
+      const ratio = matchedCount / tokList.length;
+      return Math.floor(25 * ratio);
+    }
+  }
 
   return 0;
 }
 
-async function doSearch(q, isFinal = false) {
-  q = q.trim().toLowerCase();
-  if (!q) { hideResults(); return; }
+let searchRequestId = 0;
+let searchFetchTimer = null;
 
-  // 1. Score and rank local memory PRODUCTS
-  const localCandidates = [];
-  for (let i = 0; i < PRODUCTS.length; i++) {
-    const score = scoreProductMatch(PRODUCTS[i], q);
-    if (score > 0) {
-      localCandidates.push({ p: PRODUCTS[i], score });
+// Final scan / Enter resolution: a product with no mapped location jumps
+// straight into the Add Product modal (pre-filled) so it can be mapped;
+// a product that already has a location shows the location card as usual.
+function renderOrPromptLocation(p, code) {
+  if (p && !productHasAnyLocation(p)) {
+    openAddFormForScannedNoLocation(p, code);
+    return;
+  }
+  renderProduct(p);
+}
+
+async function doSearch(q, isFinal = false) {
+  q = (q || '').trim();
+  if (!q) {
+    clearTimeout(searchFetchTimer);
+    hideResults();
+    return;
+  }
+
+  const currentSearchId = ++searchRequestId;
+  const qLower = q.toLowerCase();
+  const qStripped = qLower.replace(/^0+/, '');
+  const tokens = qLower.split(/\s+/).filter(Boolean);
+
+  // --- 0. INSTANT EXACT-CODE FAST PATH (Enter / barcode scanner) ---
+  // Hash-map lookup on the prebuilt indexes — zero array scanning.
+  if (isFinal) {
+    const directHit = byBarcodeMap.get(qLower) || byStockMap.get(qLower) ||
+      (qStripped ? (byBarcodeMap.get(qStripped) || byStockMap.get(qStripped)) : null);
+    if (directHit) {
+      renderOrPromptLocation(directHit, q);
+      const inputEl = document.getElementById('searchInput');
+      if (inputEl) inputEl.value = '';
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (clearBtn) clearBtn.style.display = 'none';
+      hideResults();
+      return;
     }
   }
 
-  // Sort local matches by score descending
+  // --- 1. INSTANT LOCAL MEMORY CANDIDATE SEARCH (Barcode, Stock No, Product Name) ---
+  const localCandidates = [];
+  for (let i = 0; i < PRODUCTS.length; i++) {
+    const p = PRODUCTS[i];
+    // Cheap prefilter: skip the full scorer unless the query (or one of its
+    // tokens / synonyms / zero-stripped variants) actually appears in the
+    // precomputed search text. Every scorer match path implies this.
+    if (p._searchStr !== undefined) {
+      let hit = p._searchStr.includes(qLower) ||
+        (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
+      if (!hit) {
+        hit = tokens.some(t => {
+          const tStripped = t.replace(/^0+/, '');
+          const syns = SEARCH_SYNONYMS[t];
+          return p._searchStr.includes(t) ||
+            (tStripped && p._searchStrStripped.includes(tStripped)) ||
+            (syns && syns.some(syn => p._searchStr.includes(syn)));
+        });
+      }
+      if (!hit) continue;
+    }
+    const score = scoreProductMatch(p, qLower, qStripped, tokens);
+    if (score > 0) {
+      localCandidates.push({ p, score });
+    }
+  }
+
   localCandidates.sort((a, b) => b.score - a.score);
 
   const seen = new Set();
   const candidateMatches = [];
   for (const item of localCandidates) {
     const p = item.p;
-    const key = (p.barcode || p.b || p.stock_no || p.stock_code || p.s || p.product_name || p.name || p.n || '').toLowerCase();
+    const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
     if (!seen.has(key)) {
       seen.add(key);
       candidateMatches.push(p);
     }
-    if (candidateMatches.length >= 10) break;
+    if (candidateMatches.length >= 30) break;
   }
 
-  // 2. Fetch server database results for broader queries
-  try {
-    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=25`).then(r => r.json());
-    if (res.success && Array.isArray(res.products) && res.products.length > 0) {
-      for (const p of res.products) {
-        const key = (p.barcode || p.stock_no || p.product_name || '').toLowerCase();
-        if (!seen.has(key)) {
-          const score = scoreProductMatch(p, q);
-          if (score > 0) {
-            seen.add(key);
-            candidateMatches.push(p);
-          }
+  // Handle final submission (Enter pressed or barcode scanner triggered)
+  if (isFinal) {
+    // Exact barcode / stock_no match auto-select
+    const exactMatch = candidateMatches.find(p => 
+      (p.barcode || p.b) === q || 
+      (p.barcode_2 || p.b2 || '') === q ||
+      String(p.stock_no || p.stock_code || p.s) === q
+    );
+
+    if (exactMatch) {
+      renderOrPromptLocation(exactMatch, q);
+      const inputEl = document.getElementById('searchInput');
+      if (inputEl) inputEl.value = '';
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (clearBtn) clearBtn.style.display = 'none';
+      hideResults();
+      return;
+    }
+
+    if (candidateMatches.length === 1) {
+      renderOrPromptLocation(candidateMatches[0], q);
+      const inputEl = document.getElementById('searchInput');
+      if (inputEl) inputEl.value = '';
+      const clearBtn = document.getElementById('clearSearchBtn');
+      if (clearBtn) clearBtn.style.display = 'none';
+      hideResults();
+      return;
+    }
+
+    if (candidateMatches.length > 1) {
+      renderMatches(candidateMatches.slice(0, 30));
+      return;
+    }
+
+    // No local candidates — query API before displaying not found modal
+    try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=30`).then(r => r.json());
+      if (currentSearchId !== searchRequestId) return;
+      if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+        if (res.products.length === 1) {
+          renderOrPromptLocation(res.products[0], q);
+          const inputEl = document.getElementById('searchInput');
+          if (inputEl) inputEl.value = '';
+          const clearBtn = document.getElementById('clearSearchBtn');
+          if (clearBtn) clearBtn.style.display = 'none';
+          hideResults();
+          return;
+        } else {
+          renderMatches(res.products.slice(0, 30));
+          return;
         }
       }
+    } catch (err) {
+      console.warn('Final search API error:', err);
     }
-  } catch (err) {
-    console.error('API search failed:', err);
-  }
 
-  // Re-sort all candidate items by prefix/exact match score descending
-  candidateMatches.sort((a, b) => scoreProductMatch(b, q) - scoreProductMatch(a, q));
-
-  // If user pressed Enter
-  if (isFinal) {
-    if (candidateMatches.length > 0) {
-      renderProduct(candidateMatches[0]);
-      document.getElementById('searchInput').value = '';
-    } else {
-      showNotFoundModal(document.getElementById('searchInput').value.trim());
+    if (currentSearchId === searchRequestId) {
+      showNotFoundModal(q);
+      hideResults();
     }
     return;
   }
 
-  // Render progressive matches in dropdown
+  // While typing (isFinal === false):
+  // 1. If we have local matches, render them INSTANTLY with zero latency!
   if (candidateMatches.length > 0) {
-    // If top item is 100% exact match (score 95+), show only exact matches
-    const topScore = scoreProductMatch(candidateMatches[0], q);
-    if (topScore >= 95) {
-      const exactOnly = candidateMatches.filter(p => scoreProductMatch(p, q) >= 95);
-      renderMatches(exactOnly);
-    } else {
-      renderMatches(candidateMatches.slice(0, 10));
-    }
+    renderMatches(candidateMatches.slice(0, 30));
   } else {
-    renderMatches([]);
+    // IMPORTANT: Do NOT flash "No matching product in the database." before checking the database!
+    hideResults();
   }
+
+  // --- 3. BACKGROUND ASYNC DATABASE ENRICHMENT / FALLBACK (debounced) ---
+  // Local results above already rendered with zero latency; the network
+  // fallback is debounced so fast typing never spams the API.
+  if (candidateMatches.length < 5) {
+    clearTimeout(searchFetchTimer);
+    const fetchId = currentSearchId;
+    searchFetchTimer = setTimeout(() => {
+      runBackgroundEnrich(q, qLower, fetchId, candidateMatches, seen);
+    }, 250);
+  }
+}
+
+async function runBackgroundEnrich(q, qLower, currentSearchId, candidateMatches, seen) {
+  try {
+      const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=30`).then(r => r.json());
+      // Prevent race condition: discard if user continued typing or input changed
+      if (currentSearchId !== searchRequestId) return;
+      const currentInput = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+      if (currentInput !== qLower) return;
+
+      if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+        let added = false;
+        for (const p of res.products) {
+          const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
+          if (!seen.has(key)) {
+            seen.add(key);
+            candidateMatches.push(p);
+            added = true;
+
+            const existsLocally = PRODUCTS.some(prod => prod.id === p.id);
+            if (!existsLocally) {
+              PRODUCTS.push(p);
+            }
+          }
+        }
+        if (added) {
+          rebuildIndex();
+          candidateMatches.sort((a, b) => {
+            const scoreB = Math.max(scoreProductMatch(b, qLower), 10);
+            const scoreA = Math.max(scoreProductMatch(a, qLower), 10);
+            return scoreB - scoreA;
+          });
+        }
+        if (candidateMatches.length > 0) {
+          renderMatches(candidateMatches.slice(0, 30));
+        }
+      } else if (candidateMatches.length === 0) {
+        // Both local cache and server database confirmed 0 matching products
+        renderMatches([]);
+      }
+    } catch (err) {
+      console.warn('Background API search error:', err);
+      if (currentSearchId === searchRequestId && candidateMatches.length === 0) {
+        renderMatches([]);
+      }
+    }
 }
 
 function renderMatches(matches) {
   const rl = document.getElementById('resultsList');
+  if (!rl) return;
   rl.innerHTML = '';
-  if (matches.length === 0) {
-    rl.innerHTML = '<div class="no-results">No matching product in the database.</div>';
+  if (!matches || matches.length === 0) {
+    const isEn = CURRENT_LANG === 'en';
+    rl.innerHTML = `<div class="no-results">${isEn ? 'No matching product in the database.' : '数据库中未找到匹配的商品。'}</div>`;
   } else {
     matches.forEach(p => {
       const rowEl = document.createElement('div');
@@ -851,7 +1380,11 @@ function renderMatches(matches) {
       rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
       rowEl.onclick = () => {
         renderProduct(p);
-        document.getElementById('searchInput').value = '';
+        const inputEl = document.getElementById('searchInput');
+        if (inputEl) inputEl.value = '';
+        const clearBtn = document.getElementById('clearSearchBtn');
+        if (clearBtn) clearBtn.style.display = 'none';
+        hideResults();
       };
       rl.appendChild(rowEl);
     });
@@ -859,21 +1392,36 @@ function renderMatches(matches) {
   rl.classList.add('show');
 }
 
-// Event Listeners for Search & Upload (80ms debounce for smooth typing)
-let searchDebounceTimer = null;
-document.getElementById('searchInput').addEventListener('input', e => {
-  clearTimeout(searchDebounceTimer);
-  const val = e.target.value;
-  searchDebounceTimer = setTimeout(() => {
+// Event Listeners for Search & Typing (Instant 0ms search execution)
+const searchInput = document.getElementById('searchInput');
+if (searchInput) {
+  searchInput.addEventListener('input', e => {
+    const val = e.target.value;
+    if (!val.trim()) {
+      searchRequestId++;
+      clearTimeout(searchFetchTimer);
+      hideResults();
+      return;
+    }
+    // Execute search immediately (0ms latency)
     doSearch(val, false);
-  }, 80);
-});
-document.getElementById('searchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    clearTimeout(searchDebounceTimer);
-    doSearch(e.target.value, true);
-  }
-});
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      doSearch(e.target.value, true);
+    } else if (e.key === 'Escape') {
+      hideResults();
+    }
+  });
+
+  searchInput.addEventListener('focus', e => {
+    const val = e.target.value.trim();
+    if (val) {
+      doSearch(val, false);
+    }
+  });
+}
 
 document.getElementById('clearRecent').addEventListener('click', () => {
   recent = [];
@@ -906,6 +1454,10 @@ if (scanEditLocQrBtnEl) scanEditLocQrBtnEl.addEventListener('click', () => start
 
 const scanAddLocQrBtnEl = document.getElementById('scanAddLocQrBtn');
 if (scanAddLocQrBtnEl) scanAddLocQrBtnEl.addEventListener('click', () => startScanner('add_location_qr'));
+
+// Homepage QR Location Scanner — scan a shelf QR to see products at that location
+const scanQrLocBtnEl = document.getElementById('scanQrLocBtn');
+if (scanQrLocBtnEl) scanQrLocBtnEl.addEventListener('click', () => startScanner('home_location_qr'));
 
 const closeScanEl = document.getElementById('closeScan');
 if (closeScanEl) closeScanEl.addEventListener('click', stopScanner);
@@ -986,7 +1538,9 @@ function primeAudioEngine() {
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (AudioCtx) {
-      if (!globalAudioCtx) globalAudioCtx = new AudioCtx();
+      if (!globalAudioCtx || globalAudioCtx.state === 'closed') {
+        globalAudioCtx = new AudioCtx();
+      }
       if (globalAudioCtx.state === 'suspended') {
         globalAudioCtx.resume().catch(() => {});
       }
@@ -1037,49 +1591,60 @@ function playScanBeep(isQr = false) {
   try {
     // 1. Mobile haptic vibration
     if (navigator.vibrate) {
-      navigator.vibrate(isQr ? [40, 30, 40] : 60);
+      try { navigator.vibrate(isQr ? [50, 40, 50] : 70); } catch (e) {}
     }
 
-    // 2. Primary HTML5 Audio Element Playback (Media Stream Channel)
+    // 2. Web Audio Synthesizer (Crystal Clear Audio Tone)
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        if (!globalAudioCtx || globalAudioCtx.state === 'closed') {
+          globalAudioCtx = new AudioCtx();
+        }
+        if (globalAudioCtx.state === 'suspended') {
+          globalAudioCtx.resume().catch(() => {});
+        }
+
+        const osc = globalAudioCtx.createOscillator();
+        const gain = globalAudioCtx.createGain();
+
+        const freq = isQr ? 2400 : 1850;
+        const duration = isQr ? 0.14 : 0.10;
+        const now = globalAudioCtx.currentTime;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+
+        gain.gain.setValueAtTime(0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        osc.connect(gain);
+        gain.connect(globalAudioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + duration);
+      }
+    } catch (err) {
+      console.warn('Web Audio beep error:', err);
+    }
+
+    // 3. Primary HTML5 Audio Element Playback (Media Stream Channel)
     initAudioElements();
     const targetAudio = isQr ? qrAudioEl : barcodeAudioEl;
     if (targetAudio) {
       try {
         targetAudio.muted = false;
         targetAudio.currentTime = 0;
-        targetAudio.play().catch(err => {
-          console.warn('HTML5 audio play error:', err);
-        });
+        targetAudio.play().catch(() => {});
       } catch (e) {}
-    }
-
-    // 3. Web Audio API Oscillator Playback (Synth Channel)
-    if (globalAudioCtx) {
-      if (globalAudioCtx.state === 'suspended') {
-        globalAudioCtx.resume().catch(() => {});
-      }
-      const now = globalAudioCtx.currentTime;
-      const osc = globalAudioCtx.createOscillator();
-      const gain = globalAudioCtx.createGain();
-
-      const freq = isQr ? 2200 : 1800;
-      const duration = isQr ? 0.1 : 0.08;
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-      osc.connect(gain);
-      gain.connect(globalAudioCtx.destination);
-
-      osc.start(now);
-      osc.stop(now + duration);
     }
   } catch (e) {
     console.warn('Scan beep error:', e);
   }
 }
+
+window.playScanBeep = playScanBeep;
+window.playScanBeepSound = playScanBeep;
 
 async function startScanner(target) {
   primeAudioEngine();
@@ -1195,6 +1760,8 @@ function onScanSuccess(code) {
     autoFillAddFormForBarcode(code);
   } else if (scanTarget === 'location_qr') {
     handleLocationQRScan(code);
+  } else if (scanTarget === 'carton_location_qr') {
+    handleCartonLocationQRScan(code);
   } else if (scanTarget === 'edit_location_qr') {
     handleEditLocationQRScan(code);
   } else if (scanTarget === 'add_location_qr') {
@@ -1208,6 +1775,8 @@ function onScanSuccess(code) {
     rapidLocationBadgeVal.textContent = currentRapidLocation;
     rapidLocationBadge.style.display = 'block';
     checkRapidExistingLocationProduct();
+  } else if (scanTarget === 'home_location_qr') {
+    handleHomeLocationQRScan(code);
   } else {
     document.getElementById('searchInput').value = code;
     doSearch(code, true);
@@ -1370,8 +1939,9 @@ async function autoFillAddFormForBarcode(code) {
   
   let match = PRODUCTS.find(p => {
     const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
     const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-    return (b && b === cleanCode) || (s && s === cleanCode);
+    return (b && b === cleanCode) || (b2 && b2 === cleanCode) || (s && s === cleanCode);
   });
 
   if (!match) {
@@ -1380,6 +1950,7 @@ async function autoFillAddFormForBarcode(code) {
       if (res.success && Array.isArray(res.products) && res.products.length > 0) {
         match = res.products.find(item =>
           (item.barcode || '').toLowerCase() === cleanCode ||
+          (item.barcode_2 || '').toLowerCase() === cleanCode ||
           (item.stock_no || '').toLowerCase() === cleanCode
         );
       }
@@ -1393,6 +1964,20 @@ async function autoFillAddFormForBarcode(code) {
     document.getElementById('fSubcategory').value = match.department || match.subcategory || match.sc || '';
     showToast(`Auto-filled: "${match.product_name || match.name || match.n}"`);
   }
+}
+
+// Scan/Enter resolved to a product that has no shelf location yet:
+// open the Add Product modal pre-filled so the user can map it immediately.
+function openAddFormForScannedNoLocation(match, code) {
+  activeProduct = match;
+  openAddForm();
+  const barcodeVal = (match && (match.barcode || match.b)) || code || '';
+  document.getElementById('fBarcode').value = barcodeVal;
+  autoFillAddFormForBarcode(code || barcodeVal);
+  const name = match && (match.product_name || match.name || match.n);
+  showToast(name
+    ? `"${name}" has no location yet — set one below to map it.`
+    : 'Scanned product has no location yet — set one below to map it.');
 }
 
 function stopScanner() {
@@ -1581,10 +2166,51 @@ function openEditForm() {
   document.getElementById('efStock').value = activeProduct.stock_no || activeProduct.stock_code || activeProduct.s || '';
   document.getElementById('efCategory').value = activeProduct.category || activeProduct.c || '';
   document.getElementById('efSubcategory').value = activeProduct.department || activeProduct.subcategory || activeProduct.sc || '';
-  document.getElementById('efFloor').value = activeProduct.floor || '1';
-  document.getElementById('efRow').value = activeProduct.row || activeProduct.row || '';
-  document.getElementById('efShelf').value = activeProduct.shelf || '';
-  document.getElementById('efLevel').value = activeProduct.level || '0';
+
+  // Extract Floor, Row, Shelf, Level from all possible properties
+  let f = activeProduct.floor !== undefined && activeProduct.floor !== null ? String(activeProduct.floor).trim() : '';
+  let r = activeProduct.row !== undefined && activeProduct.row !== null ? String(activeProduct.row).trim() : (activeProduct.batch ? String(activeProduct.batch).trim() : '');
+  let s = activeProduct.shelf !== undefined && activeProduct.shelf !== null ? String(activeProduct.shelf).trim() : '';
+  let l = activeProduct.level !== undefined && activeProduct.level !== null ? String(activeProduct.level).trim() : '';
+
+  // Parse loc string if discrete fields are empty (e.g. "1-02-01-02")
+  if ((!f || !r || !s) && activeProduct.loc) {
+    const parts = String(activeProduct.loc).split('-');
+    if (parts.length >= 3) {
+      f = f || parts[0].trim();
+      r = r || parts[1].trim();
+      s = s || parts[2].trim();
+      l = l || (parts[3] ? parts[3].trim() : '0');
+    }
+  }
+
+  // Parse from locations array if present
+  if ((!f || !r || !s) && Array.isArray(activeProduct.locations) && activeProduct.locations.length > 0) {
+    const firstLoc = activeProduct.locations[0];
+    if (firstLoc) {
+      f = f || (firstLoc.floor !== undefined && firstLoc.floor !== null ? String(firstLoc.floor).trim() : '');
+      r = r || (firstLoc.row !== undefined && firstLoc.row !== null ? String(firstLoc.row).trim() : (firstLoc.batch ? String(firstLoc.batch).trim() : ''));
+      s = s || (firstLoc.shelf !== undefined && firstLoc.shelf !== null ? String(firstLoc.shelf).trim() : '');
+      l = l || (firstLoc.level !== undefined && firstLoc.level !== null ? String(firstLoc.level).trim() : '0');
+    }
+  }
+
+  // Parse from storage_location/location_storage text if present
+  if ((!f || !r || !s) && (activeProduct.storage_location || activeProduct.location_storage)) {
+    const text = String(activeProduct.storage_location || activeProduct.location_storage);
+    const m = text.match(/(\d+)-(\d+)-(\d+)(?:-(\d+))?/);
+    if (m) {
+      f = f || m[1];
+      r = r || m[2];
+      s = s || m[3];
+      l = l || m[4] || '0';
+    }
+  }
+
+  document.getElementById('efFloor').value = f || '1';
+  document.getElementById('efRow').value = r || '';
+  document.getElementById('efShelf').value = s || '';
+  document.getElementById('efLevel').value = l || '0';
   
   const currentQty = activeProduct.qty !== undefined ? activeProduct.qty : 0;
   window.currentEditBaseQty = currentQty;
@@ -1680,6 +2306,9 @@ async function saveEditProduct() {
       rebuildIndex();
       closeEditForm();
       renderProduct(res.product);
+      if (typeof renderPortalDataTable === 'function') {
+        renderPortalDataTable({ refreshStats: true });
+      }
       showToast(`Updated in Database! "${name}" location is now Floor ${floor}, Row ${row}, Shelf ${shelf}.`);
     } else {
       showToast('Error updating product: ' + (res.error || 'Unknown error'), 'error');
@@ -1748,6 +2377,21 @@ if (document.getElementById('closeAuditModal')) {
   });
 }
 
+window.quickFillLogin = function(u, p) {
+  const uInput = document.getElementById('loginUsername');
+  const pInput = document.getElementById('loginPassword');
+  if (uInput) uInput.value = u;
+  if (pInput) pInput.value = p;
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    if (typeof loginForm.requestSubmit === 'function') {
+      loginForm.requestSubmit();
+    } else {
+      loginForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+  }
+};
+
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const u = document.getElementById('loginUsername').value.trim();
@@ -1755,11 +2399,18 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   const errEl = document.getElementById('loginFormError');
 
   try {
-    const res = await fetch('/api/auth/login', {
+    const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: u, password: p })
-    }).then(r => r.json());
+    });
+    
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error(`Server returned ${response.status} ${response.statusText}. The server might be down or restarting.`);
+    }
+
+    const res = await response.json();
 
     if (res.success && res.user) {
       currentUser = res.user;
@@ -1776,7 +2427,11 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
   } catch (err) {
     console.error('Login error:', err);
-    errEl.textContent = 'Server connection error during login.';
+    if (err instanceof TypeError) {
+      errEl.textContent = 'Network error: Cannot reach the server. Please check your connection or try again later.';
+    } else {
+      errEl.textContent = err.message || 'Server connection error during login.';
+    }
     errEl.style.display = 'block';
   }
 });
@@ -2097,8 +2752,11 @@ document.getElementById('efCategoryArrow').addEventListener('click', (e) => {
   }
 });
 
-// Close dropdowns when clicking outside
+// Close dropdowns and search results when clicking outside
 document.addEventListener('click', (e) => {
+  if (!e.target.closest('#searchInput') && !e.target.closest('#resultsList')) {
+    hideResults();
+  }
   if (!e.target.closest('.combobox-container')) {
     const dropdown = document.getElementById('fCategoryDropdown');
     if (dropdown) dropdown.style.display = 'none';
@@ -2285,6 +2943,132 @@ if (openFullEditFromAddStockBtnEl) {
   });
 }
 
+async function handleHomeLocationQRScan(code) {
+  const parsed = parseLocationQR(code);
+  if (!parsed) {
+    showToast("Invalid location QR code format. Expected e.g. '1-02-01-03'.", 'error');
+    return;
+  }
+  
+  showToast("Fetching products at location...", 'info');
+  
+  try {
+    const res = await fetch(`/api/products/by-location?floor=${parsed.floor}&row=${parsed.row}&shelf=${parsed.shelf}&level=${parsed.level}`);
+    const data = await res.json();
+    
+    if (data.success) {
+      document.getElementById('locProductsBadge').textContent = `Location: Floor ${parsed.floor} - Row ${parsed.row} - Shelf ${parsed.shelf} - Level ${parsed.level}`;
+      
+      const listEl = document.getElementById('locProductsList');
+      listEl.innerHTML = '';
+      
+      if (data.products && data.products.length > 0) {
+        document.getElementById('locProductsEmpty').style.display = 'none';
+        
+        data.products.forEach(p => {
+          const row = document.createElement('div');
+          row.className = 'loc-product-row';
+          
+          const infoDiv = document.createElement('div');
+          infoDiv.className = 'loc-product-info';
+          
+          const nameDiv = document.createElement('div');
+          nameDiv.className = 'loc-product-name';
+          nameDiv.textContent = p.product_name || p.name || p.n || 'Unknown Product';
+          
+          const metaDiv = document.createElement('div');
+          metaDiv.className = 'loc-product-meta';
+          metaDiv.textContent = `Barcode: ${p.barcode || p.b || '—'} | Stock No: ${p.stock_no || p.stock_code || p.s || '—'}`;
+          
+          infoDiv.appendChild(nameDiv);
+          infoDiv.appendChild(metaDiv);
+          
+          const rightContainer = document.createElement('div');
+          rightContainer.style.display = 'flex';
+          rightContainer.style.alignItems = 'center';
+          rightContainer.style.gap = '8px';
+
+          const qtyDiv = document.createElement('div');
+          qtyDiv.className = 'loc-product-qty';
+          qtyDiv.textContent = `${p.qty || 0} pcs`;
+          
+          const chevron = document.createElement('div');
+          chevron.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><path d="m9 18 6-6-6-6"/></svg>`;
+          chevron.style.display = 'flex';
+          
+          rightContainer.appendChild(qtyDiv);
+          rightContainer.appendChild(chevron);
+          
+          row.appendChild(infoDiv);
+          row.appendChild(rightContainer);
+          
+          row.addEventListener('click', () => {
+             // Close the location products modal
+             document.getElementById('locProductsModal').classList.remove('show');
+             // Open the add quantity modal
+             openAddQtyFromLocationModal(p);
+          });
+          
+          listEl.appendChild(row);
+        });
+      } else {
+        document.getElementById('locProductsEmpty').style.display = 'block';
+      }
+      
+      document.getElementById('locProductsModal').classList.add('show');
+    } else {
+      showToast("Failed to fetch location products: " + (data.error || "Unknown error"), 'error');
+    }
+  } catch (err) {
+    console.error("Failed to fetch location products:", err);
+    showToast("Network error while fetching products.", 'error');
+  }
+}
+
+function openAddQtyFromLocationModal(item) {
+  document.getElementById('addStockId').value = item.id || '';
+  const currentQty = parseInt(item.qty, 10) || 0;
+  document.getElementById('addStockExistingQty').value = currentQty;
+
+  const pName = item.product_name || item.name || item.n || 'Product';
+  const pBar = item.barcode || item.b || '—';
+  const pStock = item.stock_no || item.stock_code || item.s || '—';
+
+  document.getElementById('addStockProductName').textContent = pName;
+  document.getElementById('addStockProductMeta').textContent = `Barcode: ${pBar} | Stock No: ${pStock}`;
+
+  const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '1';
+  const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row !== undefined && item.row !== null ? String(item.row).trim() : '01');
+  const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '01';
+  const level = item.level !== undefined && item.level !== null ? String(item.level).trim() : '0';
+
+  document.getElementById('addStockLocBadge').textContent = `Floor ${floor} - Row ${row} - Shelf ${shelf} - Level ${level}`;
+
+  document.getElementById('addStockCurrentDisplay').value = currentQty;
+  document.getElementById('addStockNewInput').value = '';
+  document.getElementById('addStockmanInput').value = currentUser ? currentUser.full_name : (item.last_modified_by || '');
+
+  updateAddStockMathPreview(currentQty, 0);
+
+  // Keep the current activeProduct if one was selected, but we don't strictly need it to just update DB
+  window.currentEditingLocIndex = -1; // Hack to prevent trying to open edit modal back later if it fails
+
+  document.getElementById('addStockModal').classList.add('show');
+  setTimeout(() => {
+    document.getElementById('addStockNewInput').focus();
+  }, 300);
+}
+
+// Wire up the close button for the locProductsModal
+document.addEventListener('DOMContentLoaded', () => {
+  const closeLocProductsModalBtn = document.getElementById('closeLocProductsModal');
+  if (closeLocProductsModalBtn) {
+    closeLocProductsModalBtn.addEventListener('click', () => {
+      document.getElementById('locProductsModal').classList.remove('show');
+    });
+  }
+});
+
 async function handleLocationQRScan(code) {
   if (!activeProduct) {
     showToast("No active product selected to link a location to.", 'error');
@@ -2470,8 +3254,9 @@ async function handleRapidBarcodeScanned(barcode) {
   // 1. Check local cache first (fast path)
   let found = PRODUCTS.find(p => {
     const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
     const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-    return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+    return (b && b === currentRapidBarcode.toLowerCase()) || (b2 && b2 === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
   });
 
   // 2. If not in local cache, ask the server (catches newly registered products)
@@ -2481,6 +3266,7 @@ async function handleRapidBarcodeScanned(barcode) {
       if (res.success && res.products.length > 0) {
         found = res.products.find(item =>
           (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
+          (item.barcode_2 || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
           (item.stock_no || '').toLowerCase() === currentRapidBarcode.toLowerCase()
         );
       }
@@ -2546,8 +3332,9 @@ async function checkRapidExistingLocationProduct() {
   // 1. Search locally in PRODUCTS cache
   let match = PRODUCTS.find(p => {
     const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
     const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-    const isProductMatch = (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+    const isProductMatch = (b && b === currentRapidBarcode.toLowerCase()) || (b2 && b2 === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
     if (!isProductMatch) return false;
 
     const pf = String(p.floor !== undefined && p.floor !== null ? p.floor : '').trim();
@@ -2594,8 +3381,9 @@ async function checkRapidExistingLocationProduct() {
     // Exact location not matched. Check if product has existing locations elsewhere
     let allProdRows = PRODUCTS.filter(p => {
       const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
       const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-      return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+      return (b && b === currentRapidBarcode.toLowerCase()) || (b2 && b2 === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
     });
 
     try {
@@ -2603,6 +3391,7 @@ async function checkRapidExistingLocationProduct() {
       if (res.success && Array.isArray(res.products) && res.products.length > 0) {
         allProdRows = res.products.filter(item =>
           (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
+          (item.barcode_2 || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
           (item.stock_no || '').toLowerCase() === currentRapidBarcode.toLowerCase()
         );
       }
@@ -2785,20 +3574,23 @@ async function saveRapidEntry() {
     rapidFormError.classList.add('show');
     return;
   }
-  // Fresh lookup — do NOT rely on DOM visibility (async timing issue)
+
+  // Fast local lookup first
   let existingProduct = PRODUCTS.find(p => {
     const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
     const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-    return (b && b === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
+    return (b && b === currentRapidBarcode.toLowerCase()) || (b2 && b2 === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
   });
 
-  // If not in local cache, ask server
+  // Only ask server if not found in local cache
   if (!existingProduct) {
     try {
       const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=5`).then(r => r.json());
       if (res.success && res.products.length > 0) {
         existingProduct = res.products.find(item =>
           (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
+          (item.barcode_2 || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
           (item.stock_no || '').toLowerCase() === currentRapidBarcode.toLowerCase()
         );
       }
@@ -2822,15 +3614,16 @@ async function saveRapidEntry() {
     return;
   }
 
-  const validQty = 0;
+  const validQty = rfQty ? (parseInt(rfQty.value, 10) || 0) : 0;
 
-  const btn = document.getElementById('rfSubmitBtn');
+  const btn = document.getElementById('saveRapidBtn') || document.getElementById('rfSubmitBtn');
   if (btn && btn.disabled) return;
   if (btn) btn.disabled = true;
 
   try {
     rapidFormError.classList.remove('show');
-    showToast(CURRENT_LANG === 'en' ? 'Saving location...' : '正在登记库位...');
+    const savedLoc = currentRapidLocation;
+    const savedBarcode = currentRapidBarcode;
 
     const loc = `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}`;
     const floorLabel = parsed.floor === '1' ? 'First Floor' : (parsed.floor === '2' ? 'Second Floor' : 'Third Floor');
@@ -2864,6 +3657,7 @@ async function saveRapidEntry() {
     if (currentRapidExistingRow) {
       const userAction = await promptConcurrentScan(currentRapidExistingRow, payload.qty);
       if (userAction === 'cancel') {
+        if (btn) btn.disabled = false;
         showToast(CURRENT_LANG === 'en' ? 'Scan cancelled — duplicate entry prevented.' : '已取消登记 — 已防止重复记录。');
         return;
       }
@@ -2878,28 +3672,21 @@ async function saveRapidEntry() {
     const url = targetRow ? `/api/products/${targetRow.id}` : '/api/products';
     const method = targetRow ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(r => r.json());
+    // --- INSTANT OPTIMISTIC RESET FOR HIGH-SPEED LOGGING ---
+    rapidSessionCount++;
+    const rBadge = document.getElementById('rapidSessionBadge');
+    const rVal = document.getElementById('rapidSessionCountVal');
+    if (rBadge && rVal) {
+      rVal.textContent = rapidSessionCount;
+      rBadge.style.display = 'flex';
+    }
 
-    if (res.success) {
-      showToast(TRANSLATIONS[CURRENT_LANG].rapidSaved);
+    // Add to session log strip immediately
+    const logText = `[${new Date().toLocaleTimeString()}] ${payload.product_name} (${payload.barcode}) &rarr; 📍 ${savedLoc} [Qty: ${payload.qty}]`;
+    rapidLogs.unshift(logText);
+    rapidLogs = rapidLogs.slice(0, 5);
 
-      rapidSessionCount++;
-      const rBadge = document.getElementById('rapidSessionBadge');
-      const rVal = document.getElementById('rapidSessionCountVal');
-      if (rBadge && rVal) {
-        rVal.textContent = rapidSessionCount;
-        rBadge.style.display = 'flex';
-      }
-
-      // Add to session logs list
-      const logText = `[${new Date().toLocaleTimeString()}] ${payload.product_name} (${payload.barcode}) &rarr; 📍 ${currentRapidLocation} [Qty: ${payload.qty}]`;
-      rapidLogs.unshift(logText);
-      rapidLogs = rapidLogs.slice(0, 5);
-
+    if (rapidLogList) {
       rapidLogList.innerHTML = '';
       rapidLogs.forEach(log => {
         const item = document.createElement('div');
@@ -2910,52 +3697,61 @@ async function saveRapidEntry() {
         item.innerHTML = log;
         rapidLogList.appendChild(item);
       });
+    }
 
-      // Update local PRODUCTS state
-      const productsRes = await fetch('/api/products/all').then(r => r.json());
-      if (productsRes.success && Array.isArray(productsRes.products)) {
-        PRODUCTS = productsRes.products;
+    // Clear form inputs immediately so stockman can scan next item in 0ms!
+    currentRapidBarcode = '';
+    currentRapidLocation = '';
+    currentRapidExistingRow = null;
+    rfName.value = '';
+    rfStock.value = '';
+    rfCategory.value = '';
+    rfSubcategory.value = '';
+    if (rfQty) rfQty.value = '0';
+
+    if (rapidBarcodeBadge) rapidBarcodeBadge.style.display = 'none';
+    if (rapidLocationBadge) rapidLocationBadge.style.display = 'none';
+    if (rapidNewProductFields) rapidNewProductFields.style.display = 'none';
+
+    showToast(CURRENT_LANG === 'en' ? '✅ Saved! Ready for next scan.' : '✅ 已保存！准备好进行下一次扫描。');
+    if (btn) btn.disabled = false;
+
+    // Send HTTP save request in background & update local cache in-place (NO full /api/products/all fetch!)
+    fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.json()).then(res => {
+      if (res.success && res.product) {
+        const savedProd = res.product;
+        // Merge into PRODUCTS and productsData array locally
+        const existingIdx = PRODUCTS.findIndex(p => p.id === savedProd.id);
+        if (existingIdx !== -1) {
+          PRODUCTS[existingIdx] = savedProd;
+        } else {
+          PRODUCTS.unshift(savedProd);
+        }
+
+        const dataIdx = productsData.findIndex(p => p.id === savedProd.id);
+        if (dataIdx !== -1) {
+          productsData[dataIdx] = savedProd;
+        } else {
+          productsData.unshift(savedProd);
+        }
+
         rebuildIndex();
         updateCategoryDatalist();
 
-        // Real-time UI update: if the active product matches the rapid logger product, re-render it!
-        if (activeProduct) {
-          const actBar = (activeProduct.barcode || activeProduct.b || '').toString().toLowerCase();
-          const actStk = (activeProduct.stock_no || activeProduct.stock_code || activeProduct.s || '').toString().toLowerCase();
-          const rapidBar = payload.barcode.toLowerCase();
-          const rapidStk = (payload.stock_no || payload.stock_code || '').toLowerCase();
-
-          if ((actBar && (actBar === rapidBar || actBar === rapidStk)) || 
-              (actStk && (actStk === rapidBar || actStk === rapidStk))) {
-            const freshMatch = PRODUCTS.find(p => {
-              const pb = (p.barcode || p.b || '').toString().toLowerCase();
-              const ps = (p.stock_no || p.stock_code || p.s || '').toString().toLowerCase();
-              return (pb && pb === actBar) || (ps && ps === actStk);
-            });
-            if (freshMatch) {
-              renderProduct(freshMatch);
-            }
-          }
+        if (superAdminPortalView && superAdminPortalView.style.display !== 'none') {
+          renderPortalDataTable();
         }
       }
+    }).catch(err => {
+      console.warn('Background rapid logger save error:', err);
+    });
 
-      // Reset logger fields
-      currentRapidBarcode = '';
-      currentRapidLocation = '';
-      currentRapidExistingRow = null;
-      rfName.value = '';
-      rfStock.value = '';
-      rfCategory.value = '';
-      rfSubcategory.value = '';
-      if (rfQty) rfQty.value = '0';
-
-      rapidBarcodeBadge.style.display = 'none';
-      rapidLocationBadge.style.display = 'none';
-      rapidNewProductFields.style.display = 'none';
-    } else {
-      showToast("Error saving: " + (res.error || "Unknown error"), 'error');
-    }
   } catch (err) {
+    if (btn) btn.disabled = false;
     console.error("Failed to rapidly register product location:", err);
     showToast("Connection error: failed to register location.", 'error');
   }
@@ -3318,6 +4114,910 @@ if (auditLocationQrBtn) {
     });
   });
 }
+
+// --- 1. CARTON / BIG ITEMS PUTAWAY ENGINE (NON-BARCODED ITEMS) ---
+const cartonOverlay = document.getElementById('cartonOverlay');
+const cartonPutawayBtn = document.getElementById('cartonPutawayBtn');
+const closeCartonModal = document.getElementById('closeCartonModal');
+const cancelCartonBtn = document.getElementById('cancelCartonBtn');
+const cartonStockNoInput = document.getElementById('cartonStockNoInput');
+const cartonMatchBox = document.getElementById('cartonMatchBox');
+const cartonNoMatchBox = document.getElementById('cartonNoMatchBox');
+const cartonMatchedName = document.getElementById('cartonMatchedName');
+const cartonMatchedMeta = document.getElementById('cartonMatchedMeta');
+const cartonScanLocBtn = document.getElementById('cartonScanLocBtn');
+const cartonAddNewBtn = document.getElementById('cartonAddNewBtn');
+const cartonManualLocBtn = document.getElementById('cartonManualLocBtn');
+const cartonManualBox = document.getElementById('cartonManualBox');
+const cartonSaveManualBtn = document.getElementById('cartonSaveManualBtn');
+
+let matchedCartonProduct = null;
+let cartonDebounceTimer = null;
+let cartonAbortController = null;
+
+if (cartonPutawayBtn) {
+  cartonPutawayBtn.addEventListener('click', () => {
+    if (cartonStockNoInput) cartonStockNoInput.value = '';
+    if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+    if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+    if (cartonManualBox) cartonManualBox.style.display = 'none';
+    matchedCartonProduct = null;
+    if (cartonOverlay) {
+      cartonOverlay.classList.add('show');
+      setTimeout(() => {
+        if (cartonStockNoInput) cartonStockNoInput.focus();
+      }, 100);
+    }
+  });
+}
+
+if (closeCartonModal) closeCartonModal.addEventListener('click', () => cartonOverlay.classList.remove('show'));
+if (cancelCartonBtn) cancelCartonBtn.addEventListener('click', () => cartonOverlay.classList.remove('show'));
+
+if (cartonStockNoInput) {
+  cartonStockNoInput.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    clearTimeout(cartonDebounceTimer);
+
+    if (!val) {
+      if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+      if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+      if (cartonManualBox) cartonManualBox.style.display = 'none';
+      matchedCartonProduct = null;
+      return;
+    }
+
+    cartonDebounceTimer = setTimeout(async () => {
+      const valLower = val.toLowerCase();
+      // 1. Search in-memory PRODUCTS array
+      let match = PRODUCTS.find(p => (p.stock_no || p.stock_code || '').toLowerCase() === valLower || (p.barcode || '').toLowerCase() === valLower || (p.barcode_2 || p.b2 || '').toLowerCase() === valLower);
+
+      // 2. Query server endpoint for instant database lookup
+      if (!match) {
+        try {
+          if (cartonAbortController) cartonAbortController.abort();
+          cartonAbortController = new AbortController();
+          const res = await fetch(`/api/products/lookup/${encodeURIComponent(val)}`, { signal: cartonAbortController.signal });
+          const data = await res.json();
+          if (data.success && data.product) {
+            match = data.product;
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') console.warn('Carton lookup error:', err);
+        }
+      }
+
+      if (match) {
+        matchedCartonProduct = match;
+        if (cartonMatchedName) cartonMatchedName.textContent = match.product_name || match.name || 'Unnamed item';
+        if (cartonMatchedMeta) cartonMatchedMeta.textContent = `Barcode: ${match.barcode || '—'} | Category: ${match.category || '—'} • ${match.department || match.subcategory || 'General'}`;
+        const matchSkuBadge = document.getElementById('cartonMatchSkuBadge');
+        if (matchSkuBadge) matchSkuBadge.textContent = match.stock_no || match.stock_code || val;
+
+        const existingLocsEl = document.getElementById('cartonExistingLocs');
+        if (existingLocsEl) {
+          const locsList = Array.isArray(match.locations) ? match.locations : [];
+          if (locsList.length > 0) {
+            existingLocsEl.innerHTML = `<strong>Current Active Locations:</strong><br>` + locsList.map(l => `• Floor ${l.floor || '1'}, Row ${l.row || l.batch || '01'}, Shelf ${l.shelf || '01'}, Level ${l.level || '00'} (${l.qty || 0} units)${l.is_carton || (l.storage_location && l.storage_location.includes('Carton')) ? ' <span style="color:#b45309;font-weight:700;">[📦 Big Carton]</span>' : ''}`).join('<br>');
+          } else if (match.floor || match.row || match.shelf || match.loc || match.storage_location || match.location_storage) {
+            const f = match.floor || '1';
+            const r = match.row || match.batch || '01';
+            const s = match.shelf || '01';
+            const l = match.level || '00';
+            existingLocsEl.innerHTML = `<strong>Current Active Location:</strong><br>• Floor ${f}, Row ${r}, Shelf ${s}, Level ${l} (${match.qty || 0} units)`;
+          } else {
+            existingLocsEl.innerHTML = `<span style="color:#64748b; font-style:italic;">No shelf location assigned yet. Ready for first carton putaway.</span>`;
+          }
+        }
+
+        if (cartonMatchBox) cartonMatchBox.style.display = 'block';
+        if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+      } else {
+        matchedCartonProduct = null;
+        if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+        if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'block';
+      }
+    }, 180);
+  });
+}
+
+if (cartonScanLocBtn) {
+  cartonScanLocBtn.addEventListener('click', () => {
+    if (!matchedCartonProduct) {
+      showToast('Please type a valid stock number first.', 'error');
+      return;
+    }
+    activeProduct = matchedCartonProduct;
+    if (cartonOverlay) cartonOverlay.classList.remove('show');
+    startScanner('carton_location_qr');
+    showToast(`Point camera at shelf QR code for carton: "${matchedCartonProduct.product_name || matchedCartonProduct.name}"`);
+  });
+}
+
+function handleCartonLocationQRScan(code) {
+  const parsed = parseLocationQR(code);
+  if (!parsed) {
+    showToast("Invalid location QR format. Expected e.g. '1-02-01-02'.", 'error');
+    return;
+  }
+
+  const fEl = document.getElementById('cartonManualFloor');
+  const rEl = document.getElementById('cartonManualRow');
+  const sEl = document.getElementById('cartonManualShelf');
+  const lEl = document.getElementById('cartonManualLevel');
+
+  if (fEl) fEl.value = parsed.floor || '1';
+  if (rEl) rEl.value = pad2(parsed.row || '01');
+  if (sEl) sEl.value = pad2(parsed.shelf || '01');
+  if (lEl) lEl.value = pad2(parsed.level || '00');
+
+  if (cartonOverlay) cartonOverlay.classList.add('show');
+  showToast(`Location Scanned: Floor ${parsed.floor}, Row ${parsed.row}, Shelf ${parsed.shelf}. Tap "Save Carton Location" to confirm.`, 'info');
+}
+
+const cartonSaveLocationBtn = document.getElementById('cartonSaveLocationBtn');
+if (cartonSaveLocationBtn) {
+  cartonSaveLocationBtn.addEventListener('click', async () => {
+    const p = matchedCartonProduct || activeProduct;
+    if (!p) {
+      showToast('Please type a valid stock number first.', 'error');
+      return;
+    }
+
+    const floor = document.getElementById('cartonManualFloor')?.value || '1';
+    const row = pad2(document.getElementById('cartonManualRow')?.value || '');
+    const shelf = pad2(document.getElementById('cartonManualShelf')?.value || '');
+    const level = pad2(document.getElementById('cartonManualLevel')?.value || '00');
+    const putawayQty = parseInt(document.getElementById('cartonQtyInput')?.value, 10) || 0;
+
+    if (!row || !shelf) {
+      showToast('Please enter or scan Row and Shelf numbers.', 'error');
+      return;
+    }
+
+    const loc = `${floor}-${row}-${shelf}-${level}`;
+    const floorLabel = floor === '1' ? 'First Floor' : (floor === '2' ? 'Second Floor' : 'Third Floor');
+    const storage_location = `${loc} ${floorLabel} - Row ${row} - Shelves ${shelf} - Level ${level} • 📦 Big Carton`;
+
+    cartonSaveLocationBtn.disabled = true;
+    showToast(`Saving Carton Location: ${loc}...`);
+
+    const payload = {
+      name: p.product_name || p.name,
+      barcode: p.barcode || '',
+      stock_code: p.stock_no || p.stock_code || '',
+      category: p.category || 'Uncategorized',
+      subcategory: p.department || p.subcategory || '',
+      floor,
+      batch: row,
+      shelf,
+      level,
+      loc,
+      loc_full: storage_location,
+      location_storage: storage_location,
+      is_carton: true,
+      loc_type: 'CARTON',
+      qty: putawayQty,
+      status: 'MAPPED',
+      last_modified_by: currentUser ? `${currentUser.full_name} (Carton Specialist)` : 'Carton Specialist'
+    };
+
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(r => r.json());
+
+      if (res.success && res.product) {
+        playScanBeep(true);
+        if (cartonOverlay) cartonOverlay.classList.remove('show');
+        
+        const idx = PRODUCTS.findIndex(item => item.id === res.product.id);
+        if (idx !== -1) PRODUCTS[idx] = res.product;
+        else PRODUCTS.unshift(res.product);
+
+        rebuildIndex();
+        renderProduct(res.product);
+        if (typeof renderPortalDataTable === 'function') {
+          renderPortalDataTable({ refreshStats: true });
+        }
+        showToast(`🎉 Big Carton Location Saved! "${p.product_name || p.name}" -> Floor ${floor}, Row ${row}, Shelf ${shelf}`, 'success');
+      } else {
+        showToast('Failed to save carton location: ' + (res.error || 'Server error'), 'error');
+      }
+    } catch (err) {
+      showToast('Network error saving carton location: ' + err.message, 'error');
+    } finally {
+      cartonSaveLocationBtn.disabled = false;
+    }
+  });
+}
+
+if (cartonAddNewBtn) {
+  cartonAddNewBtn.addEventListener('click', () => {
+    const stockVal = cartonStockNoInput ? cartonStockNoInput.value.trim() : '';
+    if (cartonOverlay) cartonOverlay.classList.remove('show');
+    openAddForm();
+    const fStockEl = document.getElementById('fStock');
+    if (fStockEl) fStockEl.value = stockVal;
+  });
+}
+
+
+// --- 2. SUPER ADMIN DASHBOARD & EXCEL (.XLSX) EXPORTER ---
+const adminDashboardOverlay = document.getElementById('adminDashboardOverlay');
+const adminDashboardBtn = document.getElementById('adminDashboardBtn');
+const closeAdminDashboardModal = document.getElementById('closeAdminDashboardModal');
+const cancelAdminModalBtn = document.getElementById('cancelAdminModalBtn');
+const downloadXlsxBtn = document.getElementById('downloadXlsxBtn');
+
+if (adminDashboardBtn) {
+  adminDashboardBtn.addEventListener('click', openAdminDashboard);
+}
+
+if (closeAdminDashboardModal) closeAdminDashboardModal.addEventListener('click', () => adminDashboardOverlay.classList.remove('show'));
+if (cancelAdminModalBtn) cancelAdminModalBtn.addEventListener('click', () => adminDashboardOverlay.classList.remove('show'));
+
+async function openAdminDashboard() {
+  if (adminDashboardOverlay) adminDashboardOverlay.classList.add('show');
+
+  try {
+    const res = await fetch('/api/admin/stats');
+    const data = await res.json();
+    if (data.success && data.stats) {
+      document.getElementById('admStatTotal').textContent = (data.stats.totalProducts || 0).toLocaleString();
+      document.getElementById('admStatMapped').textContent = (data.stats.mappedCount || 0).toLocaleString();
+      document.getElementById('admStatUnmapped').textContent = (data.stats.unmappedCount || 0).toLocaleString();
+    }
+  } catch (e) {
+    const total = productsData.length;
+    const mapped = productsData.filter(p => (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf).length;
+    document.getElementById('admStatTotal').textContent = total.toLocaleString();
+    document.getElementById('admStatMapped').textContent = mapped.toLocaleString();
+    document.getElementById('admStatUnmapped').textContent = (total - mapped).toLocaleString();
+  }
+}
+
+if (downloadXlsxBtn) {
+  downloadXlsxBtn.addEventListener('click', exportWarehouseDataToExcel);
+}
+
+async function exportWarehouseDataToExcel() {
+  const status = document.getElementById('expStatusFilter').value;
+  const floor = document.getElementById('expFloorFilter').value;
+
+  showToast('Generating Excel report...');
+
+  try {
+    let items = productsData;
+    if (status !== 'ALL') {
+      if (status === 'MAPPED') {
+        items = items.filter(p => (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf);
+      } else if (status === 'UNMAPPED') {
+        items = items.filter(p => (p.status || '').toUpperCase() !== 'MAPPED' && !p.floor && !p.row && !p.shelf);
+      }
+    }
+    if (floor !== 'ALL') {
+      items = items.filter(p => String(p.floor) === String(floor));
+    }
+
+    const exportRows = items.map((p, idx) => ({
+      '#': idx + 1,
+      'Product Name': p.product_name || p.name || '—',
+      'Stock No': p.stock_no || p.stock_code || '—',
+      'Barcode': p.barcode || '—',
+      'Category': p.category || '—',
+      'Department': p.department || p.subcategory || '—',
+      'Floor': p.floor || '—',
+      'Row (Aisle)': p.row || '—',
+      'Shelf': p.shelf || '—',
+      'Level': p.level || '—',
+      'Full Location': p.locFull || p.storage_location || (p.floor ? `${p.floor}-${p.row}-${p.shelf}-${p.level}` : 'UNMAPPED'),
+      'On Hand Qty': p.qty !== undefined ? p.qty : 0,
+      'Status': p.status || (p.floor ? 'MAPPED' : 'UNMAPPED'),
+      'Last Modified By': p.last_modified_by || 'System'
+    }));
+
+    if (typeof XLSX !== 'undefined') {
+      const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Warehouse Inventory');
+
+      XLSX.writeFile(workbook, `Warehouse_Inventory_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+      showToast('Excel report downloaded successfully!', 'success');
+    } else {
+      showToast('XLSX library not loaded.', 'error');
+    }
+  } catch (err) {
+    showToast('Failed to export Excel file: ' + err.message, 'error');
+  }
+}
+
+
+// --- 3. DAILY DELIVERY ORDERS & S-SHAPE PICK ROUTE ENGINE ---
+const ordersOverlay = document.getElementById('ordersOverlay');
+const pickerRouteOverlay = document.getElementById('pickerRouteOverlay');
+const ordersBtn = document.getElementById('ordersBtn');
+const closeOrdersModal = document.getElementById('closeOrdersModal');
+const cancelOrdersBtn = document.getElementById('cancelOrdersBtn');
+const closeRouteModal = document.getElementById('closeRouteModal');
+const cancelRouteBtn = document.getElementById('cancelRouteBtn');
+
+let currentActiveRouteSteps = [];
+let currentRouteStepIndex = 0;
+
+if (ordersBtn) {
+  ordersBtn.addEventListener('click', openOrdersModal);
+}
+
+if (closeOrdersModal) closeOrdersModal.addEventListener('click', () => ordersOverlay.classList.remove('show'));
+if (cancelOrdersBtn) cancelOrdersBtn.addEventListener('click', () => ordersOverlay.classList.remove('show'));
+if (closeRouteModal) closeRouteModal.addEventListener('click', () => pickerRouteOverlay.classList.remove('show'));
+if (cancelRouteBtn) cancelRouteBtn.addEventListener('click', () => pickerRouteOverlay.classList.remove('show'));
+
+async function openOrdersModal() {
+  if (ordersOverlay) ordersOverlay.classList.add('show');
+  const container = document.getElementById('ordersListContainer');
+  if (!container) return;
+
+  container.innerHTML = '<div style="color:#64748b; font-size:13px;">Loading delivery orders...</div>';
+
+  try {
+    const res = await fetch('/api/orders');
+    const data = await res.json();
+
+    if (data.success && data.orders && data.orders.length > 0) {
+      container.innerHTML = '';
+      data.orders.forEach(ord => {
+        const itemEl = document.createElement('div');
+        itemEl.style.cssText = 'background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; display:flex; justify-content:space-between; align-items:center;';
+        itemEl.innerHTML = `
+          <div>
+            <div style="font-weight:700; font-size:14.5px; color:#0f172a;">${escapeHtml(ord.order_no)}</div>
+            <div style="font-size:12px; color:#64748b; margin-top:2px;">Customer: ${escapeHtml(ord.customer_name)}</div>
+            <div style="font-size:11.5px; color:#059669; font-weight:600; margin-top:4px;">${ord.items ? ord.items.length : 0} Items to Pick</div>
+          </div>
+          <button type="button" onclick="generatePickRouteForOrder(${ord.id})" style="background:#059669; color:white; border:none; padding:8px 14px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:pointer;">
+            ⚡ Start Pick Route
+          </button>
+        `;
+        container.appendChild(itemEl);
+      });
+    } else {
+      container.innerHTML = '<div style="color:#64748b; font-size:13px;">No pending delivery orders.</div>';
+    }
+  } catch (e) {
+    container.innerHTML = '<div style="color:#ef4444; font-size:13px;">Failed to fetch delivery orders.</div>';
+  }
+}
+
+window.generatePickRouteForOrder = async function(orderId) {
+  showToast('Calculating S-Shape shortest pick route...');
+
+  try {
+    const res = await fetch(`/api/orders/${orderId}/route`);
+    const data = await res.json();
+
+    if (data.success && data.routeSteps && data.routeSteps.length > 0) {
+      currentActiveRouteSteps = data.routeSteps;
+      currentRouteStepIndex = 0;
+
+      if (ordersOverlay) ordersOverlay.classList.remove('show');
+      if (pickerRouteOverlay) pickerRouteOverlay.classList.add('show');
+
+      renderActiveRouteStep();
+    } else {
+      showToast('No valid mapped items found for this order.', 'error');
+    }
+  } catch (err) {
+    showToast('Error generating pick route: ' + err.message, 'error');
+  }
+};
+
+function renderActiveRouteStep() {
+  if (!currentActiveRouteSteps || currentActiveRouteSteps.length === 0) return;
+  const step = currentActiveRouteSteps[currentRouteStepIndex];
+
+  document.getElementById('routeOrderTitle').textContent = `Pick Route (Step ${currentRouteStepIndex + 1} of ${currentActiveRouteSteps.length})`;
+  document.getElementById('routeProgressText').textContent = `Optimal Path Progress: ${Math.round(((currentRouteStepIndex + 1) / currentActiveRouteSteps.length) * 100)}%`;
+
+  document.getElementById('activeStepLocationBadge').textContent = `📍 TARGET LOCATION: FLOOR ${step.floor} - ROW ${step.row} - SHELF ${step.shelf} (LEVEL ${step.level})`;
+  document.getElementById('activeStepProductName').textContent = step.product_name;
+  document.getElementById('activeStepMeta').textContent = `Stock No: ${step.stock_no || '—'} | Barcode: ${step.barcode || '—'}`;
+  document.getElementById('activeStepQtyBadge').textContent = `Pick ${step.requested_qty} Units`;
+}
+
+const confirmStepBtn = document.getElementById('confirmStepBtn');
+if (confirmStepBtn) {
+  confirmStepBtn.addEventListener('click', () => {
+    playScanBeepSound();
+    if (currentRouteStepIndex < currentActiveRouteSteps.length - 1) {
+      currentRouteStepIndex++;
+      renderActiveRouteStep();
+      showToast('Pick confirmed! Moving to next shelf location.', 'success');
+    } else {
+      if (pickerRouteOverlay) pickerRouteOverlay.classList.remove('show');
+      showToast('🎉 Order Picking Route Completed Successfully!', 'success');
+    }
+  });
+}
+
+// --- 4. DEDICATED SUPER ADMIN MASTER PORTAL DATA TABLE CONTROLLER ---
+let portalCurrentPage = 1;
+const portalPageSize = 25;
+let portalDebounceTimer = null;
+let portalAbortController = null;
+let portalStatsCached = null;
+
+async function fetchPortalKPIs(force = false) {
+  if (portalStatsCached && !force) return portalStatsCached;
+  try {
+    const statsRes = await fetch('/api/admin/stats');
+    const statsData = await statsRes.json();
+    if (statsData.success && statsData.stats) {
+      portalStatsCached = statsData.stats;
+      const { totalProducts, mappedCount, unmappedCount, totalQty } = statsData.stats;
+      if (document.getElementById('portalTotalProducts')) document.getElementById('portalTotalProducts').textContent = (totalProducts || 0).toLocaleString();
+      if (document.getElementById('portalMappedCount')) document.getElementById('portalMappedCount').textContent = (mappedCount || 0).toLocaleString();
+      if (document.getElementById('portalUnmappedCount')) document.getElementById('portalUnmappedCount').textContent = (unmappedCount || 0).toLocaleString();
+      if (document.getElementById('portalTotalQty')) document.getElementById('portalTotalQty').textContent = (totalQty || 0).toLocaleString();
+      
+      const mappedPct = totalProducts > 0 ? ((mappedCount / totalProducts) * 100).toFixed(1) : '0';
+      const mappedPctEl = document.getElementById('portalMappedPct');
+      if (mappedPctEl) {
+        mappedPctEl.innerHTML = `<span style="font-weight:800; font-size:12px;">${mappedPct}%</span> <span style="color:#64748b;">mapped (${(mappedCount || 0).toLocaleString()} items)</span>`;
+      }
+    }
+  } catch (err) {
+    console.warn('Portal stats fetch error:', err);
+  }
+}
+
+async function renderPortalDataTable(options = {}) {
+  const tableBody = document.getElementById('portalTableBody');
+  if (!tableBody) return;
+
+  const searchQuery = (document.getElementById('portalTableSearch')?.value || '').trim();
+  const statusFilter = document.getElementById('portalStatusFilter')?.value || 'ALL';
+  const floorFilter = document.getElementById('portalFloorFilter')?.value || 'ALL';
+
+  // Load / refresh KPIs in background
+  fetchPortalKPIs(options.refreshStats);
+
+  // Cancel previous in-flight request if user is typing or changing filters rapidly
+  if (portalAbortController) {
+    portalAbortController.abort();
+  }
+  portalAbortController = new AbortController();
+
+  try {
+    const url = `/api/admin/products?page=${portalCurrentPage}&limit=${portalPageSize}&search=${encodeURIComponent(searchQuery)}&status=${encodeURIComponent(statusFilter)}&floor=${encodeURIComponent(floorFilter)}`;
+    const res = await fetch(url, { signal: portalAbortController.signal });
+    const data = await res.json();
+
+    if (!data.success) {
+      tableBody.innerHTML = `<tr><td colspan="9" style="padding:24px; text-align:center; color:#e11d48;">Error loading inventory data: ${escapeHtml(data.error || 'Server error')}</td></tr>`;
+      return;
+    }
+
+    const { products: pageItems, total: totalRecords, totalPages } = data;
+
+    const startIdx = (portalCurrentPage - 1) * portalPageSize;
+    const pagInfo = document.getElementById('portalPaginationInfo');
+    if (pagInfo) {
+      const endDisplay = Math.min(startIdx + portalPageSize, totalRecords);
+      pagInfo.innerHTML = `Showing <strong style="color:#0f172a;">${totalRecords > 0 ? (startIdx + 1).toLocaleString() : 0}</strong> to <strong style="color:#0f172a;">${endDisplay.toLocaleString()}</strong> of <strong style="color:#0f172a;">${totalRecords.toLocaleString()}</strong> SKUs`;
+    }
+
+    const pageLabel = document.getElementById('portalCurrentPageLabel');
+    if (pageLabel) pageLabel.textContent = `Page ${portalCurrentPage} of ${totalPages || 1}`;
+
+    const prevBtn = document.getElementById('portalPrevPageBtn');
+    if (prevBtn) prevBtn.disabled = portalCurrentPage <= 1;
+
+    const nextBtn = document.getElementById('portalNextPageBtn');
+    if (nextBtn) nextBtn.disabled = portalCurrentPage >= totalPages;
+
+    tableBody.innerHTML = '';
+    const mobileCardsList = document.getElementById('portalMobileCardsList');
+    if (mobileCardsList) mobileCardsList.innerHTML = '';
+
+    if (!pageItems || pageItems.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="9" style="padding:36px 16px; text-align:center;">
+            <div style="width:40px; height:40px; border-radius:10px; background:#f1f5f9; color:#64748b; display:inline-flex; align-items:center; justify-content:center; margin-bottom:8px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <div style="font-weight:700; font-size:13.5px; color:#0f172a;">No matching products found</div>
+            <div style="font-size:11.5px; color:#64748b; margin-top:2px;">Try adjusting your keyword or status/floor filter.</div>
+          </td>
+        </tr>`;
+      if (mobileCardsList) {
+        mobileCardsList.innerHTML = `
+          <div style="padding:28px 16px; text-align:center; background:#ffffff; border-radius:14px; border:1.5px solid #e2e8f0;">
+            <div style="font-weight:700; font-size:14px; color:#0f172a;">No matching products found</div>
+            <div style="font-size:12px; color:#64748b; margin-top:4px;">Try adjusting your keyword or status/floor filter.</div>
+          </div>`;
+      }
+      return;
+    }
+
+    window.portalProductsMap = {};
+
+    pageItems.forEach((p, idx) => {
+      const locList = Array.isArray(p.locations) ? p.locations : [];
+      const itemKey = p.id || (p.stock_no ? 'stock_' + p.stock_no : (p.barcode ? 'bar_' + p.barcode : (locList[0] && locList[0].id ? locList[0].id : ('idx_' + idx))));
+      window.portalProductsMap[itemKey] = p;
+      if (p.id) window.portalProductsMap[p.id] = p;
+
+      const tr = document.createElement('tr');
+      const isMapped = (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf;
+      const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
+      const row = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row !== undefined && p.row !== null ? String(p.row) : '');
+      const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
+      const level = p.level !== undefined && p.level !== null ? String(p.level) : '0';
+      const extraLocCount = locList.length > 1 ? locList.length - 1 : 0;
+      const allLocsTooltip = locList.length > 0 ? locList.map(l => l.loc).filter(Boolean).join(', ') : `${floor}-${row}-${shelf}-${level}`;
+
+      const hasCartonStorage = Boolean(
+        p.is_carton ||
+        p.loc_type === 'CARTON' ||
+        (p.location_storage && p.location_storage.includes('Carton')) ||
+        (p.storage_location && p.storage_location.includes('Carton')) ||
+        (locList.length > 0 && locList.some(l => l.is_carton || (l.storage_location && l.storage_location.includes('Carton'))))
+      );
+
+      const cartonBadge = hasCartonStorage ? ` <span style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:999px; padding:1px 6px; font-size:9.5px; font-weight:800; margin-left:3px;" title="Big Carton Bulk Storage">📦 Carton</span>` : '';
+
+      const locBadge = isMapped && floor !== ''
+        ? `<span class="badge-loc mapped" title="Shelf locations: ${escapeHtml(allLocsTooltip)}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> ${escapeHtml(floor)}-${escapeHtml(row)}-${escapeHtml(shelf)}-${escapeHtml(level)}${cartonBadge}${extraLocCount > 0 ? ` <span style="background:#0284c7; color:#ffffff; border-radius:999px; padding:1px 6px; font-size:9.5px; font-weight:700; margin-left:3px;" title="${escapeHtml(allLocsTooltip)}">+${extraLocCount} loc</span>` : ''}</span>`
+        : `<span class="badge-loc unmapped">Unassigned</span>`;
+
+      const statusBadge = isMapped 
+        ? `<span class="badge-status mapped">Mapped</span>` 
+        : `<span class="badge-status unmapped">Unmapped</span>`;
+
+      const deptCategory = p.department || p.category || p.subcategory || 'General';
+
+      tr.innerHTML = `
+        <td style="color:#64748b; font-size:11.5px; font-weight:500;">${startIdx + idx + 1}</td>
+        <td>
+          <div style="font-weight:700; color:#0f172a; font-size:13px; line-height:1.25;">${escapeHtml(p.product_name || p.name || '—')}</div>
+          <div style="font-size:10.5px; color:#94a3b8; margin-top:1px;">ID: #${p.id || p.stock_no || idx}${locList.length > 1 ? ` • <span style="color:#0284c7; font-weight:600;">${locList.length} locations</span>` : ''}</div>
+        </td>
+        <td>
+          <span class="badge-mono">${escapeHtml(p.stock_no || p.stock_code || '—')}</span>
+        </td>
+        <td>
+          <span class="badge-mono" style="color:#64748b;">${escapeHtml(p.barcode || '—')}</span>
+        </td>
+        <td>
+          <span style="font-size:11.5px; color:#475569; background:#f1f5f9; padding:2px 7px; border-radius:5px; font-weight:500; display:inline-block;">${escapeHtml(deptCategory)}</span>
+        </td>
+        <td>${locBadge}</td>
+        <td>
+          <span class="badge-qty">${p.qty !== undefined ? p.qty : 0}</span>
+        </td>
+        <td>${statusBadge}</td>
+        <td style="text-align:center;">
+          ${isMapped ? `
+            <button type="button" class="btn-table-reset" onclick="resetPortalProductLocation('${escapeHtml(String(itemKey)).replace(/'/g, "\\'")}', '${escapeHtml(p.product_name || p.name || '').replace(/'/g, "\\'")}')" title="Remove shelf location and mark as Unmapped">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Reset</span>
+            </button>
+          ` : `<span style="color:#cbd5e1; font-size:11.5px;">—</span>`}
+        </td>
+        <td style="text-align:right;">
+          <button type="button" class="btn-table-edit" onclick="openPortalEditProduct('${escapeHtml(String(itemKey)).replace(/'/g, "\\'")}')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Edit</span>
+          </button>
+        </td>
+      `;
+      tableBody.appendChild(tr);
+
+      // Append Card for Mobile Screen Layout
+      if (mobileCardsList) {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'portal-mobile-card';
+        cardDiv.innerHTML = `
+          <div class="pmc-header">
+            <div>
+              <div class="pmc-title">${escapeHtml(p.product_name || p.name || '—')}</div>
+              <div class="pmc-meta">#${startIdx + idx + 1} • Stock No: <span style="font-family:monospace; font-weight:700; color:#0f172a;">${escapeHtml(p.stock_no || p.stock_code || '—')}</span></div>
+            </div>
+            ${statusBadge}
+          </div>
+          <div class="pmc-body">
+            <div class="pmc-row">
+              <span class="pmc-label">Barcode:</span>
+              <span class="pmc-val mono">${escapeHtml(p.barcode || '—')}</span>
+            </div>
+            <div class="pmc-row">
+              <span class="pmc-label">Department:</span>
+              <span class="pmc-val" style="background:#f1f5f9; padding:2px 8px; border-radius:6px; font-size:11px;">${escapeHtml(deptCategory)}</span>
+            </div>
+            <div class="pmc-row" style="margin-top:2px;">
+              <span class="pmc-label">Shelf Location:</span>
+              <span class="pmc-val">${locBadge}</span>
+            </div>
+            <div class="pmc-row">
+              <span class="pmc-label">On-Hand Qty:</span>
+              <span class="pmc-val" style="font-size:13px; color:#0284c7;">${p.qty !== undefined ? p.qty : 0} units</span>
+            </div>
+          </div>
+          <div class="pmc-actions">
+            ${isMapped ? `
+              <button type="button" class="btn-mobile-reset" onclick="resetPortalProductLocation('${escapeHtml(String(itemKey)).replace(/'/g, "\\'")}', '${escapeHtml(p.product_name || p.name || '').replace(/'/g, "\\'")}')">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>Reset Loc</span>
+              </button>
+            ` : ''}
+            <button type="button" class="btn-mobile-edit" onclick="openPortalEditProduct('${escapeHtml(String(itemKey)).replace(/'/g, "\\'")}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span>Edit Details</span>
+            </button>
+          </div>
+        `;
+        mobileCardsList.appendChild(cardDiv);
+      }
+    });
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      tableBody.innerHTML = `<tr><td colspan="9" style="padding:24px; text-align:center; color:#e11d48;">Network error: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+}
+
+const portalSearchInput = document.getElementById('portalTableSearch');
+if (portalSearchInput) {
+  portalSearchInput.addEventListener('input', () => {
+    clearTimeout(portalDebounceTimer);
+    portalDebounceTimer = setTimeout(() => {
+      portalCurrentPage = 1;
+      renderPortalDataTable();
+    }, 160);
+  });
+}
+
+const portalStatusFilter = document.getElementById('portalStatusFilter');
+if (portalStatusFilter) {
+  portalStatusFilter.addEventListener('change', () => {
+    portalCurrentPage = 1;
+    renderPortalDataTable();
+  });
+}
+
+const portalFloorFilter = document.getElementById('portalFloorFilter');
+if (portalFloorFilter) {
+  portalFloorFilter.addEventListener('change', () => {
+    portalCurrentPage = 1;
+    renderPortalDataTable();
+  });
+}
+
+const portalPrevBtn = document.getElementById('portalPrevPageBtn');
+if (portalPrevBtn) {
+  portalPrevBtn.addEventListener('click', () => {
+    if (portalCurrentPage > 1) {
+      portalCurrentPage--;
+      renderPortalDataTable();
+    }
+  });
+}
+
+const portalNextBtn = document.getElementById('portalNextPageBtn');
+if (portalNextBtn) {
+  portalNextBtn.addEventListener('click', () => {
+    portalCurrentPage++;
+    renderPortalDataTable();
+  });
+}
+
+const saExportBtn = document.getElementById('saExportBtn');
+if (saExportBtn) {
+  saExportBtn.addEventListener('click', exportWarehouseDataToExcel);
+}
+
+const saImportBtn = document.getElementById('saImportBtn');
+const saImportFile = document.getElementById('saImportFile');
+if (saImportBtn && saImportFile) {
+  saImportBtn.addEventListener('click', () => {
+    saImportFile.click();
+  });
+
+  saImportFile.addEventListener('change', async (e) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    saImportBtn.innerHTML = `<span data-i18n="importingBtn">${TRANSLATIONS[CURRENT_LANG].importingBtn || 'Importing...'}</span>`;
+    saImportBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/upload-excel', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || 'Import successful!');
+        renderPortalDataTable();
+      } else {
+        showToast(data.message || 'Import failed.', true);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error uploading file.', true);
+    } finally {
+      saImportFile.value = '';
+      saImportBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span data-i18n="importDataBtn">${TRANSLATIONS[CURRENT_LANG].importDataBtn || 'Import Data'}</span>`;
+      saImportBtn.disabled = false;
+    }
+  });
+}
+
+const handleSuperAdminLogout = () => {
+  currentUser = null;
+  localStorage.removeItem('wh_current_user');
+  window.forceUserAppMode = false;
+  updateUserUI();
+  showToast('Super Admin Logged Out.');
+};
+
+const saLogoutBtn = document.getElementById('saLogoutBtn');
+if (saLogoutBtn) {
+  saLogoutBtn.addEventListener('click', handleSuperAdminLogout);
+}
+
+const saMobileLogoutBtn = document.getElementById('saMobileLogoutBtn');
+if (saMobileLogoutBtn) {
+  saMobileLogoutBtn.addEventListener('click', handleSuperAdminLogout);
+}
+
+const saSwitchAppBtn = document.getElementById('saSwitchAppBtn');
+if (saSwitchAppBtn) {
+  saSwitchAppBtn.addEventListener('click', () => {
+    window.forceUserAppMode = !window.forceUserAppMode;
+    updateUserUI();
+    if (window.forceUserAppMode) {
+      showToast('Switched to Standard Search Mode. (Click Search Mode again to return to Portal)', 'info');
+    }
+  });
+}
+
+const saNavMasterBtn = document.getElementById('saNavMasterBtn');
+if (saNavMasterBtn) {
+  saNavMasterBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    renderPortalDataTable();
+    showToast('Viewing Master Inventory Database.');
+  });
+}
+
+const saNavCartonBtn = document.getElementById('saNavCartonBtn');
+if (saNavCartonBtn) {
+  saNavCartonBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (cartonStockNoInput) cartonStockNoInput.value = '';
+    if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+    if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+    matchedCartonProduct = null;
+    if (cartonOverlay) cartonOverlay.classList.add('show');
+  });
+}
+
+const saNavOrdersBtn = document.getElementById('saNavOrdersBtn');
+if (saNavOrdersBtn) {
+  saNavOrdersBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    openOrdersModal();
+  });
+}
+
+const saNavAddProductBtn = document.getElementById('saNavAddProductBtn');
+if (saNavAddProductBtn) {
+  saNavAddProductBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    openAddForm();
+  });
+}
+
+const saNavAuditBtn = document.getElementById('saNavAuditBtn');
+if (saNavAuditBtn) {
+  saNavAuditBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    openScanner((scannedText) => {
+      const parsed = parseLocationQR(scannedText);
+      const locCode = parsed ? `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}` : scannedText.trim();
+      auditShelfLocation(locCode);
+    });
+  });
+}
+
+window.openPortalEditProduct = function(productId) {
+  let p = (window.portalProductsMap && window.portalProductsMap[productId]);
+  if (!p) {
+    const cleanId = String(productId).replace(/^(stock_|bar_|idx_)/, '');
+    p = PRODUCTS.find(item => String(item.id) === cleanId || String(item.stock_no || '').toLowerCase() === cleanId.toLowerCase() || String(item.barcode || '').toLowerCase() === cleanId.toLowerCase() || String(item.barcode_2 || '').toLowerCase() === cleanId.toLowerCase());
+  }
+  if (p) {
+    activeProduct = p;
+    openEditForm();
+  } else {
+    fetch(`/api/products/lookup/${encodeURIComponent(productId)}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success && res.product) {
+          activeProduct = res.product;
+          openEditForm();
+        } else {
+          showToast('Could not load product location details.', 'error');
+        }
+      })
+      .catch(err => {
+        showToast('Error loading product: ' + err.message, 'error');
+      });
+  }
+};
+
+window.resetPortalProductLocation = async function(productId, productName) {
+  if (!confirm(`Are you sure you want to remove the location for "${productName || 'this item'}"?\n\nThis will clear Floor, Row, Shelf, and Level and mark the product as UNMAPPED.`)) {
+    return;
+  }
+
+  showToast(`Removing location for "${productName || 'item'}"...`);
+
+  try {
+    const res = await fetch(`/api/products/${encodeURIComponent(productId)}/reset-location`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }).then(r => r.json());
+
+    if (res.success) {
+      if (window.portalProductsMap && window.portalProductsMap[productId]) {
+        window.portalProductsMap[productId].floor = '';
+        window.portalProductsMap[productId].row = '';
+        window.portalProductsMap[productId].batch = '';
+        window.portalProductsMap[productId].shelf = '';
+        window.portalProductsMap[productId].level = '0';
+        window.portalProductsMap[productId].loc = '';
+        window.portalProductsMap[productId].status = 'UNMAPPED';
+        window.portalProductsMap[productId].locations = [];
+      }
+      let pIdx = -1;
+      if (res.product && res.product.id) {
+        pIdx = PRODUCTS.findIndex(p => String(p.id) === String(res.product.id));
+      }
+      if (pIdx === -1) {
+        pIdx = PRODUCTS.findIndex(p => {
+          const pKey = p.id || (p.stock_no ? 'stock_' + p.stock_no : (p.barcode ? 'bar_' + p.barcode : null));
+          return String(p.id) === String(productId) || String(pKey) === String(productId);
+        });
+      }
+      if (pIdx !== -1) {
+        PRODUCTS[pIdx].floor = '';
+        PRODUCTS[pIdx].row = '';
+        PRODUCTS[pIdx].batch = '';
+        PRODUCTS[pIdx].shelf = '';
+        PRODUCTS[pIdx].level = '0';
+        PRODUCTS[pIdx].loc = '';
+        PRODUCTS[pIdx].status = 'UNMAPPED';
+        PRODUCTS[pIdx].locations = [];
+      }
+      rebuildIndex();
+      renderPortalDataTable({ refreshStats: true });
+      showToast(`Location cleared for "${productName || 'Item'}". Marked as Unmapped!`, 'success');
+    } else {
+      showToast('Error resetting location: ' + (res.error || res.message || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    showToast('Failed to reset location: ' + err.message, 'error');
+  }
+};
 
 // Start app on DOM ready
 document.addEventListener('DOMContentLoaded', initApp);
