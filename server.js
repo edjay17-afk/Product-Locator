@@ -750,9 +750,14 @@ app.get('/api/orders/:id/route', async (req, res) => {
   }
 });
 
-// Fallback to index.html for SPA routing
+// Fallback to index.html for SPA routing (or 404 in serverless)
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ success: false, error: 'Endpoint not found', path: req.originalUrl || req.url });
+  }
 });
 
 // Helper to get local IP addresses for easy mobile connection
