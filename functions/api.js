@@ -1,8 +1,7 @@
 const serverless = require('serverless-http');
 const app = require('../server');
 
-// Wrap Express app for Netlify Serverless Functions
-const handler = serverless(app, {
+const serverlessHandler = serverless(app, {
   request(request, event) {
     let targetPath = event.path || '';
     if (targetPath.startsWith('/.netlify/functions/api')) {
@@ -16,5 +15,19 @@ const handler = serverless(app, {
   }
 });
 
-module.exports = { handler };
-module.exports.handler = handler;
+exports.handler = async (event, context) => {
+  // Prevent Lambda from hanging on open database connections/timers
+  if (context) {
+    context.callbackWaitsForEmptyEventLoop = false;
+  }
+  try {
+    return await serverlessHandler(event, context);
+  } catch (err) {
+    console.error('Netlify Function error:', err);
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ success: false, error: err.message || 'Internal Serverless Error' })
+    };
+  }
+};

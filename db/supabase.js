@@ -81,94 +81,29 @@ function loadSeedData() {
   return [];
 }
 
-memoryProducts = loadSeedData();
-
 // Initialize Supabase Client
 function initSupabase() {
+  if (supabase) return supabase;
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.log('⚡ SUPABASE_URL / SUPABASE_KEY not set. Running in In-Memory / Netlify Fallback mode.');
-    return false;
+    isConnectedToSupabase = false;
+    return null;
   }
 
   try {
-    supabase = createClient(supabaseUrl, supabaseKey);
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false }
+    });
     isConnectedToSupabase = true;
     console.log('⚡ Connected to Supabase PostgreSQL successfully!');
-    seedSupabaseIfEmpty();
-    seedUsersIfEmpty();
-    return true;
+    return supabase;
   } catch (err) {
     console.warn('Failed to initialize Supabase client:', err.message);
     isConnectedToSupabase = false;
-    return false;
-  }
-}
-
-async function seedUsersIfEmpty() {
-  if (!supabase) return;
-  try {
-    const { count, error } = await supabase.from('users').select('*', { count: 'exact', head: true });
-    if (error) {
-      console.warn('Users table check (Make sure `users` table exists in Supabase):', error.message);
-      return;
-    }
-
-    if (count === 0) {
-      console.log('Seeding default stockmen accounts into Supabase...');
-      await supabase.from('users').insert(memoryUsers.map(u => ({
-        username: u.username,
-        password: u.password,
-        full_name: u.full_name,
-        role: u.role
-      })));
-      console.log('🎉 Stockmen accounts seeded into Supabase users table!');
-    }
-  } catch (err) {
-    console.warn('Users seeding note:', err.message);
-  }
-}
-
-async function seedSupabaseIfEmpty() {
-  if (!supabase) return;
-  try {
-    const { count, error } = await supabase.from('products').select('*', { count: 'exact', head: true });
-    if (error) {
-      console.warn('Supabase table lookup warning (Make sure `products` table exists):', error.message);
-      return;
-    }
-
-    if (count === 0) {
-      console.log('Seeding initial products into Supabase PostgreSQL...');
-      const seedItems = memoryProducts.map(p => ({
-        barcode: p.barcode,
-        stock_no: p.stock_no,
-        product_name: p.product_name,
-        category: p.category,
-        department: p.department,
-        floor: p.floor,
-        row: p.row,
-        shelf: p.shelf,
-        level: p.level,
-        loc: p.loc,
-        location_storage: p.storage_location || p.locFull || '',
-        qty: p.qty,
-        status: p.status,
-        custom: p.custom,
-        last_modified_by: ''
-      }));
-
-      const chunkSize = 200;
-      for (let i = 0; i < seedItems.length; i += chunkSize) {
-        const chunk = seedItems.slice(i, i + chunkSize);
-        await supabase.from('products').insert(chunk);
-      }
-      console.log(`🎉 Supabase successfully seeded with products!`);
-    }
-  } catch (err) {
-    console.error('Supabase seeding error:', err);
+    return null;
   }
 }
 
