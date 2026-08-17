@@ -62,6 +62,12 @@ app.get('/api/host-info', (req, res) => {
 
 // --- AUTHENTICATION & USER ENDPOINTS ---
 
+// Health check — visit /api/ping to confirm the Netlify function is running
+app.get('/api/ping', (req, res) => {
+  res.json({ success: true, message: 'pong', env: process.env.NODE_ENV || 'unknown' });
+});
+
+
 // Login Endpoint
 app.post('/api/auth/login', async (req, res) => {
   try {
