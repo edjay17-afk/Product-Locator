@@ -4,11 +4,11 @@
   functions = "functions"
 
 [functions]
-  included_files = ["seed-data.json"]
+  included_files = ["seed-data.json", "db/**"]
 
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
+  to = "/.netlify/functions/api"
   status = 200
 
 [[redirects]]
