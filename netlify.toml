@@ -4,7 +4,7 @@
   functions = "netlify/functions"
 
 [functions]
-  included_files = ["db/**"]
+  included_files = ["db/**", "auth.js"]
 
 [functions."api"]
   timeout = 26

@@ -29,6 +29,8 @@ const TRANSLATIONS = {
     uploadExcelBtn: "Upload Excel",
     recentHead: "Recent lookups",
     clearRecent: "clear",
+    recentPrev: "Prev",
+    recentNext: "Next",
     signIn: "Sign In",
     logout: "Logout",
     cancel: "Cancel",
@@ -64,8 +66,9 @@ const TRANSLATIONS = {
     scanNewLoc: "Scan QR for New Location",
     rapidTitle: "Rapid Location Logger",
     rapidSub: "Quickly scan a product, scan its location QR, and save. Repeat for high-speed mapping.",
-    rapidBarcodeLabel: "1. Scan / Type Product Barcode",
-    rapidLocLabel: "2. Scan / Type Location (e.g. 1-02-01-03)",
+    rapidBarcodeLabel: "1. Scan / Search Product",
+    rapidSearchPlaceholder: "Search product name, code, barcode...",
+    rapidLocLabel: "2. Scan Location QR",
     rapidQtyLabel: "3. Quantity On Hand",
     rapidSubmit: "Add & Next",
     rapidSuccessLog: "Last Registered Items (This Session)",
@@ -97,7 +100,10 @@ const TRANSLATIONS = {
     cardLevel: "Level",
     cardStockman: "Stockman",
     cardLocationQty: "Location Qty",
+    cardTransferBtn: "Transfer",
+    cardAddStockBtn: "Add Stock",
     cardEditBtn: "Edit",
+    cardDeleteLoc: "Delete",
     quickSearchBoard: "Search Board QR",
     qrBoardTitle: "Quick Search Display Board",
     qrBoardSub: "Print this board and post it on your warehouse walls or doors. Customers and staff can scan it to instantly find product locations on their phones without logging in.",
@@ -119,7 +125,8 @@ const TRANSLATIONS = {
     saNavCartonBtn: "Carton Putaway",
     cartonModalTitle: "Carton Putaway",
     cartonModalSub: "Set shelf location for bulk carton items",
-    cartonStep1: "Step 1: Enter Item Code",
+    cartonStep1: "Step 1: Scan / Search Product",
+    cartonSearchPlaceholder: "Search product name, stock code, or barcode...",
     cartonItemFound: "Item Found",
     cartonStep2: "Step 2: Shelf Location",
     cartonScanQR: "📷 Scan QR Code",
@@ -187,6 +194,8 @@ const TRANSLATIONS = {
     uploadExcelBtn: "导入 Excel",
     recentHead: "最近查询",
     clearRecent: "清除历史",
+    recentPrev: "上一页",
+    recentNext: "下一页",
     signIn: "登录",
     logout: "登出",
     cancel: "取消",
@@ -222,8 +231,9 @@ const TRANSLATIONS = {
     scanNewLoc: "扫描二维码添加新位置",
     rapidTitle: "快速位置登记",
     rapidSub: "快速扫描商品条码，扫描库位二维码并保存。适合批量高速库位登记。",
-    rapidBarcodeLabel: "1. 扫描 / 输入商品条形码",
-    rapidLocLabel: "2. 扫描 / 输入库位 (例如 1-02-01-03)",
+    rapidBarcodeLabel: "1. 搜索或扫描商品",
+    rapidSearchPlaceholder: "搜索商品名称、货号或条形码...",
+    rapidLocLabel: "2. 扫描库位二维码",
     rapidQtyLabel: "3. 现有库存数量",
     rapidSubmit: "添加 & 下一个",
     rapidSuccessLog: "本次登记记录（最近5条）",
@@ -255,7 +265,10 @@ const TRANSLATIONS = {
     cardLevel: "层数",
     cardStockman: "负责理货员",
     cardLocationQty: "库位数量",
+    cardTransferBtn: "移库",
+    cardAddStockBtn: "加库存",
     cardEditBtn: "编辑",
+    cardDeleteLoc: "删除位置",
     quickSearchBoard: "查询看板 QR",
     qrBoardTitle: "自助查询引导看板",
     qrBoardSub: "打印此看板并贴在仓库墙壁或通道门上。理货员或客户只需用手机扫描即可免登录自助查询商品货位。",
@@ -277,7 +290,8 @@ const TRANSLATIONS = {
     saNavCartonBtn: "纸箱上架",
     cartonModalTitle: "纸箱上架",
     cartonModalSub: "设置大件纸箱商品的货架位置",
-    cartonStep1: "第 1 步：输入商品代码",
+    cartonStep1: "第 1 步：扫描或搜索商品",
+    cartonSearchPlaceholder: "搜索商品名称、货号或条形码...",
     cartonItemFound: "已找到商品",
     cartonStep2: "第 2 步：货架位置",
     cartonScanQR: "📷 扫描二维码",
@@ -356,6 +370,8 @@ function recentKey() {
 }
 
 let recent = [];
+let recentPage = 1;
+const recentPageSize = 5;
 try {
   const saved = localStorage.getItem(recentKey());
   if (saved) recent = JSON.parse(saved);
@@ -480,6 +496,7 @@ function updateLanguageUI() {
   if (activeProduct) {
     renderProduct(activeProduct);
   }
+  renderRecent();
 }
 
 let activeProduct = null;
@@ -764,7 +781,7 @@ function renderProductLocationsUI(p, locs) {
   const totalQty = expandedLocs.reduce((sum, item) => sum + (parseInt(item.qty, 10) || 0), 0);
   document.getElementById('pQty').textContent = totalQty;
 
-  // Deduplicate and group locations by exact coordinates (floor, row, shelf, level)
+  // Deduplicate and group locations by exact normalized coordinates (floor, row, shelf, level)
   const uniqueLocs = [];
   expandedLocs.forEach(item => {
     let floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '';
@@ -783,21 +800,35 @@ function renderProductLocationsUI(p, locs) {
       }
     }
 
-    const hasLoc = floor !== '' || row !== '' || shelf !== '' || locText !== '' || (item.status && String(item.status).toUpperCase() === 'MAPPED');
+    if (row && row !== '0' && row !== '00') row = pad2(row);
+    else if (row === '0' || row === '00') row = '00';
+
+    if (shelf && shelf !== '0' && shelf !== '00') shelf = pad2(shelf);
+    else if (shelf === '0' || shelf === '00') shelf = '00';
+
+    if (level && level !== '0' && level !== '00') level = pad2(level);
+    else level = '00';
+
+    if (!floor) floor = '1';
+
+    const hasLoc = Boolean((row && row !== '00') || (shelf && shelf !== '00') || (locText && locText !== '—'));
+    const isCartonItem = Boolean(item.is_carton || item.loc_type === 'CARTON' || (locText && locText.includes('Carton')));
 
     const existing = uniqueLocs.find(u =>
-      u.floor === floor &&
-      u.row === row &&
-      u.shelf === shelf &&
-      u.level === level
+      String(u.floor) === String(floor) &&
+      pad2(u.row) === pad2(row) &&
+      pad2(u.shelf) === pad2(shelf) &&
+      pad2(u.level) === pad2(level)
     );
 
     if (existing) {
       existing.qty = (parseInt(existing.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
+      existing.is_carton = existing.is_carton || isCartonItem;
+      if (isCartonItem) existing.loc_type = 'CARTON';
       if (item.id && (!existing.id || item.id > existing.id)) {
         existing.id = item.id;
-        existing.status = item.status;
-        existing.last_modified_by = item.last_modified_by || item.modifiedBy;
+        existing.status = item.status || existing.status;
+        existing.last_modified_by = item.last_modified_by || item.modifiedBy || existing.last_modified_by;
       }
     } else {
       uniqueLocs.push({
@@ -813,8 +844,8 @@ function renderProductLocationsUI(p, locs) {
         level,
         hasLoc,
         qty: parseInt(item.qty, 10) || 0,
-        is_carton: item.is_carton || p.is_carton,
-        loc_type: item.loc_type || p.loc_type,
+        is_carton: isCartonItem,
+        loc_type: isCartonItem ? 'CARTON' : (item.loc_type || p.loc_type || 'SHELF'),
         location_storage: item.location_storage || item.storage_location || p.location_storage || p.storage_location || locText || '',
         storage_location: item.storage_location || item.location_storage || p.storage_location || p.location_storage || locText || '',
         status: item.status || (hasLoc ? 'MAPPED' : 'UNMAPPED'),
@@ -824,7 +855,7 @@ function renderProductLocationsUI(p, locs) {
     }
   });
 
-  const mappedLocs = uniqueLocs.filter(item => item.hasLoc && (item.floor !== '' || item.row !== '' || item.shelf !== '' || item.location_storage !== ''));
+  const mappedLocs = uniqueLocs.filter(item => item.hasLoc && item.row !== '00' && item.shelf !== '00');
   const finalLocs = mappedLocs.length > 0 ? mappedLocs : uniqueLocs;
 
   window.currentLocs = finalLocs;
@@ -858,7 +889,13 @@ function renderProductLocationsUI(p, locs) {
     );
 
     const cartonBadgeHtml = isCartonLocation 
-      ? `<span class="badge-carton-tag" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(180, 83, 9, 0.08); margin-right:6px;">📦 Carton/Sack</span>`
+      ? `<span class="badge-carton-tag" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:2.5px 7px; border-radius:6px; font-size:10px; font-weight:800; display:inline-flex; align-items:center; gap:3px; box-shadow:0 1px 2px rgba(180, 83, 9, 0.08); white-space:nowrap; flex-shrink:0;">📦 Carton/Sack</span>`
+      : '';
+
+    const statusBadgeHtml = `<span class="badge ${st.cls}" style="font-size:10px; font-weight:700; padding:2.5px 7px; border-radius:6px; line-height:normal; display:inline-flex; align-items:center; letter-spacing:0.02em; white-space:nowrap; flex-shrink:0;">${st.label}</span>`;
+
+    const deptBadgeHtml = item.department 
+      ? `<span class="dept-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2.5px 8px; border-radius:20px; font-size:10.5px; font-weight:700; font-family:var(--display); white-space:nowrap; flex-shrink:0;">${escapeHtml(item.department)}</span>` 
       : '';
 
     const cardEl = document.createElement('div');
@@ -868,17 +905,18 @@ function renderProductLocationsUI(p, locs) {
     cardEl.onclick = () => openAddQtyForLocation(index);
 
     cardEl.innerHTML = `
-      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-        <div style="flex:1;">
-          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
-            <p class="pname" style="margin:0;">${escapeHtml(item.product_name)}</p>
-            ${cartonBadgeHtml}
-          </div>
+      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div style="flex:1; min-width:0; padding-right:4px;">
+          <p class="pname" style="margin:0 0 4px 0; font-size:16px; font-weight:700; line-height:1.25;">${escapeHtml(item.product_name)}</p>
           <div class="pmeta">
             <span>${escapeHtml(item.category)}</span>
           </div>
         </div>
-        ${item.department ? `<span class="dept-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700; font-family:var(--display); white-space:nowrap; flex-shrink:0; margin-top:2px;">${escapeHtml(item.department)}</span>` : ''}
+        <div class="tagcard-badges-group" style="display:flex; align-items:center; gap:5px; flex-shrink:0; flex-wrap:nowrap;">
+          ${cartonBadgeHtml}
+          ${statusBadgeHtml}
+          ${deptBadgeHtml}
+        </div>
       </div>
       <div class="grid4">
         <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
@@ -892,17 +930,17 @@ function renderProductLocationsUI(p, locs) {
           <div style="opacity: 0.9; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
         </div>
         <div class="tagcard-bottom-actions">
-          <span class="badge ${st.cls}">${st.label}</span>
-          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">Transfer</button>` : ''}
-          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">Add Stock</button>
-          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">Edit</button>
+          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">${TRANSLATIONS[CURRENT_LANG].cardTransferBtn || 'Transfer'}</button>` : ''}
+          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">${TRANSLATIONS[CURRENT_LANG].cardAddStockBtn || 'Add Stock'}</button>
+          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">${TRANSLATIONS[CURRENT_LANG].cardEditBtn || 'Edit'}</button>
+          ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">${TRANSLATIONS[CURRENT_LANG].cardDeleteLoc || 'Delete'}</button>` : ''}
         </div>
       </div>
     `;
     locationsList.appendChild(cardEl);
   });
 
-  window.currentLocs = uniqueLocs;
+  window.currentLocs = finalLocs;
 
   const editBtn = document.getElementById('editProductBtn');
   const scanQrBtn = document.getElementById('scanLocationQrBtn');
@@ -935,7 +973,8 @@ function renderProduct(p) {
   // push to persistent recent lookups
   recent = recent.filter(r => (r.id ? r.id !== p.id : (r.barcode || r.b) !== (p.barcode || p.b)));
   recent.unshift(p);
-  recent = recent.slice(0, 20); // Store up to 20 recent items
+  recent = recent.slice(0, 100); // Store up to 100 recent items for data gathering sessions
+  recentPage = 1; // Always jump to page 1 on new lookup
   try {
     localStorage.setItem(recentKey(), JSON.stringify(recent));
   } catch (e) {}
@@ -960,25 +999,76 @@ function renderProduct(p) {
 
 function renderRecent() {
   const strip = document.getElementById('recentStrip');
+  const paginationEl = document.getElementById('recentPagination');
+  const pageInfoEl = document.getElementById('recentPageInfo');
+  const countBadgeEl = document.getElementById('recentCountBadge');
+  const prevBtn = document.getElementById('recentPrevBtn');
+  const nextBtn = document.getElementById('recentNextBtn');
+
+  if (!strip) return;
   strip.innerHTML = '';
+
   if (recent.length === 0) {
-    strip.innerHTML = '<div class="no-results" style="text-align:left;padding:2px;">Nothing looked up yet.</div>';
+    strip.innerHTML = `<div class="no-results" style="text-align:left;padding:2px;">${CURRENT_LANG === 'en' ? 'Nothing looked up yet.' : '暂无查询历史。'}</div>`;
+    if (paginationEl) paginationEl.style.display = 'none';
+    if (countBadgeEl) countBadgeEl.style.display = 'none';
+    recentPage = 1;
     return;
   }
-  recent.forEach(p => {
+
+  const totalItems = recent.length;
+  const totalPages = Math.ceil(totalItems / recentPageSize);
+
+  if (recentPage > totalPages) recentPage = totalPages;
+  if (recentPage < 1) recentPage = 1;
+
+  if (countBadgeEl) {
+    countBadgeEl.textContent = totalItems;
+    countBadgeEl.style.display = 'inline-block';
+  }
+
+  const startIdx = (recentPage - 1) * recentPageSize;
+  const pageItems = recent.slice(startIdx, startIdx + recentPageSize);
+
+  pageItems.forEach(p => {
     const div = document.createElement('div');
     div.className = 'recent-item';
-    const name = p.product_name || p.name || p.n;
+    const name = p.product_name || p.name || p.n || 'Unnamed Product';
     const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
     const row = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row !== undefined && p.row !== null ? String(p.row) : (p.row || ''));
     const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
     const level = p.level !== undefined && p.level !== null ? String(p.level) : '';
-    const loc = floor !== '' ? `${floor}-${row}-${shelf}-${level}` : 'no location';
+    const hasLoc = floor !== '' || row !== '' || shelf !== '';
+    const loc = hasLoc ? `${floor}-${row}-${shelf}-${level}` : (CURRENT_LANG === 'en' ? 'no location' : '未分配库位');
 
-    div.innerHTML = `<span class="rin">${escapeHtml(name)}</span><span class="riloc">${loc}</span>`;
+    const isCarton = Boolean(
+      p.is_carton ||
+      p.loc_type === 'CARTON' ||
+      (p.location_storage && p.location_storage.toUpperCase().includes('CARTON')) ||
+      (p.storage_location && p.storage_location.toUpperCase().includes('CARTON'))
+    );
+
+    const cartonTag = isCarton ? `<span style="font-size:10px; margin-left:4px;">📦</span>` : '';
+
+    div.innerHTML = `<span class="rin">${escapeHtml(name)} ${cartonTag}</span><span class="riloc">${escapeHtml(loc)}</span>`;
     div.onclick = () => renderProduct(p);
     strip.appendChild(div);
   });
+
+  if (totalPages > 1) {
+    if (paginationEl) paginationEl.style.display = 'flex';
+    if (pageInfoEl) {
+      if (CURRENT_LANG === 'en') {
+        pageInfoEl.textContent = `Page ${recentPage} of ${totalPages} (${totalItems} items)`;
+      } else {
+        pageInfoEl.textContent = `第 ${recentPage} / ${totalPages} 页 (共 ${totalItems} 条)`;
+      }
+    }
+    if (prevBtn) prevBtn.disabled = recentPage <= 1;
+    if (nextBtn) nextBtn.disabled = recentPage >= totalPages;
+  } else {
+    if (paginationEl) paginationEl.style.display = 'none';
+  }
 }
 
 function escapeHtml(s) {
@@ -1151,10 +1241,13 @@ let searchFetchTimer = null;
 // a product that already has a location shows the location card as usual.
 function renderOrPromptLocation(p, code) {
   if (p && !productHasAnyLocation(p)) {
-    openAddFormForScannedNoLocation(p, code);
+    renderProduct(p);
+    activeProduct = p;
+    openEditForm();
     return;
   }
   renderProduct(p);
+  closeEditForm();
 }
 
 async function doSearch(q, isFinal = false) {
@@ -1379,12 +1472,20 @@ function renderMatches(matches) {
 
       rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
       rowEl.onclick = () => {
+        const hasLoc = productHasAnyLocation(p);
         renderProduct(p);
         const inputEl = document.getElementById('searchInput');
         if (inputEl) inputEl.value = '';
         const clearBtn = document.getElementById('clearSearchBtn');
         if (clearBtn) clearBtn.style.display = 'none';
         hideResults();
+
+        if (!hasLoc) {
+          activeProduct = p;
+          openEditForm();
+        } else {
+          closeEditForm();
+        }
       };
       rl.appendChild(rowEl);
     });
@@ -1425,6 +1526,7 @@ if (searchInput) {
 
 document.getElementById('clearRecent').addEventListener('click', () => {
   recent = [];
+  recentPage = 1;
   activeProduct = null;
   try {
     localStorage.removeItem(recentKey());
@@ -1436,6 +1538,27 @@ document.getElementById('clearRecent').addEventListener('click', () => {
   document.getElementById('emptyPrompt').style.display = 'flex';
   renderRecent();
 });
+
+const recentPrevBtn = document.getElementById('recentPrevBtn');
+if (recentPrevBtn) {
+  recentPrevBtn.addEventListener('click', () => {
+    if (recentPage > 1) {
+      recentPage--;
+      renderRecent();
+    }
+  });
+}
+
+const recentNextBtn = document.getElementById('recentNextBtn');
+if (recentNextBtn) {
+  recentNextBtn.addEventListener('click', () => {
+    const totalPages = Math.ceil(recent.length / recentPageSize);
+    if (recentPage < totalPages) {
+      recentPage++;
+      renderRecent();
+    }
+  });
+}
 
 // Scanner Logic Setup
 
@@ -1760,6 +1883,11 @@ function onScanSuccess(code) {
     autoFillAddFormForBarcode(code);
   } else if (scanTarget === 'location_qr') {
     handleLocationQRScan(code);
+  } else if (scanTarget === 'carton_barcode') {
+    if (cartonStockNoInput) cartonStockNoInput.value = code;
+    if (cartonClearSearchBtn) cartonClearSearchBtn.style.display = 'block';
+    if (cartonOverlay) cartonOverlay.classList.add('show');
+    doCartonProductSearch(code, true);
   } else if (scanTarget === 'carton_location_qr') {
     handleCartonLocationQRScan(code);
   } else if (scanTarget === 'edit_location_qr') {
@@ -2949,6 +3077,7 @@ async function handleHomeLocationQRScan(code) {
     showToast("Invalid location QR code format. Expected e.g. '1-02-01-03'.", 'error');
     return;
   }
+  window.currentScannedHomeLoc = { code, parsed };
   
   showToast("Fetching products at location...", 'info');
   
@@ -2986,17 +3115,29 @@ async function handleHomeLocationQRScan(code) {
           const rightContainer = document.createElement('div');
           rightContainer.style.display = 'flex';
           rightContainer.style.alignItems = 'center';
-          rightContainer.style.gap = '8px';
+          rightContainer.style.gap = '6px';
 
           const qtyDiv = document.createElement('div');
           qtyDiv.className = 'loc-product-qty';
           qtyDiv.textContent = `${p.qty || 0} pcs`;
           
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.className = 'card-btn btn-delete-loc';
+          deleteBtn.style.cssText = 'height: 28px; min-height: 28px; padding: 0 8px; font-size: 11px; border-radius: 6px;';
+          deleteBtn.textContent = TRANSLATIONS[CURRENT_LANG].cardDeleteLoc || 'Delete';
+          deleteBtn.title = 'Delete location for this item';
+          deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            deleteLocationForProduct(p, parsed);
+          };
+
           const chevron = document.createElement('div');
           chevron.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><path d="m9 18 6-6-6-6"/></svg>`;
           chevron.style.display = 'flex';
           
           rightContainer.appendChild(qtyDiv);
+          rightContainer.appendChild(deleteBtn);
           rightContainer.appendChild(chevron);
           
           row.appendChild(infoDiv);
@@ -3006,7 +3147,7 @@ async function handleHomeLocationQRScan(code) {
              // Close the location products modal
              document.getElementById('locProductsModal').classList.remove('show');
              // Open the add quantity modal
-             openAddQtyFromLocationModal(p);
+             openAddQtyFromLocationModal(p, parsed);
           });
           
           listEl.appendChild(row);
@@ -3025,7 +3166,13 @@ async function handleHomeLocationQRScan(code) {
   }
 }
 
-function openAddQtyFromLocationModal(item) {
+window.currentLocModalProduct = null;
+window.currentLocModalParsed = null;
+
+function openAddQtyFromLocationModal(item, parsedLoc) {
+  window.currentLocModalProduct = item;
+  window.currentLocModalParsed = parsedLoc || null;
+
   document.getElementById('addStockId').value = item.id || '';
   const currentQty = parseInt(item.qty, 10) || 0;
   document.getElementById('addStockExistingQty').value = currentQty;
@@ -3037,10 +3184,10 @@ function openAddQtyFromLocationModal(item) {
   document.getElementById('addStockProductName').textContent = pName;
   document.getElementById('addStockProductMeta').textContent = `Barcode: ${pBar} | Stock No: ${pStock}`;
 
-  const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '1';
-  const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row !== undefined && item.row !== null ? String(item.row).trim() : '01');
-  const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '01';
-  const level = item.level !== undefined && item.level !== null ? String(item.level).trim() : '0';
+  const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : (parsedLoc ? parsedLoc.floor : '1');
+  const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row !== undefined && item.row !== null ? String(item.row).trim() : (parsedLoc ? parsedLoc.row : '01'));
+  const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : (parsedLoc ? parsedLoc.shelf : '01');
+  const level = item.level !== undefined && item.level !== null ? String(item.level).trim() : (parsedLoc ? parsedLoc.level : '0');
 
   document.getElementById('addStockLocBadge').textContent = `Floor ${floor} - Row ${row} - Shelf ${shelf} - Level ${level}`;
 
@@ -3059,12 +3206,186 @@ function openAddQtyFromLocationModal(item) {
   }, 300);
 }
 
-// Wire up the close button for the locProductsModal
+async function deleteLocationForProduct(item, parsedLoc) {
+  if (!item) return;
+  const prodName = item.product_name || item.name || item.n || 'this product';
+  let targetId = item.id;
+  const isEn = CURRENT_LANG === 'en';
+
+  const barcode = (item.barcode || item.b || '').toString().trim().toLowerCase();
+  const barcode2 = (item.barcode_2 || item.b2 || '').toString().trim().toLowerCase();
+  const stockCode = (item.stock_no || item.stock_code || item.s || '').toString().trim().toLowerCase();
+
+  // If no direct target ID, lookup from local cache
+  if (!targetId) {
+    const matched = PRODUCTS.find(p => {
+      const b1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      if (barcode && (b1 === barcode || b2 === barcode)) return true;
+      if (barcode2 && (b1 === barcode2 || b2 === barcode2)) return true;
+      if (stockCode && s === stockCode) return true;
+      return false;
+    });
+    if (matched) targetId = matched.id;
+  }
+
+  // If still no target ID, try fetching from server lookup
+  if (!targetId && (barcode || stockCode)) {
+    try {
+      const lookupRes = await fetch(`/api/products/lookup/${encodeURIComponent(barcode || stockCode)}`).then(r => r.json()).catch(() => null);
+      if (lookupRes && lookupRes.product && lookupRes.product.id) {
+        targetId = lookupRes.product.id;
+      }
+    } catch (_) {}
+  }
+
+  const floor = item.floor || (parsedLoc ? parsedLoc.floor : '1');
+  const row = item.row || item.batch || (parsedLoc ? parsedLoc.row : '');
+  const shelf = item.shelf || (parsedLoc ? parsedLoc.shelf : '');
+  const level = item.level || (parsedLoc ? parsedLoc.level : '00');
+  const locDisplay = `Floor ${floor}, Row ${row}, Shelf ${shelf}, Level ${level}`;
+
+  const confirmMsg = isEn
+    ? `Delete shelf location (${locDisplay}) for "${prodName}"?\n\nThe product itself will NOT be deleted and will remain in the catalog.`
+    : `确认删除商品 "${prodName}" 的货架位置 (${locDisplay})？\n\n提示：此操作仅清除货位，商品仍将保留在库存目录中。`;
+
+  if (!confirm(confirmMsg)) return;
+
+  showToast(isEn ? 'Removing shelf location...' : '正在清除货架位置...');
+
+  try {
+    // Check if there are multiple database entries/rows for this SKU
+    const matchingRows = PRODUCTS.filter(p => {
+      const b1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      if (barcode && (b1 === barcode || b2 === barcode)) return true;
+      if (barcode2 && (b1 === barcode2 || b2 === barcode2)) return true;
+      if (stockCode && s === stockCode) return true;
+      return false;
+    });
+
+    const isMultiRow = matchingRows.length > 1;
+
+    let res = null;
+    if (isMultiRow && targetId) {
+      res = await fetch(`/api/products/${targetId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(r => r.json()).catch(() => null);
+    } else if (targetId) {
+      res = await fetch(`/api/products/${targetId}/reset-location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(r => r.json()).catch(() => null);
+    }
+
+    // Fallback: If reset-location endpoint wasn't reached or failed, use PUT with empty location fields
+    if (!res || !res.success) {
+      if (targetId) {
+        res = await fetch(`/api/products/${targetId}`, {
+          method: isMultiRow ? 'DELETE' : 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: isMultiRow ? undefined : JSON.stringify({
+            floor: '',
+            batch: '',
+            row: '',
+            shelf: '',
+            level: '0',
+            loc: '',
+            loc_full: '',
+            location_storage: '',
+            storage_location: '',
+            is_carton: false,
+            loc_type: 'SHELF',
+            qty: 0,
+            status: 'UNMAPPED',
+            last_modified_by: currentUser ? currentUser.full_name : 'Staff Stockman'
+          })
+        }).then(r => r.json()).catch(() => null);
+      }
+    }
+
+    if (res && res.success) {
+      if (isMultiRow && targetId) {
+        const pIdx = PRODUCTS.findIndex(p => String(p.id) === String(targetId));
+        if (pIdx !== -1) PRODUCTS.splice(pIdx, 1);
+        if (typeof productsData !== 'undefined' && Array.isArray(productsData)) {
+          const dIdx = productsData.findIndex(p => String(p.id) === String(targetId));
+          if (dIdx !== -1) productsData.splice(dIdx, 1);
+        }
+      } else if (targetId) {
+        const pIdx = PRODUCTS.findIndex(p => String(p.id) === String(targetId));
+        if (pIdx !== -1) {
+          PRODUCTS[pIdx].floor = '';
+          PRODUCTS[pIdx].row = '';
+          PRODUCTS[pIdx].batch = '';
+          PRODUCTS[pIdx].shelf = '';
+          PRODUCTS[pIdx].level = '0';
+          PRODUCTS[pIdx].loc = '';
+          PRODUCTS[pIdx].location_storage = '';
+          PRODUCTS[pIdx].storage_location = '';
+          PRODUCTS[pIdx].is_carton = false;
+          PRODUCTS[pIdx].loc_type = 'SHELF';
+          PRODUCTS[pIdx].status = 'UNMAPPED';
+          PRODUCTS[pIdx].qty = 0;
+        }
+      }
+
+      rebuildIndex();
+
+      // Close add stock modal if open
+      const addStockModal = document.getElementById('addStockModal');
+      if (addStockModal) addStockModal.classList.remove('show');
+
+      // Refresh the scanned location modal list in real time
+      const activeLoc = parsedLoc || (window.currentScannedHomeLoc ? window.currentScannedHomeLoc.parsed : null);
+      if (activeLoc) {
+        const scanCode = (window.currentScannedHomeLoc && window.currentScannedHomeLoc.code) || `${activeLoc.floor}-${activeLoc.row}-${activeLoc.shelf}-${activeLoc.level}`;
+        handleHomeLocationQRScan(scanCode);
+      } else {
+        const locProductsModal = document.getElementById('locProductsModal');
+        if (locProductsModal) locProductsModal.classList.remove('show');
+      }
+
+      // Refresh product display if currently open on homepage
+      if (activeProduct) {
+        const nextProd = PRODUCTS.find(p => String(p.id) === String(targetId)) || activeProduct;
+        renderProduct(nextProd);
+      }
+
+      if (typeof renderPortalDataTable === 'function') {
+        renderPortalDataTable({ refreshStats: true });
+      }
+
+      showToast(isEn ? '🗑️ Location removed! Product is now unmapped.' : '🗑️ 货位已清除！商品现为未上架状态。', 'success');
+    } else {
+      showToast('Failed to delete location: ' + (res?.message || res?.error || 'Server error'), 'error');
+    }
+  } catch (err) {
+    showToast('Network error removing location: ' + err.message, 'error');
+  }
+}
+
+// Wire up the close button for the locProductsModal and delete button in addStockModal
 document.addEventListener('DOMContentLoaded', () => {
   const closeLocProductsModalBtn = document.getElementById('closeLocProductsModal');
   if (closeLocProductsModalBtn) {
     closeLocProductsModalBtn.addEventListener('click', () => {
       document.getElementById('locProductsModal').classList.remove('show');
+    });
+  }
+
+  const deleteLocFromAddStockBtn = document.getElementById('deleteLocFromAddStockBtn');
+  if (deleteLocFromAddStockBtn) {
+    deleteLocFromAddStockBtn.addEventListener('click', () => {
+      const item = window.currentLocModalProduct || activeProduct;
+      if (item) {
+        deleteLocationForProduct(item, window.currentLocModalParsed);
+      } else {
+        showToast('No location selected to delete.', 'error');
+      }
     });
   }
 });
@@ -3176,6 +3497,176 @@ window.openEditFormForProductIndex = function(index) {
   updateEditLocationSuggestions();
 };
 
+window.deleteProductLocation = async function(index) {
+  if (!window.currentLocs || !window.currentLocs[index]) return;
+  const item = window.currentLocs[index];
+
+  const prodName = item.product_name || (activeProduct ? activeProduct.product_name || activeProduct.name : 'this product');
+  const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '1';
+  const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() : (item.row !== undefined && item.row !== null ? String(item.row).trim() : '01');
+  const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '01';
+  const level = item.level !== undefined && item.level !== null ? String(item.level).trim() : '00';
+
+  const locDisplay = item.hasLoc ? `Floor ${floor}, Row ${row}, Shelf ${shelf}, Level ${level}` : 'unassigned shelf';
+
+  const isEn = CURRENT_LANG === 'en';
+  const confirmMsg = isEn
+    ? `Delete shelf location (${locDisplay}) for "${prodName}"?\n\nNOTE: The product itself will NOT be deleted and will remain in the catalog.`
+    : `确认删除商品 "${prodName}" 的货架位置 (${locDisplay})？\n\n提示：此操作仅清除货位，商品仍将保留在库存目录中。`;
+
+  if (!confirm(confirmMsg)) return;
+
+  // Resolve target product ID accurately
+  let targetId = item.id;
+  if (!targetId) {
+    const b1 = (item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '')).toString().trim().toLowerCase();
+    const b2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '')).toString().trim().toLowerCase();
+    const s = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '')).toString().trim().toLowerCase();
+
+    const matched = PRODUCTS.find(p => {
+      const pb1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const pb2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const ps = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      if (b1 && (pb1 === b1 || pb2 === b1)) return true;
+      if (b2 && (pb1 === b2 || pb2 === b2)) return true;
+      if (s && ps === s) return true;
+      return false;
+    });
+
+    targetId = matched ? matched.id : (activeProduct ? activeProduct.id : null);
+  }
+
+  if (!targetId) {
+    showToast(isEn ? 'Error: Cannot identify product ID to delete location.' : '错误：无法确定要删除货位的商品ID。', 'error');
+    return;
+  }
+
+  showToast(isEn ? 'Removing shelf location...' : '正在清除货架位置...');
+
+  try {
+    const barcode = (item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '')).toString().trim().toLowerCase();
+    const barcode2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '')).toString().trim().toLowerCase();
+    const stockCode = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '')).toString().trim().toLowerCase();
+
+    // Check if there are other matching rows in PRODUCTS for this product
+    const matchingRows = PRODUCTS.filter(p => {
+      const b1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      if (barcode && (b1 === barcode || b2 === barcode)) return true;
+      if (barcode2 && (b1 === barcode2 || b2 === barcode2)) return true;
+      if (stockCode && s === stockCode) return true;
+      return false;
+    });
+
+    const isMultiRow = matchingRows.length > 1;
+
+    let res;
+    if (isMultiRow) {
+      res = await fetch(`/api/products/${targetId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(r => r.json()).catch(() => null);
+    } else {
+      res = await fetch(`/api/products/${targetId}/reset-location`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(r => r.json()).catch(() => null);
+    }
+
+    // Fallback: If reset-location/delete didn't succeed, call PUT with cleared fields
+    if (!res || !res.success) {
+      const resetPayload = {
+        floor: '',
+        batch: '',
+        row: '',
+        shelf: '',
+        level: '0',
+        loc: '',
+        loc_full: '',
+        location_storage: '',
+        storage_location: '',
+        is_carton: false,
+        loc_type: 'SHELF',
+        qty: 0,
+        status: 'UNMAPPED',
+        last_modified_by: currentUser ? currentUser.full_name : 'Staff Stockman'
+      };
+
+      const fallbackRes = await fetch(`/api/products/${targetId}`, {
+        method: isMultiRow ? 'DELETE' : 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: isMultiRow ? undefined : JSON.stringify(resetPayload)
+      }).then(r => r.json()).catch(() => null);
+
+      if (fallbackRes && fallbackRes.success) {
+        res = fallbackRes;
+      }
+    }
+
+    if (res && res.success) {
+      if (isMultiRow) {
+        const pIdx = PRODUCTS.findIndex(p => String(p.id) === String(targetId));
+        if (pIdx !== -1) PRODUCTS.splice(pIdx, 1);
+        if (typeof productsData !== 'undefined' && Array.isArray(productsData)) {
+          const dIdx = productsData.findIndex(p => String(p.id) === String(targetId));
+          if (dIdx !== -1) productsData.splice(dIdx, 1);
+        }
+      } else {
+        const pIdx = PRODUCTS.findIndex(p => String(p.id) === String(targetId));
+        if (pIdx !== -1) {
+          PRODUCTS[pIdx].floor = '';
+          PRODUCTS[pIdx].row = '';
+          PRODUCTS[pIdx].batch = '';
+          PRODUCTS[pIdx].shelf = '';
+          PRODUCTS[pIdx].level = '0';
+          PRODUCTS[pIdx].loc = '';
+          PRODUCTS[pIdx].location_storage = '';
+          PRODUCTS[pIdx].storage_location = '';
+          PRODUCTS[pIdx].loc_full = '';
+          PRODUCTS[pIdx].is_carton = false;
+          PRODUCTS[pIdx].loc_type = 'SHELF';
+          PRODUCTS[pIdx].status = 'UNMAPPED';
+          PRODUCTS[pIdx].qty = 0;
+        }
+      }
+
+      rebuildIndex();
+
+      let nextProd = matchingRows.find(p => String(p.id) !== String(targetId));
+      if (!nextProd) {
+        nextProd = PRODUCTS.find(p => String(p.id) === String(targetId)) || activeProduct;
+        if (nextProd) {
+          nextProd.floor = '';
+          nextProd.row = '';
+          nextProd.batch = '';
+          nextProd.shelf = '';
+          nextProd.level = '0';
+          nextProd.loc = '';
+          nextProd.location_storage = '';
+          nextProd.storage_location = '';
+          nextProd.is_carton = false;
+          nextProd.loc_type = 'SHELF';
+          nextProd.status = 'UNMAPPED';
+          nextProd.qty = 0;
+        }
+      }
+
+      if (nextProd) {
+        renderProduct(nextProd);
+      }
+      if (typeof renderPortalDataTable === 'function') {
+        renderPortalDataTable({ refreshStats: true });
+      }
+      showToast(isEn ? '🗑️ Location removed! Product is now unmapped.' : '🗑️ 货位已清除！商品现为未上架状态。', 'success');
+    } else {
+      showToast('Failed to delete location: ' + (res?.message || res?.error || 'Server error'), 'error');
+    }
+  } catch (err) {
+    showToast('Network error removing location: ' + err.message, 'error');
+  }
+};
+
 // --- RAPID LOCATION LOGGER LOGIC ---
 const rapidOverlay = document.getElementById('rapidOverlay');
 const rapidNewProductFields = document.getElementById('rapidNewProductFields');
@@ -3187,6 +3678,10 @@ const rfQty = document.getElementById('rfQty');
 const rapidFormError = document.getElementById('rapidFormError');
 const rapidLogList = document.getElementById('rapidLogList');
 
+const rapidProductSearchInput = document.getElementById('rapidProductSearchInput');
+const rapidClearSearchBtn = document.getElementById('rapidClearSearchBtn');
+const rapidSearchResultsList = document.getElementById('rapidSearchResultsList');
+
 const rapidBarcodeBadge = document.getElementById('rapidBarcodeBadge');
 const rapidBarcodeBadgeVal = document.getElementById('rapidBarcodeBadgeVal');
 const rapidLocationBadge = document.getElementById('rapidLocationBadge');
@@ -3196,6 +3691,9 @@ let rapidLogs = [];
 let currentRapidBarcode = '';
 let currentRapidLocation = '';
 let currentRapidExistingRow = null;
+
+let rapidSearchRequestId = 0;
+let rapidBackgroundFetchTimer = null;
 
 const rapidLoggerBtnEl = document.getElementById('rapidLoggerBtn');
 if (rapidLoggerBtnEl) rapidLoggerBtnEl.addEventListener('click', openRapidLogger);
@@ -3216,6 +3714,10 @@ function openRapidLogger() {
   currentRapidBarcode = '';
   currentRapidLocation = '';
   currentRapidExistingRow = null;
+  if (rapidProductSearchInput) rapidProductSearchInput.value = '';
+  if (rapidClearSearchBtn) rapidClearSearchBtn.style.display = 'none';
+  hideRapidSearchResults();
+
   rfName.value = '';
   rfStock.value = '';
   rfCategory.value = '';
@@ -3231,6 +3733,273 @@ function openRapidLogger() {
 
 function closeRapidLogger() {
   rapidOverlay.classList.remove('show');
+  hideRapidSearchResults();
+}
+
+if (rapidProductSearchInput) {
+  // Instant 0ms synchronous execution on keystroke (matching homepage search speed)
+  rapidProductSearchInput.addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (rapidClearSearchBtn) rapidClearSearchBtn.style.display = q ? 'block' : 'none';
+    clearTimeout(rapidBackgroundFetchTimer);
+    if (!q) {
+      rapidSearchRequestId++;
+      hideRapidSearchResults();
+      currentRapidBarcode = '';
+      currentRapidExistingRow = null;
+      if (rapidBarcodeBadge) rapidBarcodeBadge.style.display = 'none';
+      if (rapidNewProductFields) rapidNewProductFields.style.display = 'none';
+      return;
+    }
+    doRapidProductSearch(q);
+  });
+
+  rapidProductSearchInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = rapidProductSearchInput.value.trim();
+      if (!q) return;
+      const firstItem = rapidSearchResultsList ? rapidSearchResultsList.querySelector('.rapid-search-item') : null;
+      if (firstItem && firstItem._product) {
+        selectRapidProduct(firstItem._product);
+      } else {
+        hideRapidSearchResults();
+        await handleRapidBarcodeScanned(q);
+      }
+    } else if (e.key === 'Escape') {
+      hideRapidSearchResults();
+    }
+  });
+
+  rapidProductSearchInput.addEventListener('focus', () => {
+    const q = rapidProductSearchInput.value.trim();
+    if (q && (!currentRapidBarcode || rapidProductSearchInput.value !== currentRapidBarcode)) {
+      doRapidProductSearch(q);
+    }
+  });
+}
+
+if (rapidClearSearchBtn) {
+  rapidClearSearchBtn.addEventListener('click', () => {
+    if (rapidProductSearchInput) {
+      rapidProductSearchInput.value = '';
+      rapidProductSearchInput.focus();
+    }
+    rapidClearSearchBtn.style.display = 'none';
+    hideRapidSearchResults();
+    currentRapidBarcode = '';
+    currentRapidExistingRow = null;
+    if (rapidBarcodeBadge) rapidBarcodeBadge.style.display = 'none';
+    if (rapidNewProductFields) rapidNewProductFields.style.display = 'none';
+  });
+}
+
+function hideRapidSearchResults() {
+  if (rapidSearchResultsList) {
+    rapidSearchResultsList.style.display = 'none';
+    rapidSearchResultsList.innerHTML = '';
+  }
+}
+
+// Close rapid search dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!rapidOverlay || !rapidOverlay.classList.contains('show')) return;
+  if (rapidProductSearchInput && !rapidProductSearchInput.contains(e.target) &&
+      rapidSearchResultsList && !rapidSearchResultsList.contains(e.target)) {
+    hideRapidSearchResults();
+  }
+});
+
+// Instant synchronous product search in Rapid Logger (0ms latency)
+function doRapidProductSearch(q) {
+  if (!q || !rapidSearchResultsList) return;
+  const currentRapidReqId = ++rapidSearchRequestId;
+  const qLower = q.toLowerCase();
+  const qStripped = qLower.replace(/^0+/, '');
+  const tokens = qLower.split(/\s+/).filter(Boolean);
+
+  // 1. Direct O(1) Fast Path if exact barcode / stock code
+  const exactDirect = byBarcodeMap.get(qLower) || byStockMap.get(qLower) ||
+    (qStripped ? (byBarcodeMap.get(qStripped) || byStockMap.get(qStripped)) : null);
+
+  const localCandidates = [];
+  if (exactDirect) {
+    localCandidates.push({ p: exactDirect, score: 100 });
+  }
+
+  // 2. High-speed local in-memory index scan (0ms)
+  for (let i = 0; i < PRODUCTS.length; i++) {
+    const p = PRODUCTS[i];
+    if (exactDirect && p === exactDirect) continue;
+
+    if (p._searchStr !== undefined) {
+      let hit = p._searchStr.includes(qLower) ||
+        (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
+      if (!hit) {
+        hit = tokens.some(t => {
+          const tStripped = t.replace(/^0+/, '');
+          const syns = SEARCH_SYNONYMS[t];
+          return p._searchStr.includes(t) ||
+            (tStripped && p._searchStrStripped.includes(tStripped)) ||
+            (syns && syns.some(syn => p._searchStr.includes(syn)));
+        });
+      }
+      if (!hit) continue;
+    }
+    const score = scoreProductMatch(p, qLower, qStripped, tokens);
+    if (score > 0) {
+      localCandidates.push({ p, score });
+    }
+  }
+
+  localCandidates.sort((a, b) => b.score - a.score);
+
+  const seen = new Set();
+  const candidateMatches = [];
+  for (const item of localCandidates) {
+    const p = item.p;
+    const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
+    if (!seen.has(key)) {
+      seen.add(key);
+      candidateMatches.push(p);
+    }
+    if (candidateMatches.length >= 25) break;
+  }
+
+  // 3. INSTANT SYNCHRONOUS RENDER (0ms latency!)
+  renderRapidSearchResults(candidateMatches, q);
+
+  // 4. Background NON-BLOCKING server enrichment (debounced, never delays UI)
+  if (candidateMatches.length < 5) {
+    clearTimeout(rapidBackgroundFetchTimer);
+    rapidBackgroundFetchTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=20`).then(r => r.json());
+        if (currentRapidReqId !== rapidSearchRequestId) return;
+        const currentInput = (rapidProductSearchInput?.value || '').trim().toLowerCase();
+        if (currentInput !== qLower) return;
+
+        if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+          let hasNew = false;
+          for (const p of res.products) {
+            const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
+            if (!seen.has(key)) {
+              seen.add(key);
+              candidateMatches.push(p);
+              hasNew = true;
+            }
+          }
+          if (hasNew) {
+            renderRapidSearchResults(candidateMatches.slice(0, 25), q);
+          }
+        }
+      } catch (e) {
+        console.warn("Background rapid search enrich note:", e);
+      }
+    }, 200);
+  }
+}
+
+function renderRapidSearchResults(matches, query) {
+  if (!rapidSearchResultsList) return;
+  rapidSearchResultsList.innerHTML = '';
+
+  if (!matches || matches.length === 0) {
+    const isEn = CURRENT_LANG === 'en';
+    const noDiv = document.createElement('div');
+    noDiv.className = 'no-results';
+    noDiv.style.padding = '12px 14px';
+    noDiv.style.fontSize = '12.5px';
+    noDiv.style.cursor = 'pointer';
+    noDiv.innerHTML = `<span style="color:#2563eb; font-weight:600;">➕ ${isEn ? `Use "${escapeHtml(query)}" as new barcode/product` : `将 "${escapeHtml(query)}" 作为新条码使用`}</span>`;
+    noDiv.onclick = () => {
+      hideRapidSearchResults();
+      handleRapidBarcodeScanned(query);
+    };
+    rapidSearchResultsList.appendChild(noDiv);
+    rapidSearchResultsList.style.display = 'block';
+    return;
+  }
+
+  matches.forEach(p => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'rapid-search-item result-row';
+    itemEl.style.cssText = 'padding: 9px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.12s ease; border-radius: 0;';
+    itemEl._product = p;
+
+    const name = p.product_name || p.name || p.n || 'Unnamed item';
+    const barcode = p.barcode || p.b || '';
+    const barcode2 = p.barcode_2 || p.b2 || '';
+    const stockCode = p.stock_no || p.stock_code || p.s || '';
+    const category = p.category || p.c || '';
+
+    const isCarton = Boolean(
+      p.is_carton ||
+      p.loc_type === 'CARTON' ||
+      (p.location_storage && p.location_storage.toUpperCase().includes('CARTON')) ||
+      (p.storage_location && p.storage_location.toUpperCase().includes('CARTON'))
+    );
+
+    const cartonTag = isCarton 
+      ? `<span style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; margin-left:4px;">📦 Carton</span>`
+      : '';
+
+    const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
+    const row = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row !== undefined && p.row !== null ? String(p.row) : (p.row || ''));
+    const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
+    const level = p.level !== undefined && p.level !== null ? String(p.level) : '';
+    const hasLoc = floor !== '' || row !== '' || shelf !== '';
+    const locText = hasLoc ? `📍 ${floor}-${row}-${shelf}-${level}` : `<span style="color:#94a3b8; font-size:11px;">⚠️ No loc</span>`;
+
+    const codeDisplay = barcode || (barcode2 ? `Barcode 2: ${barcode2}` : (stockCode ? `#${stockCode}` : ''));
+
+    itemEl.innerHTML = `
+      <div style="flex: 1; min-width: 0; padding-right: 8px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(name)} ${cartonTag}
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(codeDisplay)}${category ? ` &bull; ${escapeHtml(category)}` : ''}
+        </div>
+      </div>
+      <div style="text-align: right; flex-shrink: 0;">
+        <div style="font-size: 11px; font-weight: 600; color: var(--accent);">
+          ${locText}
+        </div>
+      </div>
+    `;
+
+    itemEl.addEventListener('click', () => {
+      selectRapidProduct(p);
+    });
+
+    rapidSearchResultsList.appendChild(itemEl);
+  });
+
+  rapidSearchResultsList.style.display = 'block';
+}
+
+function selectRapidProduct(p) {
+  if (!p) return;
+  hideRapidSearchResults();
+
+  const code = p.barcode || p.b || p.barcode_2 || p.b2 || p.stock_no || p.stock_code || p.s || '';
+  if (rapidProductSearchInput) {
+    rapidProductSearchInput.value = p.product_name || p.name || p.n || code;
+    if (rapidClearSearchBtn) rapidClearSearchBtn.style.display = 'block';
+  }
+
+  currentRapidBarcode = code.toString().trim();
+  const name = p.product_name || p.name || p.n || 'Unnamed item';
+
+  rapidBarcodeBadgeVal.innerHTML = `${escapeHtml(code || name)} <br><span style="color:#16a34a; font-size:12px;">✅ Selected: ${escapeHtml(name)}</span>`;
+  rapidBarcodeBadge.style.display = 'block';
+  rapidBarcodeBadge.style.background = '#f0fdf4';
+  rapidBarcodeBadge.style.borderColor = '#bbf7d0';
+  rapidBarcodeBadge.style.color = '#15803d';
+  rapidNewProductFields.style.display = 'none';
+
+  checkRapidExistingLocationProduct();
 }
 
 // Function to handle barcode registration state change
@@ -3316,112 +4085,83 @@ rfSubcategory.addEventListener('keydown', (e) => {
   }
 });
 
-async function checkRapidExistingLocationProduct() {
+function checkRapidExistingLocationProduct() {
   currentRapidExistingRow = null;
   if (!currentRapidBarcode || !currentRapidLocation) return;
 
   const parsed = parseLocationQR(currentRapidLocation);
-  if (!parsed) return;
+  if (!parsed) {
+    rapidLocationBadgeVal.innerHTML = `${escapeHtml(currentRapidLocation)} <br><span style="color:#ef4444; font-size:11px; font-weight:600;">⚠️ Invalid format (e.g. 1-02-01-03)</span>`;
+    rapidLocationBadge.style.background = '#fef2f2';
+    rapidLocationBadge.style.borderColor = '#fecaca';
+    rapidLocationBadge.style.color = '#b91c1c';
+    rapidLocationBadge.style.display = 'block';
+    return;
+  }
 
-  // Show a brief checking status on the location badge
-  rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#64748b; font-size:11px; font-weight:500;">Checking location...</span>`;
-  rapidLocationBadge.style.background = '#fffbeb';
-  rapidLocationBadge.style.borderColor = '#fde68a';
-  rapidLocationBadge.style.color = '#b45309';
+  const normBar = currentRapidBarcode.toLowerCase().trim();
 
-  // 1. Search locally in PRODUCTS cache
-  let match = PRODUCTS.find(p => {
+  // 1. Instant 0ms local in-memory search
+  const allProdRows = PRODUCTS.filter(p => {
     const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
     const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
     const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-    const isProductMatch = (b && b === currentRapidBarcode.toLowerCase()) || (b2 && b2 === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
-    if (!isProductMatch) return false;
+    return (b && b === normBar) || (b2 && b2 === normBar) || (s && s === normBar);
+  });
 
+  const parsedFloor = String(parsed.floor).trim();
+  const parsedRow = String(parsed.row).trim();
+  const parsedShelf = String(parsed.shelf).trim();
+  const parsedLevel = String(parsed.level).trim();
+
+  const match = allProdRows.find(p => {
     const pf = String(p.floor !== undefined && p.floor !== null ? p.floor : '').trim();
     const pb = String(p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '')).trim();
     const ps = String(p.shelf !== undefined && p.shelf !== null ? p.shelf : '').trim();
     const pl = String(p.level !== undefined && p.level !== null ? p.level : '').trim();
 
-    return pf === String(parsed.floor) &&
-           pb === String(parsed.row) &&
-           ps === String(parsed.shelf) &&
-           pl === String(parsed.level);
+    return pf === parsedFloor && pb === parsedRow && ps === parsedShelf && pl === parsedLevel;
   });
-
-  // 2. Fallback to a precise server lookup if not in local cache
-  if (!match) {
-    try {
-      const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=50`).then(r => r.json());
-      if (res.success && Array.isArray(res.products)) {
-        match = res.products.find(p => {
-          const pf = String(p.floor !== undefined && p.floor !== null ? p.floor : '').trim();
-          const pb = String(p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '')).trim();
-          const ps = String(p.shelf !== undefined && p.shelf !== null ? p.shelf : '').trim();
-          const pl = String(p.level !== undefined && p.level !== null ? p.level : '').trim();
-
-          return pf === String(parsed.floor) &&
-                 pb === String(parsed.row) &&
-                 ps === String(parsed.shelf) &&
-                 pl === String(parsed.level);
-        });
-      }
-    } catch (e) {
-      console.warn("Failed to check existing product location on server:", e);
-    }
-  }
 
   if (match) {
     currentRapidExistingRow = match;
-    if (rfQty) rfQty.value = match.qty !== undefined && match.qty !== null ? match.qty : 0;
-    rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Existing location: Qty ${match.qty} (will update)</span>`;
+    const existingQty = match.qty !== undefined && match.qty !== null ? match.qty : 0;
+    if (rfQty) rfQty.value = existingQty;
+    rapidLocationBadgeVal.innerHTML = `${escapeHtml(currentRapidLocation)} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Existing location: Qty ${existingQty} (will update)</span>`;
     rapidLocationBadge.style.background = '#f0fdf4';
     rapidLocationBadge.style.borderColor = '#bbf7d0';
     rapidLocationBadge.style.color = '#15803d';
+    rapidLocationBadge.style.display = 'block';
+    return;
+  }
+
+  // Exact location not matched. Check if product has existing locations elsewhere
+  const existingLocRows = allProdRows.filter(p => (p.loc && p.loc.trim() !== '') || (p.floor && String(p.floor).trim() !== ''));
+
+  if (existingLocRows.length > 0) {
+    const locSummary = existingLocRows.map(p => {
+      const l = p.loc || `${p.floor || '1'}-${p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '00')}-${p.shelf || '00'}-${p.level || '00'}`;
+      const q = p.qty !== undefined && p.qty !== null ? p.qty : 0;
+      return `${l} (Qty: ${q})`;
+    }).join(', ');
+
+    if (rfQty) rfQty.value = '0';
+    rapidLocationBadgeVal.innerHTML = `${escapeHtml(currentRapidLocation)}<br>
+      <span style="color:#d97706; font-size:11px; font-weight:600; display:block; margin-top:2px;">📍 Existing Location(s): ${escapeHtml(locSummary)}</span>
+      <span style="color:#2563eb; font-size:11px; font-weight:600; display:block; margin-top:2px;">➕ Add another location: ${escapeHtml(currentRapidLocation)}</span>`;
+    rapidLocationBadge.style.background = '#fffbeb';
+    rapidLocationBadge.style.borderColor = '#fde68a';
+    rapidLocationBadge.style.color = '#b45309';
+    rapidLocationBadge.style.display = 'block';
+
+    promptAddAnotherLocation(allProdRows[0] || { barcode: currentRapidBarcode }, existingLocRows, currentRapidLocation);
   } else {
-    // Exact location not matched. Check if product has existing locations elsewhere
-    let allProdRows = PRODUCTS.filter(p => {
-      const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
-      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
-      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-      return (b && b === currentRapidBarcode.toLowerCase()) || (b2 && b2 === currentRapidBarcode.toLowerCase()) || (s && s === currentRapidBarcode.toLowerCase());
-    });
-
-    try {
-      const res = await fetch(`/api/products?q=${encodeURIComponent(currentRapidBarcode)}&limit=50`).then(r => r.json());
-      if (res.success && Array.isArray(res.products) && res.products.length > 0) {
-        allProdRows = res.products.filter(item =>
-          (item.barcode || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
-          (item.barcode_2 || '').toLowerCase() === currentRapidBarcode.toLowerCase() ||
-          (item.stock_no || '').toLowerCase() === currentRapidBarcode.toLowerCase()
-        );
-      }
-    } catch (e) {}
-
-    const existingLocRows = allProdRows.filter(p => (p.loc && p.loc.trim() !== '') || (p.floor && String(p.floor).trim() !== ''));
-
-    if (existingLocRows.length > 0) {
-      const locSummary = existingLocRows.map(p => {
-        const l = p.loc || `${p.floor || '1'}-${p.batch !== undefined && p.batch !== null ? p.batch : (p.row || '00')}-${p.shelf || '00'}-${p.level || '00'}`;
-        const q = p.qty !== undefined && p.qty !== null ? p.qty : 0;
-        return `${l} (Qty: ${q})`;
-      }).join(', ');
-
-      if (rfQty) rfQty.value = '0';
-      rapidLocationBadgeVal.innerHTML = `${currentRapidLocation}<br>
-        <span style="color:#d97706; font-size:11px; font-weight:600; display:block; margin-top:2px;">📍 Existing Location(s): ${escapeHtml(locSummary)}</span>
-        <span style="color:#2563eb; font-size:11px; font-weight:600; display:block; margin-top:2px;">➕ Add another location: ${currentRapidLocation}</span>`;
-      rapidLocationBadge.style.background = '#fffbeb';
-      rapidLocationBadge.style.borderColor = '#fde68a';
-      rapidLocationBadge.style.color = '#b45309';
-
-      promptAddAnotherLocation(allProdRows[0] || { barcode: currentRapidBarcode }, existingLocRows, currentRapidLocation);
-    } else {
-      if (rfQty) rfQty.value = '0';
-      rapidLocationBadgeVal.innerHTML = `${currentRapidLocation} <br><span style="color:#2563eb; font-size:11px; font-weight:500;">🆕 New location for this product</span>`;
-      rapidLocationBadge.style.background = '#eff6ff';
-      rapidLocationBadge.style.borderColor = '#bfdbfe';
-      rapidLocationBadge.style.color = '#1d4ed8';
-    }
+    if (rfQty) rfQty.value = '0';
+    rapidLocationBadgeVal.innerHTML = `${escapeHtml(currentRapidLocation)} <br><span style="color:#2563eb; font-size:11px; font-weight:600;">🆕 New location for this product</span>`;
+    rapidLocationBadge.style.background = '#eff6ff';
+    rapidLocationBadge.style.borderColor = '#bfdbfe';
+    rapidLocationBadge.style.color = '#1d4ed8';
+    rapidLocationBadge.style.display = 'block';
   }
 }
 
@@ -3631,6 +4371,7 @@ async function saveRapidEntry() {
 
     const payload = {
       barcode: existingProduct ? (existingProduct.barcode || existingProduct.b || currentRapidBarcode) : currentRapidBarcode,
+      barcode_2: existingProduct ? (existingProduct.barcode_2 || existingProduct.b2 || '') : '',
       stock_no: existingProduct ? (existingProduct.stock_no || existingProduct.stock_code || existingProduct.s || rfStock.value.trim()) : rfStock.value.trim(),
       stock_code: existingProduct ? (existingProduct.stock_no || existingProduct.stock_code || existingProduct.s || rfStock.value.trim()) : rfStock.value.trim(),
       product_name: existingProduct ? (existingProduct.product_name || existingProduct.name || existingProduct.n) : rfName.value.trim(),
@@ -3699,10 +4440,14 @@ async function saveRapidEntry() {
       });
     }
 
-    // Clear form inputs immediately so stockman can scan next item in 0ms!
+    // Clear form inputs immediately so stockman can scan/search next item in 0ms!
     currentRapidBarcode = '';
     currentRapidLocation = '';
     currentRapidExistingRow = null;
+    if (rapidProductSearchInput) rapidProductSearchInput.value = '';
+    if (rapidClearSearchBtn) rapidClearSearchBtn.style.display = 'none';
+    hideRapidSearchResults();
+
     rfName.value = '';
     rfStock.value = '';
     rfCategory.value = '';
@@ -4121,6 +4866,9 @@ const cartonPutawayBtn = document.getElementById('cartonPutawayBtn');
 const closeCartonModal = document.getElementById('closeCartonModal');
 const cancelCartonBtn = document.getElementById('cancelCartonBtn');
 const cartonStockNoInput = document.getElementById('cartonStockNoInput');
+const cartonClearSearchBtn = document.getElementById('cartonClearSearchBtn');
+const cartonScanBarcodeBtn = document.getElementById('cartonScanBarcodeBtn');
+const cartonSearchResultsList = document.getElementById('cartonSearchResultsList');
 const cartonMatchBox = document.getElementById('cartonMatchBox');
 const cartonNoMatchBox = document.getElementById('cartonNoMatchBox');
 const cartonMatchedName = document.getElementById('cartonMatchedName');
@@ -4132,92 +4880,322 @@ const cartonManualBox = document.getElementById('cartonManualBox');
 const cartonSaveManualBtn = document.getElementById('cartonSaveManualBtn');
 
 let matchedCartonProduct = null;
-let cartonDebounceTimer = null;
-let cartonAbortController = null;
+let cartonSearchRequestId = 0;
+let cartonBackgroundFetchTimer = null;
 
 if (cartonPutawayBtn) {
   cartonPutawayBtn.addEventListener('click', () => {
     if (cartonStockNoInput) cartonStockNoInput.value = '';
+    if (cartonClearSearchBtn) cartonClearSearchBtn.style.display = 'none';
+    hideCartonSearchResults();
     if (cartonMatchBox) cartonMatchBox.style.display = 'none';
     if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
     if (cartonManualBox) cartonManualBox.style.display = 'none';
     matchedCartonProduct = null;
     if (cartonOverlay) {
       cartonOverlay.classList.add('show');
-      setTimeout(() => {
-        if (cartonStockNoInput) cartonStockNoInput.focus();
-      }, 100);
     }
   });
 }
 
-if (closeCartonModal) closeCartonModal.addEventListener('click', () => cartonOverlay.classList.remove('show'));
-if (cancelCartonBtn) cancelCartonBtn.addEventListener('click', () => cartonOverlay.classList.remove('show'));
+if (closeCartonModal) closeCartonModal.addEventListener('click', () => {
+  if (cartonOverlay) cartonOverlay.classList.remove('show');
+  hideCartonSearchResults();
+});
+if (cancelCartonBtn) cancelCartonBtn.addEventListener('click', () => {
+  if (cartonOverlay) cartonOverlay.classList.remove('show');
+  hideCartonSearchResults();
+});
+
+if (cartonClearSearchBtn) {
+  cartonClearSearchBtn.addEventListener('click', () => {
+    if (cartonStockNoInput) {
+      cartonStockNoInput.value = '';
+      cartonStockNoInput.focus();
+    }
+    cartonClearSearchBtn.style.display = 'none';
+    hideCartonSearchResults();
+    if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+    if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+    matchedCartonProduct = null;
+  });
+}
+
+if (cartonScanBarcodeBtn) {
+  cartonScanBarcodeBtn.addEventListener('click', () => {
+    startScanner('carton_barcode');
+  });
+}
+
+function hideCartonSearchResults() {
+  if (cartonSearchResultsList) {
+    cartonSearchResultsList.style.display = 'none';
+    cartonSearchResultsList.innerHTML = '';
+  }
+}
+
+// Close carton search dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!cartonOverlay || !cartonOverlay.classList.contains('show')) return;
+  if (cartonStockNoInput && !cartonStockNoInput.contains(e.target) &&
+      cartonSearchResultsList && !cartonSearchResultsList.contains(e.target)) {
+    hideCartonSearchResults();
+  }
+});
+
+function selectCartonProduct(p) {
+  if (!p) return;
+  hideCartonSearchResults();
+  matchedCartonProduct = p;
+  activeProduct = p;
+
+  const displayName = p.product_name || p.name || p.n || 'Unnamed item';
+  const displayCode = p.stock_no || p.stock_code || p.s || p.barcode || p.b || '';
+
+  if (cartonStockNoInput) {
+    cartonStockNoInput.value = displayName;
+    if (cartonClearSearchBtn) cartonClearSearchBtn.style.display = 'block';
+  }
+
+  if (cartonMatchedName) cartonMatchedName.textContent = displayName;
+  if (cartonMatchedMeta) cartonMatchedMeta.textContent = `Barcode: ${p.barcode || p.b || '—'}${p.barcode_2 || p.b2 ? ` | Barcode 2: ${p.barcode_2 || p.b2}` : ''} | Category: ${p.category || p.c || '—'} • ${p.department || p.subcategory || p.sc || 'General'}`;
+  const matchSkuBadge = document.getElementById('cartonMatchSkuBadge');
+  if (matchSkuBadge) matchSkuBadge.textContent = displayCode;
+
+  const existingLocsEl = document.getElementById('cartonExistingLocs');
+  if (existingLocsEl) {
+    const locsList = Array.isArray(p.locations) ? p.locations : [];
+    if (locsList.length > 0) {
+      existingLocsEl.innerHTML = `<strong>Current Active Locations:</strong><br>` + locsList.map(l => `• Floor ${l.floor || '1'}, Row ${l.row || l.batch || '01'}, Shelf ${l.shelf || '01'}, Level ${l.level || '00'} (${l.qty || 0} units)${l.is_carton || (l.storage_location && l.storage_location.includes('Carton')) ? ' <span style="color:#b45309;font-weight:700;">[📦 Big Carton]</span>' : ''}`).join('<br>');
+    } else if (p.floor || p.row || p.shelf || p.loc || p.storage_location || p.location_storage) {
+      const f = p.floor || '1';
+      const r = p.row || p.batch || '01';
+      const s = p.shelf || '01';
+      const l = p.level || '00';
+      existingLocsEl.innerHTML = `<strong>Current Active Location:</strong><br>• Floor ${f}, Row ${r}, Shelf ${s}, Level ${l} (${p.qty || 0} units)`;
+    } else {
+      existingLocsEl.innerHTML = `<span style="color:#64748b; font-style:italic;">No shelf location assigned yet. Ready for first carton putaway.</span>`;
+    }
+  }
+
+  if (cartonMatchBox) cartonMatchBox.style.display = 'block';
+  if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+}
+
+function doCartonProductSearch(q, isFinal = false) {
+  if (!q) {
+    cartonSearchRequestId++;
+    hideCartonSearchResults();
+    if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+    if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+    matchedCartonProduct = null;
+    return;
+  }
+
+  const currentCartonReqId = ++cartonSearchRequestId;
+  const qLower = q.toLowerCase();
+  const qStripped = qLower.replace(/^0+/, '');
+  const tokens = qLower.split(/\s+/).filter(Boolean);
+
+  // 1. Direct O(1) Fast Path if exact barcode / stock code
+  const exactDirect = byBarcodeMap.get(qLower) || byStockMap.get(qLower) ||
+    (qStripped ? (byBarcodeMap.get(qStripped) || byStockMap.get(qStripped)) : null);
+
+  if (isFinal && exactDirect) {
+    selectCartonProduct(exactDirect);
+    return;
+  }
+
+  const localCandidates = [];
+  if (exactDirect) {
+    localCandidates.push({ p: exactDirect, score: 100 });
+  }
+
+  // 2. High-speed local index scan (0ms)
+  for (let i = 0; i < PRODUCTS.length; i++) {
+    const p = PRODUCTS[i];
+    if (exactDirect && p === exactDirect) continue;
+
+    if (p._searchStr !== undefined) {
+      let hit = p._searchStr.includes(qLower) ||
+        (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
+      if (!hit) {
+        hit = tokens.some(t => {
+          const tStripped = t.replace(/^0+/, '');
+          const syns = SEARCH_SYNONYMS[t];
+          return p._searchStr.includes(t) ||
+            (tStripped && p._searchStrStripped.includes(tStripped)) ||
+            (syns && syns.some(syn => p._searchStr.includes(syn)));
+        });
+      }
+      if (!hit) continue;
+    }
+    const score = scoreProductMatch(p, qLower, qStripped, tokens);
+    if (score > 0) {
+      localCandidates.push({ p, score });
+    }
+  }
+
+  localCandidates.sort((a, b) => b.score - a.score);
+
+  const seen = new Set();
+  const candidateMatches = [];
+  for (const item of localCandidates) {
+    const p = item.p;
+    const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
+    if (!seen.has(key)) {
+      seen.add(key);
+      candidateMatches.push(p);
+    }
+    if (candidateMatches.length >= 25) break;
+  }
+
+  if (isFinal && candidateMatches.length === 1) {
+    selectCartonProduct(candidateMatches[0]);
+    return;
+  }
+
+  // 3. INSTANT SYNCHRONOUS RENDER (0ms latency!)
+  renderCartonSearchResults(candidateMatches, q);
+
+  // 4. Background NON-BLOCKING server enrichment
+  if (candidateMatches.length < 5) {
+    clearTimeout(cartonBackgroundFetchTimer);
+    cartonBackgroundFetchTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=20`).then(r => r.json());
+        if (currentCartonReqId !== cartonSearchRequestId) return;
+        const currentInput = (cartonStockNoInput?.value || '').trim().toLowerCase();
+        if (currentInput !== qLower) return;
+
+        if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+          let hasNew = false;
+          for (const p of res.products) {
+            const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
+            if (!seen.has(key)) {
+              seen.add(key);
+              candidateMatches.push(p);
+              hasNew = true;
+            }
+          }
+          if (hasNew) {
+            renderCartonSearchResults(candidateMatches.slice(0, 25), q);
+          }
+        }
+      } catch (e) {
+        console.warn("Background carton search enrich note:", e);
+      }
+    }, 200);
+  }
+}
+
+function renderCartonSearchResults(matches, query) {
+  if (!cartonSearchResultsList) return;
+  cartonSearchResultsList.innerHTML = '';
+
+  if (!matches || matches.length === 0) {
+    const isEn = CURRENT_LANG === 'en';
+    const noDiv = document.createElement('div');
+    noDiv.className = 'no-results';
+    noDiv.style.padding = '12px 14px';
+    noDiv.style.fontSize = '12.5px';
+    noDiv.innerHTML = `<span style="color:#ef4444; font-weight:600;">⚠️ ${isEn ? `No product matching "${escapeHtml(query)}"` : `未找到匹配 "${escapeHtml(query)}" 的商品`}</span>`;
+    cartonSearchResultsList.appendChild(noDiv);
+    cartonSearchResultsList.style.display = 'block';
+
+    if (cartonMatchBox) cartonMatchBox.style.display = 'none';
+    if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'block';
+    return;
+  }
+
+  if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+
+  matches.forEach(p => {
+    const itemEl = document.createElement('div');
+    itemEl.className = 'carton-search-item result-row';
+    itemEl.style.cssText = 'padding: 9px 12px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.12s ease; border-radius: 0;';
+    itemEl._product = p;
+
+    const name = p.product_name || p.name || p.n || 'Unnamed item';
+    const barcode = p.barcode || p.b || '';
+    const barcode2 = p.barcode_2 || p.b2 || '';
+    const stockCode = p.stock_no || p.stock_code || p.s || '';
+    const category = p.category || p.c || '';
+
+    const isCarton = Boolean(
+      p.is_carton ||
+      p.loc_type === 'CARTON' ||
+      (p.location_storage && p.location_storage.toUpperCase().includes('CARTON')) ||
+      (p.storage_location && p.storage_location.toUpperCase().includes('CARTON'))
+    );
+
+    const cartonTag = isCarton 
+      ? `<span style="background:#fef3c7; color:#92400e; border:1px solid #fde68a; padding:1px 5px; border-radius:4px; font-size:10px; font-weight:700; margin-left:4px;">📦 Carton</span>`
+      : '';
+
+    const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
+    const row = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row !== undefined && p.row !== null ? String(p.row) : (p.row || ''));
+    const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
+    const level = p.level !== undefined && p.level !== null ? String(p.level) : '';
+    const hasLoc = floor !== '' || row !== '' || shelf !== '';
+    const locText = hasLoc ? `📍 ${floor}-${row}-${shelf}-${level}` : `<span style="color:#94a3b8; font-size:11px;">⚠️ No loc</span>`;
+
+    const codeDisplay = barcode || (barcode2 ? `Barcode 2: ${barcode2}` : (stockCode ? `#${stockCode}` : ''));
+
+    itemEl.innerHTML = `
+      <div style="flex: 1; min-width: 0; padding-right: 8px;">
+        <div style="font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(name)} ${cartonTag}
+        </div>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(codeDisplay)}${category ? ` &bull; ${escapeHtml(category)}` : ''}
+        </div>
+      </div>
+      <div style="text-align: right; flex-shrink: 0;">
+        <div style="font-size: 11px; font-weight: 600; color: var(--accent);">
+          ${locText}
+        </div>
+      </div>
+    `;
+
+    itemEl.addEventListener('click', () => {
+      selectCartonProduct(p);
+    });
+
+    cartonSearchResultsList.appendChild(itemEl);
+  });
+
+  cartonSearchResultsList.style.display = 'block';
+}
 
 if (cartonStockNoInput) {
   cartonStockNoInput.addEventListener('input', (e) => {
     const val = e.target.value.trim();
-    clearTimeout(cartonDebounceTimer);
+    if (cartonClearSearchBtn) cartonClearSearchBtn.style.display = val ? 'block' : 'none';
+    doCartonProductSearch(val);
+  });
 
-    if (!val) {
-      if (cartonMatchBox) cartonMatchBox.style.display = 'none';
-      if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
-      if (cartonManualBox) cartonManualBox.style.display = 'none';
-      matchedCartonProduct = null;
-      return;
-    }
-
-    cartonDebounceTimer = setTimeout(async () => {
-      const valLower = val.toLowerCase();
-      // 1. Search in-memory PRODUCTS array
-      let match = PRODUCTS.find(p => (p.stock_no || p.stock_code || '').toLowerCase() === valLower || (p.barcode || '').toLowerCase() === valLower || (p.barcode_2 || p.b2 || '').toLowerCase() === valLower);
-
-      // 2. Query server endpoint for instant database lookup
-      if (!match) {
-        try {
-          if (cartonAbortController) cartonAbortController.abort();
-          cartonAbortController = new AbortController();
-          const res = await fetch(`/api/products/lookup/${encodeURIComponent(val)}`, { signal: cartonAbortController.signal });
-          const data = await res.json();
-          if (data.success && data.product) {
-            match = data.product;
-          }
-        } catch (err) {
-          if (err.name !== 'AbortError') console.warn('Carton lookup error:', err);
-        }
-      }
-
-      if (match) {
-        matchedCartonProduct = match;
-        if (cartonMatchedName) cartonMatchedName.textContent = match.product_name || match.name || 'Unnamed item';
-        if (cartonMatchedMeta) cartonMatchedMeta.textContent = `Barcode: ${match.barcode || '—'} | Category: ${match.category || '—'} • ${match.department || match.subcategory || 'General'}`;
-        const matchSkuBadge = document.getElementById('cartonMatchSkuBadge');
-        if (matchSkuBadge) matchSkuBadge.textContent = match.stock_no || match.stock_code || val;
-
-        const existingLocsEl = document.getElementById('cartonExistingLocs');
-        if (existingLocsEl) {
-          const locsList = Array.isArray(match.locations) ? match.locations : [];
-          if (locsList.length > 0) {
-            existingLocsEl.innerHTML = `<strong>Current Active Locations:</strong><br>` + locsList.map(l => `• Floor ${l.floor || '1'}, Row ${l.row || l.batch || '01'}, Shelf ${l.shelf || '01'}, Level ${l.level || '00'} (${l.qty || 0} units)${l.is_carton || (l.storage_location && l.storage_location.includes('Carton')) ? ' <span style="color:#b45309;font-weight:700;">[📦 Big Carton]</span>' : ''}`).join('<br>');
-          } else if (match.floor || match.row || match.shelf || match.loc || match.storage_location || match.location_storage) {
-            const f = match.floor || '1';
-            const r = match.row || match.batch || '01';
-            const s = match.shelf || '01';
-            const l = match.level || '00';
-            existingLocsEl.innerHTML = `<strong>Current Active Location:</strong><br>• Floor ${f}, Row ${r}, Shelf ${s}, Level ${l} (${match.qty || 0} units)`;
-          } else {
-            existingLocsEl.innerHTML = `<span style="color:#64748b; font-style:italic;">No shelf location assigned yet. Ready for first carton putaway.</span>`;
-          }
-        }
-
-        if (cartonMatchBox) cartonMatchBox.style.display = 'block';
-        if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
+  cartonStockNoInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = cartonStockNoInput.value.trim();
+      if (!val) return;
+      const firstItem = cartonSearchResultsList ? cartonSearchResultsList.querySelector('.carton-search-item') : null;
+      if (firstItem && firstItem._product) {
+        selectCartonProduct(firstItem._product);
       } else {
-        matchedCartonProduct = null;
-        if (cartonMatchBox) cartonMatchBox.style.display = 'none';
-        if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'block';
+        doCartonProductSearch(val, true);
       }
-    }, 180);
+    } else if (e.key === 'Escape') {
+      hideCartonSearchResults();
+    }
+  });
+
+  cartonStockNoInput.addEventListener('focus', () => {
+    const val = cartonStockNoInput.value.trim();
+    if (val && (!matchedCartonProduct || cartonStockNoInput.value !== (matchedCartonProduct.product_name || matchedCartonProduct.name))) {
+      doCartonProductSearch(val);
+    }
   });
 }
 
@@ -4258,9 +5236,26 @@ function handleCartonLocationQRScan(code) {
 const cartonSaveLocationBtn = document.getElementById('cartonSaveLocationBtn');
 if (cartonSaveLocationBtn) {
   cartonSaveLocationBtn.addEventListener('click', async () => {
-    const p = matchedCartonProduct || activeProduct;
+    let p = matchedCartonProduct || activeProduct;
+    
+    // Auto fallback: if user typed stock code or name without clicking dropdown
     if (!p) {
-      showToast('Please type a valid stock number first.', 'error');
+      const inputVal = cartonStockNoInput ? cartonStockNoInput.value.trim() : '';
+      if (inputVal) {
+        const qLower = inputVal.toLowerCase();
+        p = PRODUCTS.find(item => {
+          const b1 = (item.barcode || item.b || '').toString().trim().toLowerCase();
+          const b2 = (item.barcode_2 || item.b2 || '').toString().trim().toLowerCase();
+          const s = (item.stock_no || item.stock_code || item.s || '').toString().trim().toLowerCase();
+          const n = (item.product_name || item.name || item.n || '').toString().trim().toLowerCase();
+          return (b1 && b1 === qLower) || (b2 && b2 === qLower) || (s && s === qLower) || (n && n === qLower) || (n && n.includes(qLower));
+        });
+        if (p) matchedCartonProduct = p;
+      }
+    }
+
+    if (!p) {
+      showToast('Please search, select, or scan a valid product first.', 'error');
       return;
     }
 
@@ -4279,32 +5274,85 @@ if (cartonSaveLocationBtn) {
     const floorLabel = floor === '1' ? 'First Floor' : (floor === '2' ? 'Second Floor' : 'Third Floor');
     const storage_location = `${loc} ${floorLabel} - Row ${row} - Shelves ${shelf} - Level ${level} • 📦 Big Carton`;
 
+    // 1. Locate all existing rows for this product in catalog
+    const barcode = (p.barcode || p.b || '').toString().trim().toLowerCase();
+    const barcode2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+    const stockCode = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+
+    const matchingRows = PRODUCTS.filter(item => {
+      if (p.id && String(item.id) === String(p.id)) return true;
+      const ib1 = (item.barcode || item.b || '').toString().trim().toLowerCase();
+      const ib2 = (item.barcode_2 || item.b2 || '').toString().trim().toLowerCase();
+      const is = (item.stock_no || item.stock_code || item.s || '').toString().trim().toLowerCase();
+      if (barcode && (ib1 === barcode || ib2 === barcode)) return true;
+      if (barcode2 && (ib1 === barcode2 || ib2 === barcode2)) return true;
+      if (stockCode && is === stockCode) return true;
+      return false;
+    });
+
+    const masterProd = matchingRows.find(item => item.product_name || item.name || item.n) || p;
+
+    const resolvedName = (p.product_name || p.name || p.n || masterProd.product_name || masterProd.name || masterProd.n || '').trim();
+    const resolvedStock = (p.stock_no || p.stock_code || p.s || masterProd.stock_no || masterProd.stock_code || masterProd.s || '').trim();
+    const resolvedBarcode = (p.barcode || p.b || masterProd.barcode || masterProd.b || '').trim();
+    const resolvedBarcode2 = (p.barcode_2 || p.b2 || masterProd.barcode_2 || masterProd.b2 || '').trim();
+    const resolvedCat = (p.category || p.c || masterProd.category || masterProd.c || 'Uncategorized').trim();
+    const resolvedDept = (p.department || p.subcategory || p.sc || masterProd.department || masterProd.subcategory || masterProd.sc || '').trim();
+
+    // Check if there is already a row for this product at this exact location
+    const sameLocRow = matchingRows.find(item =>
+      String(item.floor || '1') === String(floor) &&
+      pad2(item.row || item.batch || '') === pad2(row) &&
+      pad2(item.shelf || '') === pad2(shelf) &&
+      pad2(item.level || '00') === pad2(level)
+    );
+
+    // Check if there is an unmapped row for this product
+    const unmappedRow = matchingRows.find(item =>
+      !item.floor || String(item.floor).trim() === '' || !item.row || String(item.row).trim() === '' || item.status === 'UNMAPPED'
+    );
+
+    // If matching at same location or unmapped row exists, update via PUT; otherwise add a new location row via POST
+    const targetRow = sameLocRow || unmappedRow;
+    const targetId = targetRow ? targetRow.id : null;
+    const url = targetId ? `/api/products/${targetId}` : '/api/products';
+    const method = targetId ? 'PUT' : 'POST';
+
+    const finalQty = sameLocRow ? ((parseInt(sameLocRow.qty, 10) || 0) + putawayQty) : putawayQty;
+
     cartonSaveLocationBtn.disabled = true;
     showToast(`Saving Carton Location: ${loc}...`);
 
     const payload = {
-      name: p.product_name || p.name,
-      barcode: p.barcode || '',
-      stock_code: p.stock_no || p.stock_code || '',
-      category: p.category || 'Uncategorized',
-      subcategory: p.department || p.subcategory || '',
+      name: resolvedName,
+      product_name: resolvedName,
+      barcode: resolvedBarcode,
+      barcode_2: resolvedBarcode2,
+      stock_code: resolvedStock,
+      stock_no: resolvedStock,
+      category: resolvedCat,
+      subcategory: resolvedDept,
+      department: resolvedDept,
       floor,
+      row,
       batch: row,
       shelf,
       level,
       loc,
       loc_full: storage_location,
       location_storage: storage_location,
+      storage_location: storage_location,
       is_carton: true,
       loc_type: 'CARTON',
-      qty: putawayQty,
+      qty: finalQty,
       status: 'MAPPED',
-      last_modified_by: currentUser ? `${currentUser.full_name} (Carton Specialist)` : 'Carton Specialist'
+      custom: true,
+      last_modified_by: currentUser ? currentUser.full_name : 'Staff Stockman'
     };
 
     try {
-      const res = await fetch('/api/products', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(r => r.json());
@@ -4313,18 +5361,47 @@ if (cartonSaveLocationBtn) {
         playScanBeep(true);
         if (cartonOverlay) cartonOverlay.classList.remove('show');
         
-        const idx = PRODUCTS.findIndex(item => item.id === res.product.id);
-        if (idx !== -1) PRODUCTS[idx] = res.product;
-        else PRODUCTS.unshift(res.product);
+        const savedProd = res.product;
+        savedProd.product_name = savedProd.product_name || resolvedName;
+        savedProd.name = savedProd.name || resolvedName;
+        savedProd.stock_no = savedProd.stock_no || resolvedStock;
+        savedProd.stock_code = savedProd.stock_code || resolvedStock;
+        savedProd.barcode = savedProd.barcode || resolvedBarcode;
+        savedProd.barcode_2 = savedProd.barcode_2 || resolvedBarcode2;
+        savedProd.category = savedProd.category || resolvedCat;
+        savedProd.department = savedProd.department || resolvedDept;
+
+        const idx = PRODUCTS.findIndex(item => String(item.id) === String(savedProd.id));
+        if (idx !== -1) {
+          PRODUCTS[idx] = savedProd;
+        } else {
+          PRODUCTS.unshift(savedProd);
+        }
+
+        // Also ensure all other rows sharing this SKU retain the resolved product name
+        PRODUCTS.forEach(item => {
+          const ib1 = (item.barcode || item.b || '').toString().trim().toLowerCase();
+          const is = (item.stock_no || item.stock_code || item.s || '').toString().trim().toLowerCase();
+          if ((resolvedBarcode && ib1 === resolvedBarcode.toLowerCase()) || (resolvedStock && is === resolvedStock.toLowerCase())) {
+            item.product_name = resolvedName;
+            item.name = resolvedName;
+          }
+        });
+
+        if (typeof productsData !== 'undefined' && Array.isArray(productsData)) {
+          const dataIdx = productsData.findIndex(item => String(item.id) === String(savedProd.id));
+          if (dataIdx !== -1) productsData[dataIdx] = savedProd;
+          else productsData.unshift(savedProd);
+        }
 
         rebuildIndex();
-        renderProduct(res.product);
+        renderProduct(savedProd);
         if (typeof renderPortalDataTable === 'function') {
           renderPortalDataTable({ refreshStats: true });
         }
-        showToast(`🎉 Big Carton Location Saved! "${p.product_name || p.name}" -> Floor ${floor}, Row ${row}, Shelf ${shelf}`, 'success');
+        showToast(`🎉 Big Carton Location Saved! "${savedProd.product_name || savedProd.name}" -> Floor ${floor}, Row ${row}, Shelf ${shelf}`, 'success');
       } else {
-        showToast('Failed to save carton location: ' + (res.error || 'Server error'), 'error');
+        showToast('Failed to save carton location: ' + (res.error || res.message || 'Server error'), 'error');
       }
     } catch (err) {
       showToast('Network error saving carton location: ' + err.message, 'error');

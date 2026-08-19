@@ -2,6 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 const fs = require('fs');
 const { SEARCH_SYNONYMS } = require('./search-synonyms');
+const { hashPassword, verifyPassword } = require('../auth');
 
 const seedPath = path.join(__dirname, '..', 'seed-data.json');
 let memoryProducts = [];
@@ -20,21 +21,27 @@ function invalidateAllProductsCache() {
   allProductsCache.time = 0;
 }
 
+function escapePostgrestValue(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 let memoryUsers = [
-  { id: 1, username: 'stockman1', password: 'password123', full_name: 'Juan Dela Cruz', role: 'stockman' },
-  { id: 2, username: 'stockman2', password: 'password123', full_name: 'Pedro Santos', role: 'stockman' },
-  { id: 3, username: 'checker1', password: 'password123', full_name: 'Maria Santos', role: 'checker' },
-  { id: 4, username: 'checker2', password: 'password123', full_name: 'Alex Reyes', role: 'checker' },
-  { id: 5, username: 'admin', password: 'adminpassword', full_name: 'Warehouse Supervisor', role: 'admin' }
+  { id: 1, username: 'stockman1', password: hashPassword('password123'), full_name: 'Juan Dela Cruz', role: 'stockman' },
+  { id: 2, username: 'stockman2', password: hashPassword('password123'), full_name: 'Pedro Santos', role: 'stockman' },
+  { id: 3, username: 'checker1', password: hashPassword('password123'), full_name: 'Maria Santos', role: 'checker' },
+  { id: 4, username: 'checker2', password: hashPassword('password123'), full_name: 'Alex Reyes', role: 'checker' },
+  { id: 5, username: 'admin', password: hashPassword('adminpassword'), full_name: 'Warehouse Supervisor', role: 'admin' }
 ];
 
 function normalizeProduct(p) {
   if (!p) return p;
-  const product_name = p.product_name !== undefined ? p.product_name : (p.name !== undefined ? p.name : (p.n || ''));
-  const stock_no = p.stock_no !== undefined ? p.stock_no : (p.stock_code !== undefined ? p.stock_code : (p.s || ''));
-  const department = p.department !== undefined ? p.department : (p.subcategory !== undefined ? p.subcategory : (p.sc || ''));
-  const row = p.row !== undefined ? p.row : (p.batch !== undefined ? p.batch : '');
-  const storage_location = p.location_storage !== undefined ? p.location_storage : (p.storage_location !== undefined ? p.storage_location : (p.loc_full !== undefined ? p.loc_full : (p.locFull || '')));
+  const product_name = (p.product_name && String(p.product_name).trim()) ? String(p.product_name).trim() : ((p.name && String(p.name).trim()) ? String(p.name).trim() : (p.n || ''));
+  const stock_no = (p.stock_no && String(p.stock_no).trim()) ? String(p.stock_no).trim() : ((p.stock_code && String(p.stock_code).trim()) ? String(p.stock_code).trim() : (p.s || ''));
+  const department = (p.department && String(p.department).trim()) ? String(p.department).trim() : ((p.subcategory && String(p.subcategory).trim()) ? String(p.subcategory).trim() : (p.sc || ''));
+  const row = p.row !== undefined && p.row !== null ? String(p.row) : (p.batch !== undefined && p.batch !== null ? String(p.batch) : '');
+  const storage_location = p.location_storage !== undefined && p.location_storage !== null ? String(p.location_storage) : (p.storage_location !== undefined && p.storage_location !== null ? String(p.storage_location) : (p.loc_full !== undefined && p.loc_full !== null ? String(p.loc_full) : (p.locFull || '')));
+  const is_carton = Boolean(p.is_carton || p.loc_type === 'CARTON' || (storage_location && (storage_location.includes('Carton') || storage_location.includes('Big Item'))));
+  const loc_type = is_carton ? 'CARTON' : (p.loc_type || 'SHELF');
   return {
     ...p,
     product_name,
@@ -47,7 +54,9 @@ function normalizeProduct(p) {
     batch: row,
     location_storage: storage_location,
     storage_location: storage_location,
-    loc_full: storage_location
+    loc_full: storage_location,
+    is_carton,
+    loc_type
   };
 }
 
@@ -109,6 +118,10 @@ function initSupabase() {
 
 initSupabase();
 
+if (!isConnectedToSupabase) {
+  memoryProducts = loadSeedData();
+}
+
 module.exports = {
   // Authentication & Users API
   loginUser: async (username, password) => {
@@ -116,24 +129,32 @@ module.exports = {
     const cleanPass = (password || '').trim();
 
     if (isConnectedToSupabase && supabase) {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, username, full_name, role, password')
-          .eq('username', cleanUser)
-          .single();
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, full_name, role, password')
+        .eq('username', cleanUser)
+        .single();
 
-        if (!error && data && data.password === cleanPass) {
+      if (error && error.code !== 'PGRST116') throw new Error(error.message);
+      if (data) {
+        const result = verifyPassword(cleanPass, data.password);
+        if (result.valid) {
+          if (result.needsUpgrade) {
+            const { error: upgradeError } = await supabase
+              .from('users')
+              .update({ password: hashPassword(cleanPass) })
+              .eq('id', data.id);
+            if (upgradeError) console.warn('Could not upgrade legacy password hash:', upgradeError.message);
+          }
           const { password, ...userWithoutPass } = data;
           return userWithoutPass;
         }
-      } catch (e) {
-        console.warn('Supabase user lookup error:', e.message);
       }
+      return null;
     }
 
-    const found = memoryUsers.find(u => u.username.toLowerCase() === cleanUser && u.password === cleanPass);
-    if (found) {
+    const found = memoryUsers.find(u => u.username.toLowerCase() === cleanUser);
+    if (found && verifyPassword(cleanPass, found.password).valid) {
       const { password, ...userWithoutPass } = found;
       return userWithoutPass;
     }
@@ -142,7 +163,8 @@ module.exports = {
   getUsers: async () => {
     if (isConnectedToSupabase && supabase) {
       const { data, error } = await supabase.from('users').select('id, username, full_name, role, created_at');
-      if (!error && data) return data;
+      if (error) throw new Error(error.message);
+      if (data) return data;
     }
     return memoryUsers.map(({ password, ...u }) => u);
   },
@@ -155,11 +177,12 @@ module.exports = {
     if (isConnectedToSupabase && supabase) {
       const { data: newUser, error } = await supabase
         .from('users')
-        .insert([{ username: cleanUser, password: cleanPass, full_name: fullName, role }])
+        .insert([{ username: cleanUser, password: hashPassword(cleanPass), full_name: fullName, role }])
         .select('id, username, full_name, role, created_at')
         .single();
 
-      if (!error && newUser) return newUser;
+      if (error) throw new Error(error.message);
+      if (newUser) return newUser;
     }
 
     const newUser = {
@@ -168,7 +191,7 @@ module.exports = {
       full_name: fullName,
       role
     };
-    memoryUsers.push({ ...newUser, password: cleanPass });
+    memoryUsers.push({ ...newUser, password: hashPassword(cleanPass) });
     return newUser;
   },
 
@@ -222,6 +245,7 @@ module.exports = {
       } catch (err) {
         console.warn('getAllProducts Supabase error:', err.message);
         if (allProductsCache.data) return allProductsCache.data; // serve stale rather than nothing
+        throw err;
       } finally {
         allProductsPromise = null;
       }
@@ -234,15 +258,16 @@ module.exports = {
     const qStripped = q.replace(/^0+/, '');
 
     if (isConnectedToSupabase && supabase) {
-      const pattern = `%${q}%`;
-      const patternStripped = qStripped ? `%${qStripped}%` : pattern;
+      const pattern = escapePostgrestValue(`%${q}%`);
+      const patternStripped = escapePostgrestValue(qStripped ? `%${qStripped}%` : `%${q}%`);
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .or(`product_name.ilike.${pattern},barcode.ilike.${pattern},barcode.ilike.${patternStripped},barcode_2.ilike.${pattern},barcode_2.ilike.${patternStripped},stock_no.ilike.${pattern},category.ilike.${pattern},department.ilike.${pattern}`)
+        .or(`product_name.ilike."${pattern}",barcode.ilike."${pattern}",barcode.ilike."${patternStripped}",barcode_2.ilike."${pattern}",barcode_2.ilike."${patternStripped}",stock_no.ilike."${pattern}",category.ilike."${pattern}",department.ilike."${pattern}"`)
         .limit(limit);
 
-      if (!error && data) return data.map(normalizeProduct);
+      if (error) throw new Error(error.message);
+      if (data) return data.map(normalizeProduct);
     }
 
     const qLower = q.toLowerCase();
@@ -309,8 +334,8 @@ module.exports = {
     const cleanStripped = clean.replace(/^0+/, '');
 
     if (isConnectedToSupabase && supabase) {
-      const safeClean = clean.replace(/"/g, '');
-      const safeStripped = cleanStripped.replace(/"/g, '');
+      const safeClean = escapePostgrestValue(clean);
+      const safeStripped = escapePostgrestValue(cleanStripped);
 
       // Check exact match or zero-stripped match first
       const { data, error } = await supabase
@@ -319,16 +344,18 @@ module.exports = {
         .or(`barcode.eq."${safeClean}",stock_no.eq."${safeClean}",barcode.eq."${safeStripped}",stock_no.eq."${safeStripped}"`)
         .limit(1);
 
-      if (!error && data && data.length > 0) return normalizeProduct(data[0]);
+      if (error) throw new Error(error.message);
+      if (data && data.length > 0) return normalizeProduct(data[0]);
 
       // Fallback to ilike match if eq fails
       const { data: dataLike, error: errorLike } = await supabase
         .from('products')
         .select('*')
-        .or(`barcode.ilike.%${safeClean}%,stock_no.ilike.%${safeClean}%`)
+        .or(`barcode.ilike."%${safeClean}%",stock_no.ilike."%${safeClean}%"`)
         .limit(1);
 
-      if (!errorLike && dataLike && dataLike.length > 0) return normalizeProduct(dataLike[0]);
+      if (errorLike) throw new Error(errorLike.message);
+      if (dataLike && dataLike.length > 0) return normalizeProduct(dataLike[0]);
     }
 
     const cleanLower = clean.toLowerCase();
@@ -343,7 +370,8 @@ module.exports = {
   getProductById: async (id) => {
     if (isConnectedToSupabase && supabase) {
       const { data, error } = await supabase.from('products').select('*').eq('id', id).single();
-      if (!error && data) return normalizeProduct(data);
+      if (error && error.code !== 'PGRST116') throw new Error(error.message);
+      if (data) return normalizeProduct(data);
     }
     const found = memoryProducts.find(p => String(p.id) === String(id));
     return normalizeProduct(found);
@@ -352,7 +380,8 @@ module.exports = {
     if (isConnectedToSupabase && supabase) {
       let query = supabase.from('products').select('*');
       if (loc) {
-        query = query.or(`loc.eq."${loc}",location_storage.ilike."%${loc}%"`);
+        const safeLoc = escapePostgrestValue(loc);
+        query = query.or(`loc.eq."${safeLoc}",location_storage.ilike."%${safeLoc}%"`);
       } else {
         if (floor) query = query.eq('floor', floor);
         if (row) query = query.eq('row', row);
@@ -361,8 +390,7 @@ module.exports = {
       }
       const { data, error } = await query;
       if (error) {
-        console.error('Error getting products by location:', error.message);
-        return [];
+        throw new Error(error.message);
       }
       return (data || []).map(normalizeProduct);
     }
@@ -386,6 +414,7 @@ module.exports = {
       product_name: data.product_name || data.name || '',
       category: data.category || 'Uncategorized',
       department: data.department || data.subcategory || '',
+      barcode_2: data.barcode_2 || data.b2 || '',
       floor: data.floor || '1',
       row: data.row || data.batch || '',
       shelf: data.shelf || '',
@@ -400,12 +429,15 @@ module.exports = {
 
     if (isConnectedToSupabase && supabase) {
       const { data: inserted, error } = await supabase.from('products').insert([payload]).select().single();
-      if (!error && inserted) return normalizeProduct(inserted);
+      if (error) throw new Error(error.message);
+      if (inserted) return normalizeProduct({ ...inserted, is_carton: Boolean(data.is_carton || data.loc_type === 'CARTON') });
     }
 
     const newProduct = {
       id: memoryProducts.length + 1,
-      ...payload
+      ...payload,
+      is_carton: Boolean(data.is_carton || data.loc_type === 'CARTON'),
+      loc_type: data.loc_type || (data.is_carton ? 'CARTON' : 'SHELF')
     };
     memoryProducts.push(newProduct);
     return normalizeProduct(newProduct);
@@ -413,11 +445,17 @@ module.exports = {
   updateProduct: async (id, data) => {
     invalidateAllProductsCache();
     const updatePayload = {};
-    if (data.product_name !== undefined || data.name !== undefined) updatePayload.product_name = data.product_name || data.name;
-    if (data.stock_no !== undefined || data.stock_code !== undefined) updatePayload.stock_no = data.stock_no || data.stock_code;
-    if (data.barcode !== undefined) updatePayload.barcode = data.barcode;
-    if (data.category !== undefined) updatePayload.category = data.category;
-    if (data.department !== undefined || data.subcategory !== undefined) updatePayload.department = data.department || data.subcategory;
+    const pName = (data.product_name || data.name || '').toString().trim();
+    if (pName) updatePayload.product_name = pName;
+    const sNo = (data.stock_no || data.stock_code || '').toString().trim();
+    if (sNo) updatePayload.stock_no = sNo;
+    const bCode = (data.barcode || '').toString().trim();
+    if (bCode) updatePayload.barcode = bCode;
+    const bCode2 = (data.barcode_2 || data.b2 || '').toString().trim();
+    if (bCode2) updatePayload.barcode_2 = bCode2;
+    if (data.category && String(data.category).trim()) updatePayload.category = String(data.category).trim();
+    const dept = (data.department || data.subcategory || '').toString().trim();
+    if (dept) updatePayload.department = dept;
     if (data.floor !== undefined) updatePayload.floor = data.floor;
     if (data.row !== undefined || data.batch !== undefined) updatePayload.row = data.row !== undefined ? data.row : data.batch;
     if (data.shelf !== undefined) updatePayload.shelf = data.shelf;
@@ -440,19 +478,16 @@ module.exports = {
         .select()
         .single();
 
-      if (error) {
-        console.error('Error updating product row:', error.message);
-      }
+      if (error) throw new Error(error.message);
 
       if (!error && updated) {
-        // 2. Propagate product-wide metadata updates to all other rows for the same product
+        // 2. Propagate product-wide metadata updates to all other rows for the same product ONLY if metadata was provided
         const barcode = (updated.barcode || '').trim();
         const stock_no = (updated.stock_no || '').trim();
         
-        if (barcode || stock_no) {
-          const safeBar = barcode.replace(/"/g, '');
-          const safeStock = stock_no.replace(/"/g, '');
-
+        if (pName && (barcode || stock_no)) {
+          const safeBar = escapePostgrestValue(barcode);
+          const safeStock = escapePostgrestValue(stock_no);
           const syncData = {
             product_name: updated.product_name,
             category: updated.category,
@@ -482,13 +517,13 @@ module.exports = {
 
     const item = memoryProducts.find(p => String(p.id) === String(id));
     if (item) {
-      Object.assign(item, data);
+      Object.assign(item, updatePayload);
       if (data.last_modified_by) item.last_modified_by = data.last_modified_by;
 
       // Sync metadata in memory products
       const barcode = item.barcode || '';
       const stock_no = item.stock_no || '';
-      if (barcode || stock_no) {
+      if (pName && (barcode || stock_no)) {
         memoryProducts.forEach(p => {
           const matchesBarcode = barcode && p.barcode === barcode;
           const matchesStock = stock_no && p.stock_no === stock_no;
@@ -509,7 +544,8 @@ module.exports = {
     invalidateAllProductsCache();
     if (isConnectedToSupabase && supabase) {
       const { error } = await supabase.from('products').delete().eq('id', id);
-      return !error;
+      if (error) throw new Error(error.message);
+      return true;
     }
     const len = memoryProducts.length;
     memoryProducts = memoryProducts.filter(p => String(p.id) !== String(id));
@@ -560,8 +596,8 @@ module.exports = {
       }
     }
 
-    if (lastError && insertedCount === 0) {
-      return { success: false, error: lastError };
+    if (lastError) {
+      return { success: false, error: lastError, count: insertedCount, partial: insertedCount > 0 };
     }
 
     return { success: true, count: insertedCount };
@@ -692,44 +728,70 @@ module.exports = {
     const destFloorLabel = destFloor === '1' ? 'First Floor' : (destFloor === '2' ? 'Second Floor' : 'Third Floor');
     const destLocFull = `${cleanDestLoc} ${destFloorLabel} - Row ${destRow} - Shelves ${destShelf} - Level ${destLevel}`;
 
-    // 1. Decrement source row quantity
     const newSourceQty = currentQty - qtyToTransfer;
-    await module.exports.updateProduct(sourceId, {
-      qty: newSourceQty,
-      modifiedBy: modifiedBy || 'Stockman Transfer'
-    });
+    let sourceChanged = false;
+    try {
+      // The conditional update prevents two concurrent transfers from both
+      // spending the same units. A database RPC can make this fully atomic;
+      // this guarded update plus compensation is safe for existing installs.
+      if (isConnectedToSupabase && supabase) {
+        const { data: decremented, error: decrementError } = await supabase
+          .from('products')
+          .update({ qty: newSourceQty, last_modified_by: modifiedBy || 'Stockman Transfer' })
+          .eq('id', sourceId)
+          .gte('qty', qtyToTransfer)
+          .select('id,qty')
+          .single();
+        if (decrementError || !decremented) throw new Error(decrementError ? decrementError.message : 'Source stock changed; please retry.');
+      } else {
+        await module.exports.updateProduct(sourceId, { qty: newSourceQty, modifiedBy: modifiedBy || 'Stockman Transfer' });
+      }
+      sourceChanged = true;
 
-    // 2. Find or create destination location row for this SKU
-    const existingLocs = await module.exports.getProductsByLocation({ loc: cleanDestLoc });
-    const targetDestRow = existingLocs.find(p =>
-      (p.barcode && source.barcode && p.barcode.toLowerCase() === source.barcode.toLowerCase()) ||
-      (p.stock_no && source.stock_no && p.stock_no.toLowerCase() === source.stock_no.toLowerCase())
-    );
+      const existingLocs = await module.exports.getProductsByLocation({ loc: cleanDestLoc });
+      const targetDestRow = existingLocs.find(p =>
+        (p.barcode && source.barcode && p.barcode.toLowerCase() === source.barcode.toLowerCase()) ||
+        (p.stock_no && source.stock_no && p.stock_no.toLowerCase() === source.stock_no.toLowerCase())
+      );
 
-    if (targetDestRow) {
-      const existingDestQty = parseInt(targetDestRow.qty, 10) || 0;
-      await module.exports.updateProduct(targetDestRow.id, {
-        qty: existingDestQty + qtyToTransfer,
-        modifiedBy: modifiedBy || 'Stockman Transfer'
-      });
-    } else {
-      await module.exports.createProduct({
-        barcode: source.barcode,
-        stock_no: source.stock_no,
-        product_name: source.product_name,
-        category: source.category,
-        department: source.department,
-        floor: destFloor,
-        row: destRow,
-        shelf: destShelf,
-        level: destLevel,
-        loc: cleanDestLoc,
-        storage_location: destLocFull,
-        qty: qtyToTransfer,
-        status: 'MAPPED',
-        custom: true,
-        last_modified_by: modifiedBy || 'Stockman Transfer'
-      });
+      if (targetDestRow) {
+        const existingDestQty = parseInt(targetDestRow.qty, 10) || 0;
+        await module.exports.updateProduct(targetDestRow.id, {
+          qty: existingDestQty + qtyToTransfer,
+          modifiedBy: modifiedBy || 'Stockman Transfer'
+        });
+      } else {
+        await module.exports.createProduct({
+          barcode: source.barcode,
+          stock_no: source.stock_no,
+          product_name: source.product_name,
+          category: source.category,
+          department: source.department,
+          floor: destFloor,
+          row: destRow,
+          shelf: destShelf,
+          level: destLevel,
+          loc: cleanDestLoc,
+          storage_location: destLocFull,
+          qty: qtyToTransfer,
+          status: 'MAPPED',
+          custom: true,
+          last_modified_by: modifiedBy || 'Stockman Transfer'
+        });
+      }
+    } catch (err) {
+      if (sourceChanged) {
+        try {
+          if (isConnectedToSupabase && supabase) {
+            await supabase.from('products').update({ qty: currentQty }).eq('id', sourceId).eq('qty', newSourceQty);
+          } else {
+            await module.exports.updateProduct(sourceId, { qty: currentQty, modifiedBy: 'Transfer rollback' });
+          }
+        } catch (rollbackError) {
+          throw new Error(`Transfer failed and rollback also failed: ${err.message}; ${rollbackError.message}`);
+        }
+      }
+      throw new Error(`Transfer failed: ${err.message}`);
     }
 
     return { success: true, message: `Transferred ${qtyToTransfer} units to location ${cleanDestLoc}` };
@@ -787,10 +849,12 @@ module.exports = {
     if (isConnectedToSupabase && supabase) {
       const updatePayload = {
         floor: null,
-        batch: null,
+        row: null,
         shelf: null,
         level: null,
-        loc_full: null,
+        loc: null,
+        location_storage: null,
+        qty: 0,
         status: 'UNMAPPED'
       };
 
@@ -801,9 +865,9 @@ module.exports = {
         .select()
         .single();
 
-      if (!error && updated) {
-        addOrUpdateSkuRegistry(updated);
-        const idx = memoryProducts.findIndex(p => p.id === parseInt(id, 10));
+      if (error) throw new Error(error.message);
+      if (updated) {
+        const idx = memoryProducts.findIndex(p => String(p.id) === String(id));
         if (idx !== -1) {
           memoryProducts[idx] = { ...memoryProducts[idx], ...updated };
         }
@@ -818,12 +882,88 @@ module.exports = {
       memoryProducts[idx].batch = null;
       memoryProducts[idx].shelf = null;
       memoryProducts[idx].level = null;
+      memoryProducts[idx].loc = null;
       memoryProducts[idx].location_storage = null;
+      memoryProducts[idx].storage_location = null;
       memoryProducts[idx].loc_full = null;
+      memoryProducts[idx].is_carton = false;
+      memoryProducts[idx].loc_type = 'SHELF';
+      memoryProducts[idx].qty = 0;
       memoryProducts[idx].status = 'UNMAPPED';
-      addOrUpdateSkuRegistry(memoryProducts[idx]);
       return normalizeProduct(memoryProducts[idx]);
     }
     return null;
+  },
+  resetAllProducts: async () => {
+    invalidateAllProductsCache();
+    let count = 0;
+
+    if (isConnectedToSupabase && supabase) {
+      const { data, error } = await supabase
+        .from('products')
+        .update({
+          floor: null,
+          row: null,
+          shelf: null,
+          level: '0',
+          loc: null,
+          location_storage: null,
+          qty: 0,
+          status: 'UNMAPPED',
+          last_modified_by: 'Admin Reset'
+        })
+        .neq('id', 0)
+        .select('id');
+
+      if (error) throw new Error(error.message);
+      count = data ? data.length : 0;
+    }
+
+    if (Array.isArray(memoryProducts)) {
+      memoryProducts.forEach(p => {
+        p.floor = null;
+        p.row = null;
+        p.batch = null;
+        p.shelf = null;
+        p.level = null;
+        p.loc = null;
+        p.location_storage = null;
+        p.storage_location = null;
+        p.loc_full = null;
+        p.qty = 0;
+        p.status = 'UNMAPPED';
+        p.last_modified_by = 'Admin Reset';
+      });
+      if (!count) count = memoryProducts.length;
+    }
+
+    // Also update seed-data.json if exists
+    if (fs.existsSync(seedPath)) {
+      try {
+        const raw = fs.readFileSync(seedPath, 'utf8');
+        const items = JSON.parse(raw);
+        const cleaned = items.map(p => ({
+          ...p,
+          floor: '',
+          row: '',
+          batch: '',
+          shelf: '',
+          level: '',
+          loc: '',
+          locFull: '',
+          storage_location: '',
+          location_storage: '',
+          qty: 0,
+          status: 'UNMAPPED',
+          custom: false,
+          last_modified_by: ''
+        }));
+        fs.writeFileSync(seedPath, JSON.stringify(cleaned, null, 2), 'utf8');
+      } catch (e) {
+        console.warn('Could not update seed-data.json during reset:', e.message);
+      }
+    }
+
+    return { success: true, count };
   }
 };

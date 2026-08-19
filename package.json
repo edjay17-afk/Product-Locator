@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "build": "echo 'Build complete'",
+    "test": "node --test",
     "share": "npx localtunnel --port 3002",
     "seed-supabase": "node seed-supabase.js"
   },

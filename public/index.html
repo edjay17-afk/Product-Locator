@@ -54,15 +54,13 @@
     <div id="resultsList" class="results-list"></div>
     <div class="add-row" style="display:flex;gap:6px;flex-wrap:nowrap;width:100%;">
       <button id="addProductBtn" type="button" style="flex:1 1 0%; min-width:0;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span data-i18n="addBtn">Add Product</span>
       </button>
       <button id="cartonPutawayBtn" type="button" style="flex:1 1 0%; min-width:0; background: #0284c7; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:13.5px; border:none; border-radius:10px; cursor:pointer;">
         <span data-i18n="cartonBtn">Carton / Big Items</span>
       </button>
       <button id="rapidLoggerBtn" type="button" style="flex:1 1 0%; min-width:0; background: #d97706; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:13.5px; border:none; border-radius:10px; cursor:pointer;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-        <span data-i18n="rapidBtn">⚡ Rapid Logger</span>
+        <span data-i18n="rapidBtn">Rapid Logger</span>
       </button>
     </div>
   </div>
@@ -108,10 +106,20 @@
   </div>
 
   <div class="recent-head">
-    <h2 data-i18n="recentHead">Recent lookups</h2>
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <h2 data-i18n="recentHead">Recent lookups</h2>
+      <span id="recentCountBadge" class="recent-count-badge" style="display:none;">0</span>
+    </div>
     <button id="clearRecent" type="button" data-i18n="clearRecent">clear</button>
   </div>
   <div class="recent-strip" id="recentStrip"></div>
+  <div class="recent-pagination" id="recentPagination" style="display:none;">
+    <span class="recent-page-info" id="recentPageInfo"></span>
+    <div class="recent-page-btns">
+      <button id="recentPrevBtn" type="button" class="recent-page-btn" disabled>◀ <span data-i18n="recentPrev">Prev</span></button>
+      <button id="recentNextBtn" type="button" class="recent-page-btn"><span data-i18n="recentNext">Next</span> ▶</button>
+    </div>
+  </div>
 
   <footer id="footerText" data-i18n="databaseConnected">Database Connected</footer>
 </div>
@@ -564,9 +572,10 @@
       <input id="addStockmanInput" type="text" placeholder="Stockman Name">
     </div>
 
-    <div class="form-actions" style="margin-top: 14px;">
-      <button id="cancelAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 14px; flex: 1;" data-i18n="cancel">Cancel</button>
-      <button id="confirmAddStockBtn" type="button" class="btn-save" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 16px; flex: 1.3;"><span id="confirmAddStockBtnText">Save Quantity</span></button>
+    <div class="form-actions" style="margin-top: 14px; display: flex; gap: 8px;">
+      <button id="cancelAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 10px; flex: 1;" data-i18n="cancel">Cancel</button>
+      <button id="deleteLocFromAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 10px; flex: 1; background: #fef2f2; color: #dc2626; border-color: #fecaca; font-weight: 700;">🗑️ Delete</button>
+      <button id="confirmAddStockBtn" type="button" class="btn-save" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 12px; flex: 1.3;"><span id="confirmAddStockBtnText">Save Quantity</span></button>
     </div>
 
     <div style="text-align: center; margin-top: 10px;">
@@ -645,14 +654,23 @@
       ⚡ Session: <span id="rapidSessionCountVal">0</span> items mapped
     </div>
 
-    <!-- 1. Scanner Buttons Row -->
+    <!-- 1. Scanner & Search Controls Row -->
     <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
-      <!-- Barcode Scan Button -->
-      <div>
-        <button id="scanForRapidBarcodeBtn" type="button" class="btn-save" style="width: 100%; height: 50px; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; background: #4f46e5 !important; color: white !important; border: none; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/></svg>
-          <span data-i18n="scanBarcodeBtn">Scan Barcode</span>
-        </button>
+      <!-- Product Search & Barcode Scan Row -->
+      <div style="position: relative;">
+        <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; font-family: 'Poppins', sans-serif;" data-i18n="rapidBarcodeLabel">1. Scan / Search Product</label>
+        <div class="scanner-search-row">
+          <div class="scanner-input-wrapper">
+            <input id="rapidProductSearchInput" type="text" autocomplete="off" placeholder="Search product name, code, barcode..." data-i18n-placeholder="rapidSearchPlaceholder" class="scanner-search-input">
+            <button id="rapidClearSearchBtn" type="button" class="scanner-clear-btn" title="Clear">&times;</button>
+          </div>
+          <button id="scanForRapidBarcodeBtn" type="button" class="scanner-scan-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/></svg>
+            <span data-i18n="scanBarcodeBtn">Scan</span>
+          </button>
+        </div>
+        <!-- Live Autocomplete Dropdown List for Rapid Search -->
+        <div id="rapidSearchResultsList" class="results-list search-autocomplete-popup"></div>
         <!-- Barcode Badge Indicator -->
         <div id="rapidBarcodeBadge" style="display: none; margin-top: 8px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 13px; font-weight: 600; color: #15803d; text-align: center; word-break: break-all;">
           Barcode: <span id="rapidBarcodeBadgeVal">None</span>
@@ -661,8 +679,9 @@
 
       <!-- Location QR Scan Button -->
       <div>
-        <button id="scanForRapidLocBtn" type="button" class="btn-save" style="width: 100%; height: 50px; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; background: #d97706 !important; color: white !important; border: none; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(217, 119, 6, 0.2);">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
+        <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; font-family: 'Poppins', sans-serif;" data-i18n="rapidLocLabel">2. Scan Location QR</label>
+        <button id="scanForRapidLocBtn" type="button" class="btn-save" style="width: 100%; height: 48px; font-size: 14.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; background: #d97706 !important; color: white !important; border: none; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(217, 119, 6, 0.2);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
           <span data-i18n="scanQrBtn">Scan QR</span>
         </button>
         <!-- Location Badge Indicator -->
@@ -913,10 +932,21 @@
       <button id="closeCartonModal" type="button" class="carton-close-btn">&times;</button>
     </div>
 
-    <!-- Step 1: Item Code -->
-    <div class="carton-section">
-      <label data-i18n="cartonStep1" class="carton-step-label">Step 1: Enter Item Code</label>
-      <input id="cartonStockNoInput" type="text" placeholder="Stock number (e.g. OR6868-5L, C330)" autocomplete="off" class="carton-input carton-input--code">
+    <!-- Step 1: Scan / Search Product -->
+    <div class="carton-section" style="position: relative;">
+      <label data-i18n="cartonStep1" class="carton-step-label">Step 1: Scan / Search Product</label>
+      <div class="scanner-search-row">
+        <div class="scanner-input-wrapper">
+          <input id="cartonStockNoInput" type="text" placeholder="Search product name, code, barcode..." data-i18n-placeholder="cartonSearchPlaceholder" autocomplete="off" class="scanner-search-input">
+          <button id="cartonClearSearchBtn" type="button" class="scanner-clear-btn" title="Clear">&times;</button>
+        </div>
+        <button id="cartonScanBarcodeBtn" type="button" class="scanner-scan-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/></svg>
+          <span data-i18n="scanBarcodeBtn">Scan</span>
+        </button>
+      </div>
+      <!-- Live Autocomplete Dropdown List for Carton Search -->
+      <div id="cartonSearchResultsList" class="results-list search-autocomplete-popup"></div>
     </div>
 
     <!-- Product Matched -->

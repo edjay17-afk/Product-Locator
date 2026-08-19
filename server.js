@@ -7,7 +7,10 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const multer = require('multer');
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 }
+});
 
 // XLSX is still used server-side for any future import features
 let XLSX;
@@ -15,22 +18,41 @@ try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 
 const db = require('./db/supabase');
 const os = require('os');
-
-// Global error handlers to prevent the server from crashing entirely on unexpected errors
-process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught Exception:', err);
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled Rejection:', reason);
-});
+const {
+  clearSessionCookie,
+  requireAuth,
+  requireRole,
+  readSession,
+  setSessionCookie
+} = require('./auth');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002', 10);
 
+app.disable('x-powered-by');
 if (compression) app.use(compression());
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(value => value.trim()).filter(Boolean);
+app.use(cors({
+  origin: allowedOrigins.length > 0 ? allowedOrigins : false,
+  credentials: true
+}));
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+const loginAttempts = new Map();
+function loginRateLimit(req, res, next) {
+  const key = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = loginAttempts.get(key) || { count: 0, resetAt: now + 15 * 60 * 1000 };
+  if (now > entry.resetAt) {
+    entry.count = 0;
+    entry.resetAt = now + 15 * 60 * 1000;
+  }
+  entry.count += 1;
+  loginAttempts.set(key, entry);
+  if (entry.count > 20) return res.status(429).json({ success: false, error: 'Too many login attempts. Try again later.' });
+  next();
+}
 
 function getLocalIpAddress() {
   try {
@@ -49,7 +71,7 @@ function getLocalIpAddress() {
 }
 
 // Endpoint to fetch host and local IP address info
-app.get('/api/host-info', (req, res) => {
+app.get('/api/host-info', requireAuth, (req, res) => {
   const localIp = getLocalIpAddress();
   res.json({
     success: true,
@@ -69,7 +91,7 @@ app.get('/api/ping', (req, res) => {
 
 
 // Login Endpoint
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -79,14 +101,26 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid username or password.' });
     }
+    setSessionCookie(res, req, user);
     res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
+app.get('/api/auth/me', (req, res) => {
+  const user = readSession(req);
+  if (!user) return res.status(401).json({ success: false, error: 'Not authenticated.' });
+  res.json({ success: true, user });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res, req);
+  res.json({ success: true });
+});
+
 // List Stockmen / Users
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const users = await db.getUsers();
     res.json({ success: true, users });
@@ -96,11 +130,15 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Create New Stockman Account
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const { username, password, full_name, role } = req.body;
     if (!username || !password || !full_name) {
       return res.status(400).json({ success: false, error: 'Username, password, and full name are required.' });
+    }
+    const allowedRoles = ['stockman', 'checker', 'carton_handler', 'admin'];
+    if (!allowedRoles.includes(role || 'stockman')) {
+      return res.status(400).json({ success: false, error: 'Invalid role.' });
     }
     const user = await db.createUser({ username, password, full_name, role });
     res.status(201).json({ success: true, user });
@@ -110,7 +148,7 @@ app.post('/api/users', async (req, res) => {
 });
 
 // Explicit seed endpoint
-app.get('/api/seed-supabase', async (req, res) => {
+app.post('/api/seed-supabase', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const raw = fs.readFileSync(path.join(__dirname, 'seed-data.json'), 'utf8');
     const items = JSON.parse(raw);
@@ -122,10 +160,10 @@ app.get('/api/seed-supabase', async (req, res) => {
 });
 
 // batch create products endpoint
-app.post('/api/products/batch', async (req, res) => {
+app.post('/api/products/batch', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const products = req.body.products;
-    if (!Array.isArray(products) || products.length === 0) {
+    if (!Array.isArray(products) || products.length === 0 || products.length > 10000) {
       return res.status(400).json({ success: false, error: 'No products array provided.' });
     }
 
@@ -171,7 +209,7 @@ function loadBarcode2Map() {
 }
 
 // Excel upload endpoint
-app.post('/api/upload-excel', upload.single('file'), async (req, res) => {
+app.post('/api/upload-excel', requireAuth, requireRole('admin', 'superadmin'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ success: false, error: 'No Excel file buffer received.' });
@@ -317,7 +355,8 @@ app.get('/api/stats', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const query = req.query.q || '';
-    const limit = parseInt(req.query.limit || '20', 10);
+    const requestedLimit = parseInt(req.query.limit || '20', 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, requestedLimit)) : 20;
     if (!query) {
       const stats = await db.getStats();
       return res.json({ success: true, count: stats.total, products: [] });
@@ -439,6 +478,10 @@ app.post('/api/products', async (req, res) => {
       });
     }
 
+    if (req.body.qty !== undefined && (!Number.isInteger(Number(req.body.qty)) || Number(req.body.qty) < 0 || Number(req.body.qty) > 1000000000)) {
+      return res.status(400).json({ success: false, error: 'Quantity must be a non-negative whole number.' });
+    }
+
     const stock_code = req.body.stock_code || req.body.stock_no || req.body.barcode || '';
     const subcategory = req.body.subcategory || req.body.department || '';
 
@@ -454,7 +497,7 @@ app.post('/api/products', async (req, res) => {
 
     const loc = `${fl}-${rw}-${sh}-${lev}`;
     const floorLabel = fl === '1' ? 'First Floor' : (fl === '2' ? 'Second Floor' : 'Third Floor');
-    const loc_full = `${loc} ${floorLabel} - Batch ${rw} - Shelves ${sh} - Level ${lev}`;
+    const loc_full = req.body.loc_full || req.body.location_storage || req.body.storage_location || `${loc} ${floorLabel} - Batch ${rw} - Shelves ${sh} - Level ${lev}`;
 
     const newProduct = await db.createProduct({
       ...req.body,
@@ -478,6 +521,9 @@ app.post('/api/products', async (req, res) => {
 // Update product
 app.put('/api/products/:id', async (req, res) => {
   try {
+    if (req.body.qty !== undefined && (!Number.isInteger(Number(req.body.qty)) || Number(req.body.qty) < 0 || Number(req.body.qty) > 1000000000)) {
+      return res.status(400).json({ success: false, error: 'Quantity must be a non-negative whole number.' });
+    }
     const updated = await db.updateProduct(req.params.id, req.body);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Product not found' });
@@ -501,14 +547,24 @@ app.post('/api/products/:id/reset-location', async (req, res) => {
   }
 });
 
-// Delete product
+// Reset ALL products locations (Mark all as UNMAPPED)
+app.post('/api/products/reset-all', async (req, res) => {
+  try {
+    const result = await db.resetAllProducts();
+    res.json({ success: true, count: result.count, message: `Successfully reset ${result.count} products to UNMAPPED.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Delete product / location row
 app.delete('/api/products/:id', async (req, res) => {
   try {
     const deleted = await db.deleteProduct(req.params.id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
-    res.json({ success: true, message: 'Product deleted successfully' });
+    res.json({ success: true, message: 'Product location deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -517,7 +573,7 @@ app.delete('/api/products/:id', async (req, res) => {
 // --- SUPER ADMIN & ANALYTICS ENDPOINTS ---
 
 // Admin Stats
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const stats = await db.getStats();
     res.json({
@@ -535,7 +591,7 @@ app.get('/api/admin/stats', async (req, res) => {
 });
 
 // Admin Paginated Products API (Fast browsing through 50k+ items)
-app.get('/api/admin/products', async (req, res) => {
+app.get('/api/admin/products', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const { page, limit, search, status, floor } = req.query;
     const result = await db.getPaginatedProducts({ page, limit, search, status, floor });
@@ -546,7 +602,7 @@ app.get('/api/admin/products', async (req, res) => {
 });
 
 // Admin Filtered Product Export API
-app.get('/api/admin/export-data', async (req, res) => {
+app.get('/api/admin/export-data', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const { status, category, floor, search } = req.query;
     let products = await db.getAllProducts();
@@ -674,11 +730,11 @@ let memoryOrders = [
   }
 ];
 
-app.get('/api/orders', (req, res) => {
+app.get('/api/orders', requireAuth, requireRole('admin', 'superadmin'), (req, res) => {
   res.json({ success: true, orders: memoryOrders });
 });
 
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', requireAuth, requireRole('admin', 'superadmin'), (req, res) => {
   const { order_no, customer_name, items } = req.body;
   const newOrder = {
     id: Date.now(),
@@ -693,7 +749,7 @@ app.post('/api/orders', (req, res) => {
 });
 
 // S-Shape Route Optimizer Engine Endpoint
-app.get('/api/orders/:id/route', async (req, res) => {
+app.get('/api/orders/:id/route', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const orderId = parseInt(req.params.id, 10);
     const order = memoryOrders.find(o => o.id === orderId);
@@ -750,7 +806,20 @@ app.get('/api/orders/:id/route', async (req, res) => {
   }
 });
 
-// Fallback to index.html for SPA routing (or 404 in serverless)
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: 'API endpoint not found' });
+});
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  console.error('Request failed:', err.message);
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, error: 'Uploaded file is too large. Maximum size is 10 MB.' });
+  }
+  res.status(400).json({ success: false, error: 'Invalid request.' });
+});
+
+// Fallback to index.html for SPA routing
 app.use((req, res) => {
   const indexPath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(indexPath)) {
