@@ -264,6 +264,8 @@ module.exports = {
         .from('products')
         .select('*')
         .or(`product_name.ilike."${pattern}",barcode.ilike."${pattern}",barcode.ilike."${patternStripped}",barcode_2.ilike."${pattern}",barcode_2.ilike."${patternStripped}",stock_no.ilike."${pattern}",category.ilike."${pattern}",department.ilike."${pattern}"`)
+        .order('status', { ascending: true }) // 'MAPPED' comes before 'UNMAPPED'
+        .order('id', { ascending: false })
         .limit(limit);
 
       if (error) throw new Error(error.message);
@@ -291,8 +293,6 @@ module.exports = {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || 25));
 
-    // Filter the (60s-cached) full catalog in memory — 50k rows filter in
-    // milliseconds and the semantics stay identical to the export endpoint.
     let products = await module.exports.getAllProducts();
 
     if (status && status !== 'ALL') {
@@ -336,7 +336,6 @@ module.exports = {
     if (isConnectedToSupabase && supabase) {
       const safeClean = escapePostgrestValue(clean);
       const safeStripped = escapePostgrestValue(cleanStripped);
-
       // Check exact match or zero-stripped match first
       const { data, error } = await supabase
         .from('products')

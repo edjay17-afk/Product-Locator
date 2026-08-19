@@ -618,42 +618,68 @@ function rebuildIndex() {
     p._searchStrStripped = p._searchStr.replace(/0+/g, '');
     p._words = n ? n.split(/\s+/) : [];
 
+    const isMapped = Boolean((p.floor && String(p.floor).trim() !== '') || (p.row && String(p.row).trim() !== '') || (p.shelf && String(p.shelf).trim() !== '') || (p.loc && String(p.loc).trim() !== '') || (p.status && String(p.status).toUpperCase() === 'MAPPED'));
+
     if (b) {
-      byBarcode[b] = p;
-      byBarcodeMap.set(b, p);
+      const existing = byBarcodeMap.get(b);
+      if (!existing || (!productHasAnyLocation(existing) && isMapped)) {
+        byBarcode[b] = p;
+        byBarcodeMap.set(b, p);
+      }
 
       if (p._bStripped && p._bStripped !== b) {
-        byBarcodeMap.set(p._bStripped, p);
-        byBarcode[p._bStripped] = p;
+        const existingS = byBarcodeMap.get(p._bStripped);
+        if (!existingS || (!productHasAnyLocation(existingS) && isMapped)) {
+          byBarcodeMap.set(p._bStripped, p);
+          byBarcode[p._bStripped] = p;
+        }
       }
 
       const cleanAlpha = b.replace(/[^a-z0-9]/gi, '');
       if (cleanAlpha && cleanAlpha !== b && cleanAlpha !== p._bStripped) {
-        byBarcodeMap.set(cleanAlpha, p);
+        const existingA = byBarcodeMap.get(cleanAlpha);
+        if (!existingA || (!productHasAnyLocation(existingA) && isMapped)) {
+          byBarcodeMap.set(cleanAlpha, p);
+        }
       }
     }
     
     if (b2) {
-      byBarcode[b2] = p;
-      byBarcodeMap.set(b2, p);
+      const existing2 = byBarcodeMap.get(b2);
+      if (!existing2 || (!productHasAnyLocation(existing2) && isMapped)) {
+        byBarcode[b2] = p;
+        byBarcodeMap.set(b2, p);
+      }
 
       if (p._b2Stripped && p._b2Stripped !== b2) {
-        byBarcodeMap.set(p._b2Stripped, p);
-        byBarcode[p._b2Stripped] = p;
+        const existing2S = byBarcodeMap.get(p._b2Stripped);
+        if (!existing2S || (!productHasAnyLocation(existing2S) && isMapped)) {
+          byBarcodeMap.set(p._b2Stripped, p);
+          byBarcode[p._b2Stripped] = p;
+        }
       }
 
       const cleanAlpha2 = b2.replace(/[^a-z0-9]/gi, '');
       if (cleanAlpha2 && cleanAlpha2 !== b2 && cleanAlpha2 !== p._b2Stripped) {
-        byBarcodeMap.set(cleanAlpha2, p);
+        const existingA2 = byBarcodeMap.get(cleanAlpha2);
+        if (!existingA2 || (!productHasAnyLocation(existingA2) && isMapped)) {
+          byBarcodeMap.set(cleanAlpha2, p);
+        }
       }
     }
     if (s) {
-      byStock[s] = p;
-      byStockMap.set(s, p);
+      const existingStock = byStockMap.get(s);
+      if (!existingStock || (!productHasAnyLocation(existingStock) && isMapped)) {
+        byStock[s] = p;
+        byStockMap.set(s, p);
+      }
 
       if (p._sStripped && p._sStripped !== s) {
-        byStockMap.set(p._sStripped, p);
-        byStock[p._sStripped] = p;
+        const existingStockS = byStockMap.get(p._sStripped);
+        if (!existingStockS || (!productHasAnyLocation(existingStockS) && isMapped)) {
+          byStockMap.set(p._sStripped, p);
+          byStock[p._sStripped] = p;
+        }
       }
     }
   }
@@ -724,21 +750,41 @@ function getLocationsForProduct(product) {
 // has a shelf location mapped. Mirrors the hasLoc logic in renderProductLocationsUI.
 function productHasAnyLocation(product) {
   if (!product) return false;
+
+  const selfFloor = product.floor !== undefined && product.floor !== null ? String(product.floor).trim() : '';
+  const selfRow = product.batch !== undefined && product.batch !== null ? String(product.batch).trim() :
+    (product.row !== undefined && product.row !== null ? String(product.row).trim() : '');
+  const selfShelf = product.shelf !== undefined && product.shelf !== null ? String(product.shelf).trim() : '';
+  const selfLocText = (product.loc || product.loc_full || product.storage_location || product.location_storage || '').trim();
+  const selfStatus = (product.status || '').toUpperCase();
+
+  if ((selfFloor !== '' && selfFloor !== '0' && selfFloor !== '00') ||
+      (selfRow !== '' && selfRow !== '0' && selfRow !== '00') ||
+      (selfShelf !== '' && selfShelf !== '0' && selfShelf !== '00') ||
+      (selfLocText !== '' && selfLocText !== '—') ||
+      selfStatus === 'MAPPED') {
+    return true;
+  }
+
   return getLocationsForProduct(product).some(item => {
     const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '';
     const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() :
       (item.row !== undefined && item.row !== null ? String(item.row).trim() : '');
     const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '';
     const locText = (item.loc || item.loc_full || item.storage_location || item.location_storage || '').trim();
-    return floor !== '' || row !== '' || shelf !== '' || locText !== '' ||
-      Boolean(item.status && String(item.status).toUpperCase() === 'MAPPED');
+    return (floor !== '' && floor !== '0' && floor !== '00') ||
+           (row !== '' && row !== '0' && row !== '00') ||
+           (shelf !== '' && shelf !== '0' && shelf !== '00') ||
+           (locText !== '' && locText !== '—') ||
+           Boolean(item.status && String(item.status).toUpperCase() === 'MAPPED');
   });
 }
 
 async function fetchLocationsForProduct(product) {
   const barcode = (product.barcode || product.b || '').toString().trim().toLowerCase();
+  const barcode2 = (product.barcode_2 || product.b2 || '').toString().trim().toLowerCase();
   const stockCode = (product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase();
-  const q = barcode || stockCode;
+  const q = barcode || barcode2 || stockCode;
 
   if (!q) return getLocationsForProduct(product);
 
@@ -747,12 +793,23 @@ async function fetchLocationsForProduct(product) {
     if (res.success && Array.isArray(res.products) && res.products.length > 0) {
       const exact = res.products.filter(item => {
         const itemBarcode = (item.barcode || item.b || '').toString().trim().toLowerCase();
+        const itemBarcode2 = (item.barcode_2 || item.b2 || '').toString().trim().toLowerCase();
         const itemStock = (item.stock_no || item.stock_code || item.s || '').toString().trim().toLowerCase();
-        if (barcode && itemBarcode === barcode) return true;
+        if (barcode && (itemBarcode === barcode || itemBarcode2 === barcode)) return true;
+        if (barcode2 && (itemBarcode === barcode2 || itemBarcode2 === barcode2)) return true;
         if (stockCode && itemStock === stockCode) return true;
         return false;
       });
       if (exact.length > 0) {
+        exact.forEach(freshItem => {
+          const idx = PRODUCTS.findIndex(p => String(p.id) === String(freshItem.id));
+          if (idx !== -1) {
+            PRODUCTS[idx] = { ...PRODUCTS[idx], ...freshItem };
+          } else {
+            PRODUCTS.push(freshItem);
+          }
+        });
+        rebuildIndex();
         return expandLocationsList(exact);
       }
     }
@@ -991,6 +1048,10 @@ function renderProduct(p) {
       (activeProduct.stock_no && (activeProduct.stock_no === p.stock_no || activeProduct.stock_no === p.s))
     )) {
       renderProductLocationsUI(p, freshLocs);
+      const hasMapped = freshLocs.some(l => l.hasLoc || (l.floor && l.row && l.shelf));
+      if (hasMapped) {
+        closeEditForm();
+      }
     }
   }).catch(e => {
     console.warn("Background fresh locations fetch error:", e);
@@ -1240,14 +1301,19 @@ let searchFetchTimer = null;
 // straight into the Add Product modal (pre-filled) so it can be mapped;
 // a product that already has a location shows the location card as usual.
 function renderOrPromptLocation(p, code) {
-  if (p && !productHasAnyLocation(p)) {
-    renderProduct(p);
-    activeProduct = p;
+  if (!p) return;
+  const allLocs = getLocationsForProduct(p);
+  const mappedLoc = allLocs.find(l => (l.floor && String(l.floor).trim() !== '') || (l.row && String(l.row).trim() !== '') || (l.shelf && String(l.shelf).trim() !== '') || (l.loc && String(l.loc).trim() !== ''));
+  const itemToDisplay = mappedLoc || p;
+  const hasLoc = productHasAnyLocation(itemToDisplay);
+
+  renderProduct(itemToDisplay);
+  if (!hasLoc) {
+    activeProduct = itemToDisplay;
     openEditForm();
-    return;
+  } else {
+    closeEditForm();
   }
-  renderProduct(p);
-  closeEditForm();
 }
 
 async function doSearch(q, isFinal = false) {
@@ -1283,9 +1349,6 @@ async function doSearch(q, isFinal = false) {
   const localCandidates = [];
   for (let i = 0; i < PRODUCTS.length; i++) {
     const p = PRODUCTS[i];
-    // Cheap prefilter: skip the full scorer unless the query (or one of its
-    // tokens / synonyms / zero-stripped variants) actually appears in the
-    // precomputed search text. Every scorer match path implies this.
     if (p._searchStr !== undefined) {
       let hit = p._searchStr.includes(qLower) ||
         (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
@@ -1308,17 +1371,22 @@ async function doSearch(q, isFinal = false) {
 
   localCandidates.sort((a, b) => b.score - a.score);
 
-  const seen = new Set();
-  const candidateMatches = [];
+  const seen = new Map();
   for (const item of localCandidates) {
     const p = item.p;
-    const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
+    const key = (p.barcode || p.b) ? ('bar_' + (p.barcode || p.b)) : ((p.stock_no || p.s) ? ('stock_' + (p.stock_no || p.s)) : ('id_' + p.id));
+    const hasLoc = productHasAnyLocation(p);
     if (!seen.has(key)) {
-      seen.add(key);
-      candidateMatches.push(p);
+      seen.set(key, { p, score: item.score, hasLoc });
+    } else {
+      const existing = seen.get(key);
+      if (!existing.hasLoc && hasLoc) {
+        seen.set(key, { p, score: Math.max(existing.score, item.score), hasLoc: true });
+      }
     }
-    if (candidateMatches.length >= 30) break;
+    if (seen.size >= 30) break;
   }
+  const candidateMatches = Array.from(seen.values()).map(v => v.p);
 
   // Handle final submission (Enter pressed or barcode scanner triggered)
   if (isFinal) {
@@ -1388,13 +1456,10 @@ async function doSearch(q, isFinal = false) {
   if (candidateMatches.length > 0) {
     renderMatches(candidateMatches.slice(0, 30));
   } else {
-    // IMPORTANT: Do NOT flash "No matching product in the database." before checking the database!
     hideResults();
   }
 
   // --- 3. BACKGROUND ASYNC DATABASE ENRICHMENT / FALLBACK (debounced) ---
-  // Local results above already rendered with zero latency; the network
-  // fallback is debounced so fast typing never spams the API.
   if (candidateMatches.length < 5) {
     clearTimeout(searchFetchTimer);
     const fetchId = currentSearchId;
@@ -1406,48 +1471,62 @@ async function doSearch(q, isFinal = false) {
 
 async function runBackgroundEnrich(q, qLower, currentSearchId, candidateMatches, seen) {
   try {
-      const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=30`).then(r => r.json());
-      // Prevent race condition: discard if user continued typing or input changed
-      if (currentSearchId !== searchRequestId) return;
-      const currentInput = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
-      if (currentInput !== qLower) return;
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=30`).then(r => r.json());
+    if (currentSearchId !== searchRequestId) return;
+    const currentInput = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
+    if (currentInput !== qLower) return;
 
-      if (res.success && Array.isArray(res.products) && res.products.length > 0) {
-        let added = false;
-        for (const p of res.products) {
-          const key = p.id ? ('id_' + p.id) : (p.barcode || p.b ? ('bar_' + (p.barcode || p.b)) : ('name_' + (p.product_name || p.name || p.n) + '_stock_' + (p.stock_no || p.s)));
-          if (!seen.has(key)) {
-            seen.add(key);
-            candidateMatches.push(p);
-            added = true;
+    if (res.success && Array.isArray(res.products) && res.products.length > 0) {
+      let added = false;
+      for (const p of res.products) {
+        const key = (p.barcode || p.b) ? ('bar_' + (p.barcode || p.b)) : ((p.stock_no || p.s) ? ('stock_' + (p.stock_no || p.s)) : ('id_' + p.id));
+        
+        const localIdx = PRODUCTS.findIndex(prod => String(prod.id) === String(p.id));
+        if (localIdx !== -1) {
+          PRODUCTS[localIdx] = { ...PRODUCTS[localIdx], ...p };
+        } else {
+          PRODUCTS.push(p);
+        }
 
-            const existsLocally = PRODUCTS.some(prod => prod.id === p.id);
-            if (!existsLocally) {
-              PRODUCTS.push(p);
+        if (!seen.has(key)) {
+          seen.set(key, { p, score: Math.max(scoreProductMatch(p, qLower), 10), hasLoc: productHasAnyLocation(p) });
+          candidateMatches.push(p);
+          added = true;
+        } else {
+          const existing = seen.get(key);
+          const hasLoc = productHasAnyLocation(p);
+          if (hasLoc || !existing.hasLoc) {
+            seen.set(key, { p, score: Math.max(existing.score, scoreProductMatch(p, qLower)), hasLoc: true });
+            const cIdx = candidateMatches.findIndex(c => (c.barcode && c.barcode === p.barcode) || (c.stock_no && c.stock_no === p.stock_no) || String(c.id) === String(p.id));
+            if (cIdx !== -1) {
+              candidateMatches[cIdx] = p;
+            } else {
+              candidateMatches.push(p);
             }
+            added = true;
           }
         }
-        if (added) {
-          rebuildIndex();
-          candidateMatches.sort((a, b) => {
-            const scoreB = Math.max(scoreProductMatch(b, qLower), 10);
-            const scoreA = Math.max(scoreProductMatch(a, qLower), 10);
-            return scoreB - scoreA;
-          });
-        }
-        if (candidateMatches.length > 0) {
-          renderMatches(candidateMatches.slice(0, 30));
-        }
-      } else if (candidateMatches.length === 0) {
-        // Both local cache and server database confirmed 0 matching products
-        renderMatches([]);
       }
-    } catch (err) {
-      console.warn('Background API search error:', err);
-      if (currentSearchId === searchRequestId && candidateMatches.length === 0) {
-        renderMatches([]);
+      if (added) {
+        rebuildIndex();
+        candidateMatches.sort((a, b) => {
+          const scoreB = Math.max(scoreProductMatch(b, qLower), 10);
+          const scoreA = Math.max(scoreProductMatch(a, qLower), 10);
+          return scoreB - scoreA;
+        });
       }
+      if (candidateMatches.length > 0) {
+        renderMatches(candidateMatches.slice(0, 30));
+      }
+    } else if (candidateMatches.length === 0) {
+      renderMatches([]);
     }
+  } catch (err) {
+    console.warn('Background API search error:', err);
+    if (currentSearchId === searchRequestId && candidateMatches.length === 0) {
+      renderMatches([]);
+    }
+  }
 }
 
 function renderMatches(matches) {
@@ -1464,16 +1543,21 @@ function renderMatches(matches) {
       const name = p.product_name || p.name || p.n;
       const barcode = p.barcode || p.b;
       const stockCode = p.stock_no || p.stock_code || p.s;
-      const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
-      const row = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row !== undefined && p.row !== null ? String(p.row) : (p.row || ''));
-      const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
-      const level = p.level !== undefined && p.level !== null ? String(p.level) : '';
-      const loc = floor !== '' ? `${floor}-${row}-${shelf}-${level}` : '—';
+      
+      const allLocs = getLocationsForProduct(p);
+      const mappedLoc = allLocs.find(l => (l.floor && String(l.floor).trim() !== '') || (l.row && String(l.row).trim() !== '') || (l.shelf && String(l.shelf).trim() !== '') || (l.loc && String(l.loc).trim() !== ''));
+      const itemToDisplay = mappedLoc || p;
+
+      const floor = itemToDisplay.floor !== undefined && itemToDisplay.floor !== null ? String(itemToDisplay.floor).trim() : '';
+      const row = itemToDisplay.batch !== undefined && itemToDisplay.batch !== null ? String(itemToDisplay.batch).trim() : (itemToDisplay.row !== undefined && itemToDisplay.row !== null ? String(itemToDisplay.row).trim() : (itemToDisplay.row || '').trim());
+      const shelf = itemToDisplay.shelf !== undefined && itemToDisplay.shelf !== null ? String(itemToDisplay.shelf).trim() : '';
+      const level = itemToDisplay.level !== undefined && itemToDisplay.level !== null ? String(itemToDisplay.level).trim() : '';
+      const hasLoc = Boolean((floor !== '' && row !== '' && shelf !== '') || (itemToDisplay.loc && itemToDisplay.loc !== '—') || productHasAnyLocation(p));
+      const loc = (floor !== '' && row !== '' && shelf !== '') ? `${floor}-${row}-${shelf}-${level || '00'}` : (itemToDisplay.loc || '—');
 
       rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
       rowEl.onclick = () => {
-        const hasLoc = productHasAnyLocation(p);
-        renderProduct(p);
+        renderProduct(itemToDisplay);
         const inputEl = document.getElementById('searchInput');
         if (inputEl) inputEl.value = '';
         const clearBtn = document.getElementById('clearSearchBtn');
@@ -1481,7 +1565,7 @@ function renderMatches(matches) {
         hideResults();
 
         if (!hasLoc) {
-          activeProduct = p;
+          activeProduct = itemToDisplay;
           openEditForm();
         } else {
           closeEditForm();
