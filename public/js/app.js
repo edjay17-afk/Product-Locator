@@ -590,11 +590,16 @@ async function initApp() {
   }
 }
 
+const mappedSkus = new Set();
+const skuToMappedLoc = new Map();
+
 function rebuildIndex() {
   byBarcode = {};
   byStock = {};
   byBarcodeMap.clear();
   byStockMap.clear();
+  mappedSkus.clear();
+  skuToMappedLoc.clear();
 
   for (let i = 0; i < PRODUCTS.length; i++) {
     const p = PRODUCTS[i];
@@ -618,18 +623,43 @@ function rebuildIndex() {
     p._searchStrStripped = p._searchStr.replace(/0+/g, '');
     p._words = n ? n.split(/\s+/) : [];
 
-    const isMapped = Boolean((p.floor && String(p.floor).trim() !== '') || (p.row && String(p.row).trim() !== '') || (p.shelf && String(p.shelf).trim() !== '') || (p.loc && String(p.loc).trim() !== '') || (p.status && String(p.status).toUpperCase() === 'MAPPED'));
+    const floor = (p.floor !== undefined && p.floor !== null) ? String(p.floor).trim() : '';
+    const row = (p.row !== undefined && p.row !== null) ? String(p.row).trim() : ((p.batch !== undefined && p.batch !== null) ? String(p.batch).trim() : '');
+    const shelf = (p.shelf !== undefined && p.shelf !== null) ? String(p.shelf).trim() : '';
+    const locText = (p.loc || p.loc_full || p.storage_location || p.location_storage || '').trim();
+    const isMapped = (floor !== '' && floor !== '0' && floor !== '00') ||
+                     (row !== '' && row !== '0' && row !== '00') ||
+                     (shelf !== '' && shelf !== '0' && shelf !== '00') ||
+                     (locText !== '' && locText !== '—') ||
+                     Boolean(p.status && String(p.status).toUpperCase() === 'MAPPED');
+
+    p._hasLoc = isMapped;
+
+    if (isMapped) {
+      if (b) {
+        mappedSkus.add(b);
+        if (!skuToMappedLoc.has(b)) skuToMappedLoc.set(b, p);
+      }
+      if (b2) {
+        mappedSkus.add(b2);
+        if (!skuToMappedLoc.has(b2)) skuToMappedLoc.set(b2, p);
+      }
+      if (s) {
+        mappedSkus.add(s);
+        if (!skuToMappedLoc.has(s)) skuToMappedLoc.set(s, p);
+      }
+    }
 
     if (b) {
       const existing = byBarcodeMap.get(b);
-      if (!existing || (!productHasAnyLocation(existing) && isMapped)) {
+      if (!existing || (!existing._hasLoc && isMapped)) {
         byBarcode[b] = p;
         byBarcodeMap.set(b, p);
       }
 
       if (p._bStripped && p._bStripped !== b) {
         const existingS = byBarcodeMap.get(p._bStripped);
-        if (!existingS || (!productHasAnyLocation(existingS) && isMapped)) {
+        if (!existingS || (!existingS._hasLoc && isMapped)) {
           byBarcodeMap.set(p._bStripped, p);
           byBarcode[p._bStripped] = p;
         }
@@ -638,7 +668,7 @@ function rebuildIndex() {
       const cleanAlpha = b.replace(/[^a-z0-9]/gi, '');
       if (cleanAlpha && cleanAlpha !== b && cleanAlpha !== p._bStripped) {
         const existingA = byBarcodeMap.get(cleanAlpha);
-        if (!existingA || (!productHasAnyLocation(existingA) && isMapped)) {
+        if (!existingA || (!existingA._hasLoc && isMapped)) {
           byBarcodeMap.set(cleanAlpha, p);
         }
       }
@@ -646,14 +676,14 @@ function rebuildIndex() {
     
     if (b2) {
       const existing2 = byBarcodeMap.get(b2);
-      if (!existing2 || (!productHasAnyLocation(existing2) && isMapped)) {
+      if (!existing2 || (!existing2._hasLoc && isMapped)) {
         byBarcode[b2] = p;
         byBarcodeMap.set(b2, p);
       }
 
       if (p._b2Stripped && p._b2Stripped !== b2) {
         const existing2S = byBarcodeMap.get(p._b2Stripped);
-        if (!existing2S || (!productHasAnyLocation(existing2S) && isMapped)) {
+        if (!existing2S || (!existing2S._hasLoc && isMapped)) {
           byBarcodeMap.set(p._b2Stripped, p);
           byBarcode[p._b2Stripped] = p;
         }
@@ -662,21 +692,21 @@ function rebuildIndex() {
       const cleanAlpha2 = b2.replace(/[^a-z0-9]/gi, '');
       if (cleanAlpha2 && cleanAlpha2 !== b2 && cleanAlpha2 !== p._b2Stripped) {
         const existingA2 = byBarcodeMap.get(cleanAlpha2);
-        if (!existingA2 || (!productHasAnyLocation(existingA2) && isMapped)) {
+        if (!existingA2 || (!existingA2._hasLoc && isMapped)) {
           byBarcodeMap.set(cleanAlpha2, p);
         }
       }
     }
     if (s) {
       const existingStock = byStockMap.get(s);
-      if (!existingStock || (!productHasAnyLocation(existingStock) && isMapped)) {
+      if (!existingStock || (!existingStock._hasLoc && isMapped)) {
         byStock[s] = p;
         byStockMap.set(s, p);
       }
 
       if (p._sStripped && p._sStripped !== s) {
         const existingStockS = byStockMap.get(p._sStripped);
-        if (!existingStockS || (!productHasAnyLocation(existingStockS) && isMapped)) {
+        if (!existingStockS || (!existingStockS._hasLoc && isMapped)) {
           byStockMap.set(p._sStripped, p);
           byStock[p._sStripped] = p;
         }
@@ -750,6 +780,7 @@ function getLocationsForProduct(product) {
 // has a shelf location mapped. Mirrors the hasLoc logic in renderProductLocationsUI.
 function productHasAnyLocation(product) {
   if (!product) return false;
+  if (product._hasLoc) return true;
 
   const selfFloor = product.floor !== undefined && product.floor !== null ? String(product.floor).trim() : '';
   const selfRow = product.batch !== undefined && product.batch !== null ? String(product.batch).trim() :
@@ -766,18 +797,10 @@ function productHasAnyLocation(product) {
     return true;
   }
 
-  return getLocationsForProduct(product).some(item => {
-    const floor = item.floor !== undefined && item.floor !== null ? String(item.floor).trim() : '';
-    const row = item.batch !== undefined && item.batch !== null ? String(item.batch).trim() :
-      (item.row !== undefined && item.row !== null ? String(item.row).trim() : '');
-    const shelf = item.shelf !== undefined && item.shelf !== null ? String(item.shelf).trim() : '';
-    const locText = (item.loc || item.loc_full || item.storage_location || item.location_storage || '').trim();
-    return (floor !== '' && floor !== '0' && floor !== '00') ||
-           (row !== '' && row !== '0' && row !== '00') ||
-           (shelf !== '' && shelf !== '0' && shelf !== '00') ||
-           (locText !== '' && locText !== '—') ||
-           Boolean(item.status && String(item.status).toUpperCase() === 'MAPPED');
-  });
+  const b = (product.barcode || product.b || '').toString().trim().toLowerCase();
+  const b2 = (product.barcode_2 || product.b2 || '').toString().trim().toLowerCase();
+  const s = (product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase();
+  return (b && mappedSkus.has(b)) || (b2 && mappedSkus.has(b2)) || (s && mappedSkus.has(s));
 }
 
 async function fetchLocationsForProduct(product) {
@@ -1347,6 +1370,7 @@ async function doSearch(q, isFinal = false) {
 
   // --- 1. INSTANT LOCAL MEMORY CANDIDATE SEARCH (Barcode, Stock No, Product Name) ---
   const localCandidates = [];
+  const maxCandidates = isFinal ? 1000 : 80;
   for (let i = 0; i < PRODUCTS.length; i++) {
     const p = PRODUCTS[i];
     if (p._searchStr !== undefined) {
@@ -1366,6 +1390,7 @@ async function doSearch(q, isFinal = false) {
     const score = scoreProductMatch(p, qLower, qStripped, tokens);
     if (score > 0) {
       localCandidates.push({ p, score });
+      if (localCandidates.length >= maxCandidates) break;
     }
   }
 
@@ -1544,15 +1569,18 @@ function renderMatches(matches) {
       const barcode = p.barcode || p.b;
       const stockCode = p.stock_no || p.stock_code || p.s;
       
-      const allLocs = getLocationsForProduct(p);
-      const mappedLoc = allLocs.find(l => (l.floor && String(l.floor).trim() !== '') || (l.row && String(l.row).trim() !== '') || (l.shelf && String(l.shelf).trim() !== '') || (l.loc && String(l.loc).trim() !== ''));
+      const b = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      
+      const mappedLoc = (b && skuToMappedLoc.get(b)) || (b2 && skuToMappedLoc.get(b2)) || (s && skuToMappedLoc.get(s));
       const itemToDisplay = mappedLoc || p;
 
       const floor = itemToDisplay.floor !== undefined && itemToDisplay.floor !== null ? String(itemToDisplay.floor).trim() : '';
       const row = itemToDisplay.batch !== undefined && itemToDisplay.batch !== null ? String(itemToDisplay.batch).trim() : (itemToDisplay.row !== undefined && itemToDisplay.row !== null ? String(itemToDisplay.row).trim() : (itemToDisplay.row || '').trim());
       const shelf = itemToDisplay.shelf !== undefined && itemToDisplay.shelf !== null ? String(itemToDisplay.shelf).trim() : '';
       const level = itemToDisplay.level !== undefined && itemToDisplay.level !== null ? String(itemToDisplay.level).trim() : '';
-      const hasLoc = Boolean((floor !== '' && row !== '' && shelf !== '') || (itemToDisplay.loc && itemToDisplay.loc !== '—') || productHasAnyLocation(p));
+      const hasLoc = productHasAnyLocation(itemToDisplay);
       const loc = (floor !== '' && row !== '' && shelf !== '') ? `${floor}-${row}-${shelf}-${level || '00'}` : (itemToDisplay.loc || '—');
 
       rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
