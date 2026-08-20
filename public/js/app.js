@@ -363,6 +363,15 @@ try {
   if (savedUser) currentUser = JSON.parse(savedUser);
 } catch (e) { currentUser = null; }
 
+function authFetch(url, options = {}) {
+  const token = localStorage.getItem('wh_token');
+  const headers = { ...(options.headers || {}) };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return fetch(url, { ...options, headers, credentials: 'include' });
+}
+
 // Returns a user-specific localStorage key so each user has separate recent lookups
 function recentKey() {
   const uid = currentUser ? currentUser.username : 'guest';
@@ -541,19 +550,11 @@ async function initApp() {
       }
     }).catch(e => console.warn('Stats fetch failed:', e));
 
-    // Full catalog syncs in the background so the UI is usable instantly;
-    // search transparently falls back to the server until the local index is ready.
-    fetch('/api/products/all').then(r => r.json()).then(productsRes => {
-      if (productsRes && productsRes.success && Array.isArray(productsRes.products)) {
-        PRODUCTS = productsRes.products;
-        productsData = PRODUCTS;
-        rebuildIndex();
-        updateCategoryDatalist();
-        if (superAdminPortalView && superAdminPortalView.style.display !== 'none') {
-          renderPortalDataTable();
-        }
-      }
-    }).catch(e => console.warn('Catalog sync failed:', e));
+    // Do not download the complete catalog on startup. The production app
+    // runs behind a Netlify function and the catalog is 50k+ rows; that full
+    // transfer competes with the user's first search. Search populates this
+    // in-memory index on demand, while the full endpoint remains available
+    // for explicit export/admin workflows.
 
     // Supabase Realtime WebSocket Subscription for instant multi-stockman push updates!
     try {
@@ -1490,7 +1491,7 @@ async function doSearch(q, isFinal = false) {
     const fetchId = currentSearchId;
     searchFetchTimer = setTimeout(() => {
       runBackgroundEnrich(q, qLower, fetchId, candidateMatches, seen);
-    }, 250);
+    }, 120);
   }
 }
 
@@ -2526,6 +2527,18 @@ async function saveEditProduct() {
       last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
     };
 
+    const currentName = activeProduct?.product_name || activeProduct?.name || activeProduct?.n || '';
+    const currentBarcode = activeProduct?.barcode || activeProduct?.b || '';
+    const currentStock = activeProduct?.stock_no || activeProduct?.stock_code || activeProduct?.s || '';
+    const currentCategory = activeProduct?.category || activeProduct?.c || '';
+    const currentDepartment = activeProduct?.department || activeProduct?.subcategory || activeProduct?.sc || '';
+    payload.sync_product_metadata = !id ||
+      name !== String(currentName).trim() ||
+      barcode !== String(currentBarcode).trim() ||
+      stock_no !== String(currentStock).trim() ||
+      (category || 'Uncategorized') !== String(currentCategory).trim() ||
+      department !== String(currentDepartment).trim();
+
     if (!id) {
       Object.assign(activeProduct, payload);
       renderProduct(activeProduct);
@@ -2534,24 +2547,86 @@ async function saveEditProduct() {
       return;
     }
 
-    const res = await fetch(`/api/products/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).then(r => r.json());
+    const productIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
+    const originalProduct = productIndex !== -1 ? { ...PRODUCTS[productIndex] } : null;
+    const originalActiveProduct = activeProduct ? { ...activeProduct } : null;
+    const baseProduct = originalProduct || originalActiveProduct || {};
+    const optimisticProduct = {
+      ...baseProduct,
+      id: baseProduct.id || id,
+      product_name: name,
+      name,
+      barcode,
+      stock_no: stock_no || barcode || '',
+      stock_code: stock_no || barcode || '',
+      category: category || 'Uncategorized',
+      department,
+      subcategory: department,
+      floor,
+      row,
+      batch: row,
+      shelf,
+      level,
+      loc,
+      location_storage: storage_location,
+      storage_location,
+      loc_full: storage_location,
+      qty: validQty,
+      status: 'MAPPED',
+      custom: true,
+      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
+    };
 
-    if (res.success && res.product) {
-      const idx = PRODUCTS.findIndex(p => p.id === res.product.id);
-      if (idx !== -1) PRODUCTS[idx] = res.product;
-      rebuildIndex();
-      closeEditForm();
-      renderProduct(res.product);
-      if (typeof renderPortalDataTable === 'function') {
-        renderPortalDataTable({ refreshStats: true });
+    // Update the visible card immediately. The server request continues in
+    // the background and rolls back this optimistic state if it fails.
+    if (productIndex !== -1) PRODUCTS[productIndex] = optimisticProduct;
+    else PRODUCTS.push(optimisticProduct);
+    activeProduct = optimisticProduct;
+    rebuildIndex();
+    closeEditForm();
+    renderProduct(optimisticProduct);
+    showToast(`Saving "${name}"...`, 'info');
+
+    try {
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Unknown server error');
+        return body;
+      });
+
+      if (res.product) {
+        const savedIndex = PRODUCTS.findIndex(p => String(p.id) === String(res.product.id));
+        if (savedIndex !== -1) PRODUCTS[savedIndex] = { ...PRODUCTS[savedIndex], ...res.product };
+        else PRODUCTS.push(res.product);
+        const currentIsEdited = activeProduct && String(activeProduct.id) === String(id);
+        if (currentIsEdited) activeProduct = res.product;
+        rebuildIndex();
+        if (currentIsEdited) renderProduct(res.product);
+        if (typeof renderPortalDataTable === 'function') {
+          void renderPortalDataTable({ refreshStats: true });
+        }
       }
       showToast(`Updated in Database! "${name}" location is now Floor ${floor}, Row ${row}, Shelf ${shelf}.`);
-    } else {
-      showToast('Error updating product: ' + (res.error || 'Unknown error'), 'error');
+    } catch (err) {
+      const optimisticIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
+      if (originalProduct && optimisticIndex !== -1) PRODUCTS[optimisticIndex] = originalProduct;
+      else if (optimisticIndex !== -1) PRODUCTS.splice(optimisticIndex, 1);
+      const currentIsEdited = activeProduct && String(activeProduct.id) === String(id);
+      if (currentIsEdited) {
+        activeProduct = originalActiveProduct;
+        rebuildIndex();
+        if (activeProduct) {
+          renderProduct(activeProduct);
+          openEditForm();
+        }
+      } else {
+        rebuildIndex();
+      }
+      throw err;
     }
   } catch (err) {
     console.error('Failed to update product:', err);
@@ -2588,6 +2663,7 @@ document.getElementById('authBtn').addEventListener('click', () => {
   if (currentUser) {
     currentUser = null;
     localStorage.removeItem('wh_current_user');
+    localStorage.removeItem('wh_token');
     // Switch to guest recent list
     try { recent = JSON.parse(localStorage.getItem(recentKey()) || '[]'); } catch(e) { recent = []; }
     updateUserUI();
@@ -2654,6 +2730,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
     if (res.success && res.user) {
       currentUser = res.user;
+      if (res.token) {
+        localStorage.setItem('wh_token', res.token);
+      }
       localStorage.setItem('wh_current_user', JSON.stringify(currentUser));
       // Load this user's own recent lookups
       try { recent = JSON.parse(localStorage.getItem(recentKey()) || '[]'); } catch(e) { recent = []; }
@@ -3124,14 +3203,13 @@ async function saveAddStockToLocation() {
         showToast(`✅ Added ${addQty} units! New total stock at location is ${finalQty}.`);
         document.getElementById('addStockModal').classList.remove('show');
 
-        // Refresh products list
-        const productsRes = await fetch('/api/products/all').then(r => r.json());
-        if (productsRes.success && Array.isArray(productsRes.products)) {
-          PRODUCTS = productsRes.products;
-          rebuildIndex();
-          const targetItem = PRODUCTS.find(p => p.id === parseInt(id, 10)) || res.product;
-          if (targetItem) renderProduct(targetItem);
-        }
+        // Update the small on-demand cache; do not re-download 50k rows after
+        // a single stock change.
+        const localIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
+        if (localIndex >= 0 && res.product) PRODUCTS[localIndex] = { ...PRODUCTS[localIndex], ...res.product };
+        rebuildIndex();
+        const targetItem = PRODUCTS.find(p => String(p.id) === String(id)) || res.product;
+        if (targetItem) renderProduct(targetItem);
       } else {
         showToast("Failed to update stock: " + (res.error || "Unknown error"), 'error');
       }
@@ -3558,15 +3636,12 @@ async function handleLocationQRScan(code) {
     if (res.success) {
       showToast("📍 New location linked successfully!");
       
-      const productsRes = await fetch('/api/products/all').then(r => r.json());
-      if (productsRes.success && Array.isArray(productsRes.products)) {
-        PRODUCTS = productsRes.products;
-        rebuildIndex();
-        updateCategoryDatalist();
-        
-        const updatedProduct = PRODUCTS.find(p => p.id === res.product.id) || res.product;
-        renderProduct(updatedProduct);
-      }
+      const localIndex = PRODUCTS.findIndex(p => String(p.id) === String(res.product?.id));
+      if (localIndex >= 0) PRODUCTS[localIndex] = { ...PRODUCTS[localIndex], ...res.product };
+      else if (res.product) PRODUCTS.push(res.product);
+      rebuildIndex();
+      updateCategoryDatalist();
+      renderProduct(res.product || activeProduct);
     } else {
       showToast("Failed to register location: " + (res.error || "Unknown error"), 'error');
     }
@@ -4743,11 +4818,9 @@ window.quickAdjustQty = async function(id, delta) {
 
     if (res.success) {
       showToast(CURRENT_LANG === 'en' ? `Qty updated: ${newQty}` : `库存更新成功: ${newQty}`);
-      // Refresh PRODUCTS cache
-      const productsRes = await fetch('/api/products/all').then(r => r.json());
-      if (productsRes.success && Array.isArray(productsRes.products)) {
-        PRODUCTS = productsRes.products;
-      }
+      const localIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
+      if (localIndex >= 0) PRODUCTS[localIndex] = { ...PRODUCTS[localIndex], ...(res.product || { qty: newQty }) };
+      rebuildIndex();
     } else {
       showToast(CURRENT_LANG === 'en' ? 'Failed to update quantity' : '更新库存失败', 'error');
     }
@@ -5552,7 +5625,7 @@ async function openAdminDashboard() {
   if (adminDashboardOverlay) adminDashboardOverlay.classList.add('show');
 
   try {
-    const res = await fetch('/api/admin/stats');
+    const res = await authFetch('/api/admin/stats');
     const data = await res.json();
     if (data.success && data.stats) {
       document.getElementById('admStatTotal').textContent = (data.stats.totalProducts || 0).toLocaleString();
@@ -5653,7 +5726,7 @@ async function openOrdersModal() {
   container.innerHTML = '<div style="color:#64748b; font-size:13px;">Loading delivery orders...</div>';
 
   try {
-    const res = await fetch('/api/orders');
+    const res = await authFetch('/api/orders');
     const data = await res.json();
 
     if (data.success && data.orders && data.orders.length > 0) {
@@ -5685,7 +5758,7 @@ window.generatePickRouteForOrder = async function(orderId) {
   showToast('Calculating S-Shape shortest pick route...');
 
   try {
-    const res = await fetch(`/api/orders/${orderId}/route`);
+    const res = await authFetch(`/api/orders/${orderId}/route`);
     const data = await res.json();
 
     if (data.success && data.routeSteps && data.routeSteps.length > 0) {
@@ -5742,7 +5815,7 @@ let portalStatsCached = null;
 async function fetchPortalKPIs(force = false) {
   if (portalStatsCached && !force) return portalStatsCached;
   try {
-    const statsRes = await fetch('/api/admin/stats');
+    const statsRes = await authFetch('/api/admin/stats');
     const statsData = await statsRes.json();
     if (statsData.success && statsData.stats) {
       portalStatsCached = statsData.stats;
@@ -5782,7 +5855,7 @@ async function renderPortalDataTable(options = {}) {
 
   try {
     const url = `/api/admin/products?page=${portalCurrentPage}&limit=${portalPageSize}&search=${encodeURIComponent(searchQuery)}&status=${encodeURIComponent(statusFilter)}&floor=${encodeURIComponent(floorFilter)}`;
-    const res = await fetch(url, { signal: portalAbortController.signal });
+    const res = await authFetch(url, { signal: portalAbortController.signal });
     const data = await res.json();
 
     if (!data.success) {
@@ -6027,7 +6100,7 @@ if (saImportBtn && saImportFile) {
     saImportBtn.disabled = true;
 
     try {
-      const res = await fetch('/api/upload-excel', {
+      const res = await authFetch('/api/upload-excel', {
         method: 'POST',
         body: formData
       });
@@ -6052,6 +6125,7 @@ if (saImportBtn && saImportFile) {
 const handleSuperAdminLogout = () => {
   currentUser = null;
   localStorage.removeItem('wh_current_user');
+  localStorage.removeItem('wh_token');
   window.forceUserAppMode = false;
   updateUserUI();
   showToast('Super Admin Logged Out.');

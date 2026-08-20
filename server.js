@@ -20,6 +20,7 @@ const db = require('./db/supabase');
 const os = require('os');
 const {
   clearSessionCookie,
+  createSession,
   requireAuth,
   requireRole,
   readSession,
@@ -70,6 +71,7 @@ function getLocalIpAddress() {
   return 'localhost';
 }
 
+
 // Endpoint to fetch host and local IP address info
 app.get('/api/host-info', requireAuth, (req, res) => {
   const localIp = getLocalIpAddress();
@@ -101,8 +103,9 @@ app.post('/api/auth/login', loginRateLimit, async (req, res) => {
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid username or password.' });
     }
+    const token = createSession(user);
     setSessionCookie(res, req, user);
-    res.json({ success: true, user });
+    res.json({ success: true, user, token });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -345,6 +348,7 @@ app.post('/api/upload-excel', requireAuth, requireRole('admin', 'superadmin'), u
 app.get('/api/stats', async (req, res) => {
   try {
     const stats = await db.getStats();
+    res.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
     res.json({ success: true, ...stats });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -362,6 +366,9 @@ app.get('/api/products', async (req, res) => {
       return res.json({ success: true, count: stats.total, products: [] });
     }
     const products = await db.searchProducts(query, limit);
+    // Search results are public and safe to reuse briefly at the Netlify CDN;
+    // this also prevents repeated keystrokes from recreating a cold function.
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=30');
     res.json({ success: true, count: products.length, products });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

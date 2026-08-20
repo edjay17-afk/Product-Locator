@@ -35,8 +35,62 @@ create table if not exists users (
 create index if not exists idx_products_barcode on products (lower(barcode));
 create index if not exists idx_products_barcode_2 on products (lower(barcode_2));
 create index if not exists idx_products_stock_no on products (lower(stock_no));
+create index if not exists idx_products_barcode_exact on products (barcode);
+create index if not exists idx_products_barcode_2_exact on products (barcode_2);
+create index if not exists idx_products_stock_no_exact on products (stock_no);
 create index if not exists idx_products_location on products (loc);
 create index if not exists idx_products_name on products (lower(product_name));
+create index if not exists idx_products_status on products (status);
+create index if not exists idx_products_floor on products (floor);
+
+-- Contains searches need trigram indexes; otherwise PostgreSQL scans the
+-- whole catalog for each public lookup.
+create extension if not exists pg_trgm;
+create index if not exists idx_products_name_trgm on products using gin (product_name gin_trgm_ops);
+create index if not exists idx_products_barcode_trgm on products using gin (barcode gin_trgm_ops);
+create index if not exists idx_products_barcode_2_trgm on products using gin (barcode_2 gin_trgm_ops);
+create index if not exists idx_products_stock_no_trgm on products using gin (stock_no gin_trgm_ops);
+create index if not exists idx_products_category_trgm on products using gin (category gin_trgm_ops);
+create index if not exists idx_products_department_trgm on products using gin (department gin_trgm_ops);
+
+-- Keep the header/admin KPI distinct by SKU without transferring every row
+-- through the Netlify function. A product can have multiple shelf rows.
+create or replace function public.get_product_stats()
+returns jsonb
+language sql
+stable
+as $$
+  with sku_rows as (
+    select
+      coalesce(nullif(lower(trim(barcode)), ''), nullif(lower(trim(stock_no)), ''), 'id:' || id::text) as sku_key,
+      status,
+      floor,
+      "row",
+      shelf,
+      custom
+    from public.products
+  ),
+  sku_rollup as (
+    select
+      sku_key,
+      bool_or(
+        upper(coalesce(status, '')) = 'MAPPED'
+        or nullif(trim(coalesce(floor, '')), '') is not null
+        or nullif(trim(coalesce("row", '')), '') is not null
+        or nullif(trim(coalesce(shelf, '')), '') is not null
+      ) as is_mapped,
+      bool_or(custom) as is_custom
+    from sku_rows
+    group by sku_key
+  )
+  select jsonb_build_object(
+    'total', count(*),
+    'customCount', count(*) filter (where is_custom),
+    'mappedCount', count(*) filter (where is_mapped),
+    'unmappedCount', count(*) filter (where not is_mapped)
+  )
+  from sku_rollup;
+$$;
 
 alter table products enable row level security;
 alter table users enable row level security;

@@ -15,10 +15,16 @@ let supabase = null;
 const ALL_PRODUCTS_TTL_MS = 300000;
 let allProductsCache = { data: null, time: 0 };
 let allProductsPromise = null; // in-flight fetch shared by concurrent callers
+const SEARCH_CACHE_TTL_MS = 15000;
+const STATS_CACHE_TTL_MS = 30000;
+const searchCache = new Map();
+let statsCache = { data: null, time: 0 };
 // Only the columns the app actually uses — keeps the Supabase transfer small.
 const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,status,custom,last_modified_by,created_at';
 function invalidateAllProductsCache() {
   allProductsCache.time = 0;
+  searchCache.clear();
+  statsCache.time = 0;
 }
 
 function escapePostgrestValue(value) {
@@ -258,18 +264,55 @@ module.exports = {
     const qStripped = q.replace(/^0+/, '');
 
     if (isConnectedToSupabase && supabase) {
+      const cacheKey = `${q.toLowerCase()}::${limit}`;
+      const cached = searchCache.get(cacheKey);
+      if (cached && Date.now() - cached.time < SEARCH_CACHE_TTL_MS) {
+        return cached.data;
+      }
+
+      // Scanner searches are usually barcode/stock-number lookups. Try an
+      // exact indexed query first so they do not pay for a table-wide search.
+      const likelyCode = /\d/.test(q) || /[-_]/.test(q);
+      if (likelyCode) {
+        const exactValues = Array.from(new Set([q, qStripped].filter(Boolean)))
+          .map(escapePostgrestValue);
+        const exactOr = exactValues.flatMap(value => [
+          `barcode.eq."${value}"`,
+          `barcode_2.eq."${value}"`,
+          `stock_no.eq."${value}"`
+        ]).join(',');
+        const { data: exactData, error: exactError } = await supabase
+          .from('products')
+          .select(PRODUCT_COLUMNS)
+          .or(exactOr)
+          .order('status', { ascending: true })
+          .order('id', { ascending: false })
+          .limit(limit);
+
+        if (exactError) throw new Error(exactError.message);
+        if (exactData && exactData.length > 0) {
+          const result = exactData.map(normalizeProduct);
+          searchCache.set(cacheKey, { data: result, time: Date.now() });
+          return result;
+        }
+      }
+
       const pattern = escapePostgrestValue(`%${q}%`);
       const patternStripped = escapePostgrestValue(qStripped ? `%${qStripped}%` : `%${q}%`);
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(PRODUCT_COLUMNS)
         .or(`product_name.ilike."${pattern}",barcode.ilike."${pattern}",barcode.ilike."${patternStripped}",barcode_2.ilike."${pattern}",barcode_2.ilike."${patternStripped}",stock_no.ilike."${pattern}",category.ilike."${pattern}",department.ilike."${pattern}"`)
         .order('status', { ascending: true }) // 'MAPPED' comes before 'UNMAPPED'
         .order('id', { ascending: false })
         .limit(limit);
 
       if (error) throw new Error(error.message);
-      if (data) return data.map(normalizeProduct);
+      if (data) {
+        const result = data.map(normalizeProduct);
+        searchCache.set(cacheKey, { data: result, time: Date.now() });
+        return result;
+      }
     }
 
     const qLower = q.toLowerCase();
@@ -292,6 +335,47 @@ module.exports = {
   getPaginatedProducts: async ({ page = 1, limit = 25, search = '', status = 'ALL', floor = 'ALL' } = {}) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const pageSize = Math.min(500, Math.max(1, parseInt(limit, 10) || 25));
+
+    if (isConnectedToSupabase && supabase) {
+      let query = supabase
+        .from('products')
+        .select(PRODUCT_COLUMNS, { count: 'exact' });
+
+      if (status === 'MAPPED') query = query.eq('status', 'MAPPED');
+      if (status === 'UNMAPPED') query = query.neq('status', 'MAPPED');
+      if (floor && floor !== 'ALL') query = query.eq('floor', String(floor));
+
+      const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      for (const token of tokens) {
+        const terms = Array.from(new Set([token, ...(SEARCH_SYNONYMS[token] || [])]));
+        const clauses = terms.flatMap(term => {
+          const pattern = escapePostgrestValue(`%${term}%`);
+          return [
+            `product_name.ilike."${pattern}"`,
+            `barcode.ilike."${pattern}"`,
+            `barcode_2.ilike."${pattern}"`,
+            `stock_no.ilike."${pattern}"`,
+            `category.ilike."${pattern}"`,
+            `department.ilike."${pattern}"`
+          ];
+        }).join(',');
+        if (clauses) query = query.or(clauses);
+      }
+
+      const from = (pageNum - 1) * pageSize;
+      const { data, count, error } = await query
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(error.message);
+
+      const total = count || 0;
+      return {
+        products: (data || []).map(normalizeProduct),
+        total,
+        page: pageNum,
+        totalPages: Math.max(1, Math.ceil(total / pageSize))
+      };
+    }
 
     let products = await module.exports.getAllProducts();
 
@@ -339,7 +423,7 @@ module.exports = {
       // Check exact match or zero-stripped match first
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(PRODUCT_COLUMNS)
         .or(`barcode.eq."${safeClean}",stock_no.eq."${safeClean}",barcode.eq."${safeStripped}",stock_no.eq."${safeStripped}"`)
         .limit(1);
 
@@ -349,7 +433,7 @@ module.exports = {
       // Fallback to ilike match if eq fails
       const { data: dataLike, error: errorLike } = await supabase
         .from('products')
-        .select('*')
+        .select(PRODUCT_COLUMNS)
         .or(`barcode.ilike."%${safeClean}%",stock_no.ilike."%${safeClean}%"`)
         .limit(1);
 
@@ -469,49 +553,46 @@ module.exports = {
     updatePayload.last_modified_by = data.last_modified_by || data.modifiedBy || 'Stockman';
 
     if (isConnectedToSupabase && supabase) {
-      // 1. Update the specific location row
-      const { data: updated, error } = await supabase
+      // Update the location row and propagate shared product metadata in
+      // parallel. The old sequential requests added a full network round
+      // trip to every details/location save.
+      const primaryUpdate = supabase
         .from('products')
         .update(updatePayload)
         .eq('id', id)
-        .select()
+        .select(PRODUCT_COLUMNS)
         .single();
 
-      if (error) throw new Error(error.message);
+      let metadataSync = Promise.resolve({ error: null });
+      const barcode = (bCode || '').trim();
+      const stock_no = (sNo || '').trim();
 
-      if (!error && updated) {
-        // 2. Propagate product-wide metadata updates to all other rows for the same product ONLY if metadata was provided
-        const barcode = (updated.barcode || '').trim();
-        const stock_no = (updated.stock_no || '').trim();
-        
-        if (pName && (barcode || stock_no)) {
-          const safeBar = escapePostgrestValue(barcode);
-          const safeStock = escapePostgrestValue(stock_no);
-          const syncData = {
-            product_name: updated.product_name,
-            category: updated.category,
-            department: updated.department,
-            stock_no: updated.stock_no,
-            barcode: updated.barcode,
-            custom: true
-          };
-          
-          let query = supabase.from('products').update(syncData);
-          if (safeBar && safeStock) {
-            query = query.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`);
-          } else if (safeBar) {
-            query = query.eq('barcode', safeBar);
-          } else {
-            query = query.eq('stock_no', safeStock);
-          }
-          
-          const { error: syncError } = await query;
-          if (syncError) {
-            console.error('Failed to sync product metadata to other locations:', syncError.message);
-          }
+      const shouldSyncMetadata = data.sync_product_metadata === true ||
+        (data.sync_product_metadata === undefined && pName && (barcode || stock_no));
+      if (shouldSyncMetadata && pName && (barcode || stock_no)) {
+        const safeBar = escapePostgrestValue(barcode);
+        const safeStock = escapePostgrestValue(stock_no);
+        const syncData = { product_name: pName, custom: true };
+        if (updatePayload.category !== undefined) syncData.category = updatePayload.category;
+        if (updatePayload.department !== undefined) syncData.department = updatePayload.department;
+        if (updatePayload.stock_no !== undefined) syncData.stock_no = stock_no;
+        if (updatePayload.barcode !== undefined) syncData.barcode = barcode;
+
+        let query = supabase.from('products').update(syncData);
+        if (safeBar && safeStock) {
+          query = query.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`);
+        } else if (safeBar) {
+          query = query.eq('barcode', safeBar);
+        } else {
+          query = query.eq('stock_no', safeStock);
         }
-        return normalizeProduct(updated);
+        metadataSync = query;
       }
+
+      const [{ data: updated, error }, { error: syncError }] = await Promise.all([primaryUpdate, metadataSync]);
+      if (error) throw new Error(error.message);
+      if (syncError) console.error('Failed to sync product metadata to other locations:', syncError.message);
+      if (updated) return normalizeProduct(updated);
     }
 
     const item = memoryProducts.find(p => String(p.id) === String(id));
@@ -808,31 +889,51 @@ module.exports = {
       if (s) return 's:' + s;
       return 'id:' + p.id;
     };
-    try {
-      const all = await module.exports.getAllProducts();
-      const skuMapped = new Map(); // skuKey -> true if any of its rows is mapped
-      let customCount = 0;
-      for (const p of all) {
-        skuMapped.set(skuKey(p), (skuMapped.get(skuKey(p)) === true) || isMappedRow(p));
-        if (p.custom) customCount++;
-      }
-      const total = skuMapped.size;
-      let mappedCount = 0;
-      for (const mapped of skuMapped.values()) if (mapped) mappedCount++;
-      return {
-        total,
-        customCount,
-        mappedCount,
-        unmappedCount: total - mappedCount,
-        isSupabase: Boolean(isConnectedToSupabase && supabase)
-      };
-    } catch (e) {
-      console.warn('getStats distinct-SKU computation failed, falling back to row counts:', e.message);
-    }
     if (isConnectedToSupabase && supabase) {
-      const { count: total } = await supabase.from('products').select('*', { count: 'exact', head: true });
-      const { count: customCount } = await supabase.from('products').select('*', { count: 'exact', head: true }).eq('custom', true);
-      return { total: total || 0, customCount: customCount || 0, isSupabase: true };
+      const now = Date.now();
+      if (statsCache.data && now - statsCache.time < STATS_CACHE_TTL_MS) return statsCache.data;
+
+      // Prefer the exact distinct-SKU aggregate when the performance
+      // migration has been applied. It runs inside PostgreSQL and returns a
+      // tiny JSON object instead of downloading the whole catalog.
+      const { data: aggregate, error: aggregateError } = await supabase.rpc('get_product_stats');
+      if (!aggregateError && aggregate) {
+        statsCache = {
+          data: {
+            total: Number(aggregate.total) || 0,
+            customCount: Number(aggregate.customCount) || 0,
+            mappedCount: Number(aggregate.mappedCount) || 0,
+            unmappedCount: Number(aggregate.unmappedCount) || 0,
+            isSupabase: true
+          },
+          time: now
+        };
+        return statsCache.data;
+      }
+
+      // PostgreSQL counts stay fast on a serverless cold start. Do not
+      // download the complete catalog just to render the header badge.
+      const [totalResult, mappedResult, customResult] = await Promise.all([
+        supabase.from('products').select('id', { count: 'exact', head: true }),
+        supabase.from('products').select('id', { count: 'exact', head: true }).eq('status', 'MAPPED'),
+        supabase.from('products').select('id', { count: 'exact', head: true }).eq('custom', true)
+      ]);
+      const firstError = totalResult.error || mappedResult.error || customResult.error;
+      if (firstError) throw new Error(firstError.message);
+
+      const total = totalResult.count || 0;
+      const mappedCount = mappedResult.count || 0;
+      statsCache = {
+        data: {
+          total,
+          customCount: customResult.count || 0,
+          mappedCount,
+          unmappedCount: Math.max(0, total - mappedCount),
+          isSupabase: true
+        },
+        time: now
+      };
+      return statsCache.data;
     }
     const mappedCount = memoryProducts.filter(isMappedRow).length;
     return {

@@ -34,6 +34,11 @@ A mobile-friendly product locator for warehouse staff and customers. Search by b
 
 Open `http://localhost:3002`.
 
+For production search performance, apply the current `supabase/schema.sql` in
+the Supabase SQL editor after deploying schema changes. It adds the exact/code
+and trigram search indexes plus the lightweight product-stats function used by
+the Netlify API.
+
 Run the automated checks with:
 
 ```bash
