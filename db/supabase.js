@@ -19,16 +19,34 @@ const SEARCH_CACHE_TTL_MS = 15000;
 const STATS_CACHE_TTL_MS = 30000;
 const searchCache = new Map();
 let statsCache = { data: null, time: 0 };
+const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,status,custom';
+const SEARCH_INDEX_TTL_MS = 300000;
+let searchIndexCache = { data: null, time: 0 };
+let searchIndexPromise = null;
 // Only the columns the app actually uses — keeps the Supabase transfer small.
 const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,status,custom,last_modified_by,created_at';
 function invalidateAllProductsCache() {
   allProductsCache.time = 0;
+  searchIndexCache.time = 0;
   searchCache.clear();
   statsCache.time = 0;
 }
 
 function escapePostgrestValue(value) {
   return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+const SEARCHABLE_PRODUCT_FIELDS = [
+  'product_name', 'barcode', 'barcode_2', 'stock_no', 'category', 'department'
+];
+
+function searchTermVariants(token) {
+  const stripped = token.replace(/^0+/, '');
+  return Array.from(new Set([
+    token,
+    stripped,
+    ...(SEARCH_SYNONYMS[token] || [])
+  ].filter(Boolean)));
 }
 
 let memoryUsers = [
@@ -258,10 +276,64 @@ module.exports = {
     }
     return memoryProducts.map(normalizeProduct);
   },
+  // Compact catalog used by the browser for zero-network autocomplete after
+  // the initial warm-up. Keep this separate from the full admin/export cache.
+  getSearchIndex: async () => {
+    if (isConnectedToSupabase && supabase) {
+      const now = Date.now();
+      if (searchIndexCache.data && now - searchIndexCache.time < SEARCH_INDEX_TTL_MS) {
+        return searchIndexCache.data;
+      }
+      if (searchIndexPromise) return searchIndexPromise;
+
+      searchIndexPromise = (async () => {
+        const PAGE = 1000;
+        const MAX_ROWS = 200000;
+        const CONCURRENCY = 8;
+        const { count, error: countErr } = await supabase
+          .from('products').select('id', { count: 'exact', head: true });
+        if (countErr) throw new Error(countErr.message);
+
+        const total = Math.min(count || 0, MAX_ROWS);
+        const pageCount = Math.max(1, Math.ceil(total / PAGE));
+        const all = [];
+        for (let startPage = 0; startPage < pageCount; startPage += CONCURRENCY) {
+          const batch = [];
+          for (let pg = startPage; pg < Math.min(startPage + CONCURRENCY, pageCount); pg++) {
+            const from = pg * PAGE;
+            batch.push(
+              supabase.from('products').select(SEARCH_INDEX_COLUMNS)
+                .order('id', { ascending: true }).range(from, from + PAGE - 1)
+                .then(({ data, error }) => {
+                  if (error) throw new Error(error.message);
+                  return data || [];
+                })
+            );
+          }
+          for (const rows of await Promise.all(batch)) all.push(...rows);
+        }
+
+        const mapped = all.map(normalizeProduct);
+        searchIndexCache = { data: mapped, time: Date.now() };
+        return mapped;
+      })();
+
+      try {
+        return await searchIndexPromise;
+      } catch (err) {
+        console.warn('getSearchIndex Supabase error:', err.message);
+        if (searchIndexCache.data) return searchIndexCache.data;
+        throw err;
+      } finally {
+        searchIndexPromise = null;
+      }
+    }
+    return memoryProducts.map(normalizeProduct);
+  },
   searchProducts: async (query, limit = 20) => {
     const q = (query || '').trim();
     if (!q) return [];
-    const qStripped = q.replace(/^0+/, '');
+    const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
 
     if (isConnectedToSupabase && supabase) {
       const cacheKey = `${q.toLowerCase()}::${limit}`;
@@ -272,8 +344,11 @@ module.exports = {
 
       // Scanner searches are usually barcode/stock-number lookups. Try an
       // exact indexed query first so they do not pay for a table-wide search.
-      const likelyCode = /\d/.test(q) || /[-_]/.test(q);
+      // Only use the exact lookup for a single token. A multi-token query
+      // such as "809 basket" must be evaluated token-by-token below.
+      const likelyCode = tokens.length === 1 && (/\d/.test(q) || /[-_]/.test(q));
       if (likelyCode) {
+        const qStripped = q.replace(/^0+/, '');
         const exactValues = Array.from(new Set([q, qStripped].filter(Boolean)))
           .map(escapePostgrestValue);
         const exactOr = exactValues.flatMap(value => [
@@ -297,12 +372,20 @@ module.exports = {
         }
       }
 
-      const pattern = escapePostgrestValue(`%${q}%`);
-      const patternStripped = escapePostgrestValue(qStripped ? `%${qStripped}%` : `%${q}%`);
-      const { data, error } = await supabase
+      // Each token gets its own OR group, so all words must be present in
+      // the same product while each word can match any searchable field.
+      let productQuery = supabase
         .from('products')
-        .select(PRODUCT_COLUMNS)
-        .or(`product_name.ilike."${pattern}",barcode.ilike."${pattern}",barcode.ilike."${patternStripped}",barcode_2.ilike."${pattern}",barcode_2.ilike."${patternStripped}",stock_no.ilike."${pattern}",category.ilike."${pattern}",department.ilike."${pattern}"`)
+        .select(PRODUCT_COLUMNS);
+      for (const token of tokens) {
+        const clauses = searchTermVariants(token).flatMap(term => {
+          const pattern = escapePostgrestValue(`%${term}%`);
+          return SEARCHABLE_PRODUCT_FIELDS.map(field => `${field}.ilike."${pattern}"`);
+        }).join(',');
+        if (clauses) productQuery = productQuery.or(clauses);
+      }
+
+      const { data, error } = await productQuery
         .order('status', { ascending: true }) // 'MAPPED' comes before 'UNMAPPED'
         .order('id', { ascending: false })
         .limit(limit);
@@ -315,21 +398,17 @@ module.exports = {
       }
     }
 
-    const qLower = q.toLowerCase();
-    const qStrippedLower = qStripped.toLowerCase();
     return memoryProducts.filter(p => {
-      const name = (p.product_name || p.name || '').toLowerCase();
-      const barcode = (p.barcode || p.b || '').toLowerCase();
-      const stock = (p.stock_no || p.stock_code || '').toLowerCase();
-      const cat = (p.category || '').toLowerCase();
-      const dept = (p.department || p.subcategory || '').toLowerCase();
-
-      return name.includes(qLower) ||
-             barcode.includes(qLower) ||
-             (qStrippedLower && barcode.includes(qStrippedLower)) ||
-             stock.includes(qLower) ||
-             cat.includes(qLower) ||
-             dept.includes(qLower);
+      const searchableText = [
+        p.product_name || p.name,
+        p.barcode || p.b,
+        p.barcode_2 || p.b2,
+        p.stock_no || p.stock_code,
+        p.category || p.c,
+        p.department || p.subcategory || p.sc
+      ].join(' ').toLowerCase();
+      return tokens.every(token => searchTermVariants(token)
+        .some(term => searchableText.includes(term)));
     }).slice(0, limit).map(normalizeProduct);
   },
   getPaginatedProducts: async ({ page = 1, limit = 25, search = '', status = 'ALL', floor = 'ALL' } = {}) => {

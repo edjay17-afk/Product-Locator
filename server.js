@@ -378,7 +378,8 @@ app.get('/api/products', async (req, res) => {
 // Get all products (for offline sync) — compact payload for 50K+ SKUs
 app.get('/api/products/all', async (req, res) => {
   try {
-    const products = await db.getAllProducts();
+    const isSearchIndex = req.query.searchIndex === '1';
+    const products = isSearchIndex ? await db.getSearchIndex() : await db.getAllProducts();
     // Send compact payload: use short field names to reduce JSON size for 50K+ products
     const compact = products.map(p => {
       const item = {
@@ -404,6 +405,9 @@ app.get('/api/products/all', async (req, res) => {
       if (p.isMapped) item.isMapped = true;
       return item;
     });
+    if (isSearchIndex) {
+      res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=3600');
+    }
     res.json({ success: true, count: compact.length, products: compact });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

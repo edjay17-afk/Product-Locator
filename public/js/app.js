@@ -510,6 +510,99 @@ function updateLanguageUI() {
 
 let activeProduct = null;
 
+let searchIndexWarmupPromise = null;
+let searchIndexDbPromise = null;
+
+function getSearchIndexDb() {
+  if (searchIndexDbPromise) return searchIndexDbPromise;
+  if (!window.indexedDB) return Promise.resolve(null);
+  searchIndexDbPromise = new Promise(resolve => {
+    const request = window.indexedDB.open('product-locator-cache', 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains('search')) {
+        request.result.createObjectStore('search');
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => resolve(null);
+  });
+  return searchIndexDbPromise;
+}
+
+async function readCachedSearchIndex() {
+  const db = await getSearchIndexDb();
+  if (!db) return null;
+  return new Promise(resolve => {
+    const request = db.transaction('search', 'readonly').objectStore('search').get('products-v2');
+    request.onsuccess = () => resolve(Array.isArray(request.result) ? request.result : null);
+    request.onerror = () => resolve(null);
+  });
+}
+
+async function writeCachedSearchIndex(products) {
+  const db = await getSearchIndexDb();
+  if (!db || !Array.isArray(products)) return;
+  try {
+    db.transaction('search', 'readwrite').objectStore('search').put(products, 'products-v2');
+  } catch (err) {
+    console.warn('Could not persist search index cache:', err);
+  }
+}
+
+function applySearchIndex(products) {
+  if (!Array.isArray(products)) return;
+
+  // Preserve newer records already fetched or edited while the index was
+  // loading, then rebuild all O(1) barcode/stock and text indexes.
+  const existingById = new Map(PRODUCTS.map(p => [String(p.id), p]));
+  PRODUCTS = products.map(p => {
+    const existing = existingById.get(String(p.id));
+    return existing ? { ...p, ...existing } : p;
+  });
+  productsData = PRODUCTS;
+  rebuildIndex();
+
+  // If typing started before warm-up finished, repaint immediately from
+  // the local catalog instead of waiting for the remote search response.
+  const input = document.getElementById('searchInput');
+  const value = input ? input.value.trim() : '';
+  if (value) doSearch(value, false);
+}
+
+// Warm the compact catalog in the background. The browser keeps this GET in
+// its HTTP cache and IndexedDB, so a normal refresh can rebuild the local
+// search index without waiting for the database or a request per keystroke.
+async function warmSearchIndex() {
+  if (searchIndexWarmupPromise) return searchIndexWarmupPromise;
+  searchIndexWarmupPromise = (async () => {
+    const cachedIndexPromise = readCachedSearchIndex();
+    const networkIndexPromise = fetch('/api/products/all?searchIndex=1&v=2', { cache: 'force-cache' })
+      .then(res => res.json());
+
+    try {
+      const cachedProducts = await cachedIndexPromise;
+      if (cachedProducts) applySearchIndex(cachedProducts);
+    } catch (err) {
+      console.warn('Cached search index load failed:', err);
+    }
+
+    try {
+      const data = await networkIndexPromise;
+      if (data.success && Array.isArray(data.products)) {
+        applySearchIndex(data.products);
+        // Persist the full index so subsequent refreshes are local-first.
+        writeCachedSearchIndex(data.products);
+      }
+    } catch (err) {
+      // The API search fallback remains active when the index is unavailable.
+      console.warn('Search index warm-up failed:', err);
+    }
+  })().finally(() => {
+    searchIndexWarmupPromise = null;
+  });
+  return searchIndexWarmupPromise;
+}
+
 // Initialize app data from server database API
 async function initApp() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -541,6 +634,9 @@ async function initApp() {
   renderRecent();
 
   try {
+    // Start immediately, without delaying the shell or first keystroke.
+    warmSearchIndex();
+
     // Stats badge updates whenever the server answers (non-blocking).
     fetch('/api/stats').then(r => r.json()).then(statsRes => {
       if (statsRes && statsRes.success) {
@@ -549,12 +645,6 @@ async function initApp() {
         document.getElementById('footerText').textContent = `Database Connected · ${statsRes.total} SKUs mapped`;
       }
     }).catch(e => console.warn('Stats fetch failed:', e));
-
-    // Do not download the complete catalog on startup. The production app
-    // runs behind a Netlify function and the catalog is 50k+ rows; that full
-    // transfer competes with the user's first search. Search populates this
-    // in-memory index on demand, while the full endpoint remains available
-    // for explicit export/admin workflows.
 
     // Supabase Realtime WebSocket Subscription for instant multi-stockman push updates!
     try {
@@ -1243,6 +1333,28 @@ const SEARCH_SYNONYMS = {
   'bskt': ['basket', 'bskt']
 };
 
+// A multi-word search is an AND query: every token must match the same
+// product, while each token may match any indexed product field. This keeps
+// autocomplete results correct for searches such as "809 basket".
+function productMatchesAllSearchTokens(p, tokens) {
+  if (!p || !tokens || tokens.length === 0) return false;
+  const searchText = p._searchStr !== undefined
+    ? p._searchStr
+    : [p.barcode || p.b, p.barcode_2 || p.b2, p.stock_no || p.stock_code || p.s,
+      p.product_name || p.name || p.n, p.category || p.c,
+      p.department || p.subcategory || p.sc].join(' ').toLowerCase();
+  const strippedText = p._searchStrStripped !== undefined
+    ? p._searchStrStripped
+    : searchText.replace(/0+/g, '');
+
+  return tokens.every(token => {
+    const strippedToken = token.replace(/^0+/, '');
+    const synonyms = SEARCH_SYNONYMS[token] || [token];
+    return synonyms.some(term => searchText.includes(term)) ||
+      Boolean(strippedToken && strippedText.includes(strippedToken));
+  });
+}
+
 function scoreProductMatch(p, qTrim, qStripped, tokens) {
   if (!p || !qTrim) return 0;
   if (!qStripped) qStripped = qTrim.replace(/^0+/, '');
@@ -1320,6 +1432,7 @@ function scoreProductMatch(p, qTrim, qStripped, tokens) {
 
 let searchRequestId = 0;
 let searchFetchTimer = null;
+let searchFetchController = null;
 
 // Final scan / Enter resolution: a product with no mapped location jumps
 // straight into the Add Product modal (pre-filled) so it can be mapped;
@@ -1344,11 +1457,19 @@ async function doSearch(q, isFinal = false) {
   q = (q || '').trim();
   if (!q) {
     clearTimeout(searchFetchTimer);
+    if (searchFetchController) {
+      searchFetchController.abort();
+      searchFetchController = null;
+    }
     hideResults();
     return;
   }
 
   const currentSearchId = ++searchRequestId;
+  if (searchFetchController) {
+    searchFetchController.abort();
+    searchFetchController = null;
+  }
   const qLower = q.toLowerCase();
   const qStripped = qLower.replace(/^0+/, '');
   const tokens = qLower.split(/\s+/).filter(Boolean);
@@ -1374,20 +1495,7 @@ async function doSearch(q, isFinal = false) {
   const maxCandidates = isFinal ? 1000 : 80;
   for (let i = 0; i < PRODUCTS.length; i++) {
     const p = PRODUCTS[i];
-    if (p._searchStr !== undefined) {
-      let hit = p._searchStr.includes(qLower) ||
-        (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
-      if (!hit) {
-        hit = tokens.some(t => {
-          const tStripped = t.replace(/^0+/, '');
-          const syns = SEARCH_SYNONYMS[t];
-          return p._searchStr.includes(t) ||
-            (tStripped && p._searchStrStripped.includes(tStripped)) ||
-            (syns && syns.some(syn => p._searchStr.includes(syn)));
-        });
-      }
-      if (!hit) continue;
-    }
+    if (p._searchStr !== undefined && !productMatchesAllSearchTokens(p, tokens)) continue;
     const score = scoreProductMatch(p, qLower, qStripped, tokens);
     if (score > 0) {
       localCandidates.push({ p, score });
@@ -1490,14 +1598,19 @@ async function doSearch(q, isFinal = false) {
     clearTimeout(searchFetchTimer);
     const fetchId = currentSearchId;
     searchFetchTimer = setTimeout(() => {
-      runBackgroundEnrich(q, qLower, fetchId, candidateMatches, seen);
-    }, 120);
+      const controller = new AbortController();
+      searchFetchController = controller;
+      runBackgroundEnrich(q, qLower, fetchId, candidateMatches, seen, controller.signal)
+        .finally(() => {
+          if (searchFetchController === controller) searchFetchController = null;
+        });
+    }, 80);
   }
 }
 
-async function runBackgroundEnrich(q, qLower, currentSearchId, candidateMatches, seen) {
+async function runBackgroundEnrich(q, qLower, currentSearchId, candidateMatches, seen, signal) {
   try {
-    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=30`).then(r => r.json());
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=30`, { signal }).then(r => r.json());
     if (currentSearchId !== searchRequestId) return;
     const currentInput = (document.getElementById('searchInput')?.value || '').trim().toLowerCase();
     if (currentInput !== qLower) return;
@@ -1548,6 +1661,7 @@ async function runBackgroundEnrich(q, qLower, currentSearchId, candidateMatches,
       renderMatches([]);
     }
   } catch (err) {
+    if (err && err.name === 'AbortError') return;
     console.warn('Background API search error:', err);
     if (currentSearchId === searchRequestId && candidateMatches.length === 0) {
       renderMatches([]);
@@ -1614,6 +1728,10 @@ if (searchInput) {
     if (!val.trim()) {
       searchRequestId++;
       clearTimeout(searchFetchTimer);
+      if (searchFetchController) {
+        searchFetchController.abort();
+        searchFetchController = null;
+      }
       hideResults();
       return;
     }
@@ -4019,20 +4137,7 @@ function doRapidProductSearch(q) {
     const p = PRODUCTS[i];
     if (exactDirect && p === exactDirect) continue;
 
-    if (p._searchStr !== undefined) {
-      let hit = p._searchStr.includes(qLower) ||
-        (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
-      if (!hit) {
-        hit = tokens.some(t => {
-          const tStripped = t.replace(/^0+/, '');
-          const syns = SEARCH_SYNONYMS[t];
-          return p._searchStr.includes(t) ||
-            (tStripped && p._searchStrStripped.includes(tStripped)) ||
-            (syns && syns.some(syn => p._searchStr.includes(syn)));
-        });
-      }
-      if (!hit) continue;
-    }
+    if (p._searchStr !== undefined && !productMatchesAllSearchTokens(p, tokens)) continue;
     const score = scoreProductMatch(p, qLower, qStripped, tokens);
     if (score > 0) {
       localCandidates.push({ p, score });
@@ -5201,20 +5306,7 @@ function doCartonProductSearch(q, isFinal = false) {
     const p = PRODUCTS[i];
     if (exactDirect && p === exactDirect) continue;
 
-    if (p._searchStr !== undefined) {
-      let hit = p._searchStr.includes(qLower) ||
-        (qStripped && (p._searchStr.includes(qStripped) || p._searchStrStripped.includes(qStripped)));
-      if (!hit) {
-        hit = tokens.some(t => {
-          const tStripped = t.replace(/^0+/, '');
-          const syns = SEARCH_SYNONYMS[t];
-          return p._searchStr.includes(t) ||
-            (tStripped && p._searchStrStripped.includes(tStripped)) ||
-            (syns && syns.some(syn => p._searchStr.includes(syn)));
-        });
-      }
-      if (!hit) continue;
-    }
+    if (p._searchStr !== undefined && !productMatchesAllSearchTokens(p, tokens)) continue;
     const score = scoreProductMatch(p, qLower, qStripped, tokens);
     if (score > 0) {
       localCandidates.push({ p, score });
