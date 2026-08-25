@@ -147,6 +147,8 @@ if (!isConnectedToSupabase) {
 }
 
 module.exports = {
+  getSupabaseClient: () => supabase,
+  isSupabaseConnected: () => isConnectedToSupabase,
   // Authentication & Users API
   loginUser: async (username, password) => {
     const cleanUser = (username || '').trim().toLowerCase();
@@ -217,6 +219,23 @@ module.exports = {
     };
     memoryUsers.push({ ...newUser, password: hashPassword(cleanPass) });
     return newUser;
+  },
+  updateUserRole: async (id, role) => {
+    if (isConnectedToSupabase && supabase) {
+      const { data, error } = await supabase
+        .from('users')
+        .update({ role })
+        .eq('id', id)
+        .select('id, username, full_name, role, created_at')
+        .single();
+      if (error) throw new Error(error.message);
+      return data;
+    }
+    const user = memoryUsers.find(item => String(item.id) === String(id));
+    if (!user) throw new Error('User not found.');
+    user.role = role;
+    const { password, ...safeUser } = user;
+    return safeUser;
   },
 
   // Products API
@@ -957,16 +976,42 @@ module.exports = {
   },
   getStats: async () => {
     const isMappedRow = p => (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf;
-    // A SKU's identity is its barcode (falling back to stock_no, then row id).
+    // A SKU's identity is its primary barcode (falling back to stock_no, then
+    // row id). Product name and location fields are deliberately excluded:
+    // the same item may have several location rows, and metadata can vary
+    // slightly between imports without creating a new SKU.
     // The same product legitimately appears in several rows — one per shelf
     // location — so stats must count distinct SKUs, not physical rows;
     // registering one more location for an item must not inflate the total.
     const skuKey = p => {
       const b = (p.barcode || '').toString().trim().toLowerCase();
-      if (b) return 'b:' + b;
       const s = (p.stock_no || p.stock_code || '').toString().trim().toLowerCase();
-      if (s) return 's:' + s;
+      const identity = b || s;
+      if (identity) return 'sku:' + identity;
       return 'id:' + p.id;
+    };
+    const rollupSkuStats = rows => {
+      const skuMap = new Map();
+      for (const p of rows || []) {
+        const key = skuKey(p);
+        const current = skuMap.get(key);
+        skuMap.set(key, {
+          mapped: Boolean(current && current.mapped) || Boolean(isMappedRow(p)),
+          custom: Boolean(current && current.custom) || Boolean(p.custom)
+        });
+      }
+      let mappedCount = 0;
+      let customCount = 0;
+      for (const value of skuMap.values()) {
+        if (value.mapped) mappedCount++;
+        if (value.custom) customCount++;
+      }
+      return {
+        total: skuMap.size,
+        customCount,
+        mappedCount,
+        unmappedCount: Math.max(0, skuMap.size - mappedCount)
+      };
     };
     if (isConnectedToSupabase && supabase) {
       const now = Date.now();
@@ -975,7 +1020,10 @@ module.exports = {
       // Prefer the exact distinct-SKU aggregate when the performance
       // migration has been applied. It runs inside PostgreSQL and returns a
       // tiny JSON object instead of downloading the whole catalog.
-      const { data: aggregate, error: aggregateError } = await supabase.rpc('get_product_stats');
+      // Use the versioned function so an older deployed RPC cannot return a
+      // partial or different SKU count. Until v3 is installed, the complete
+      // paged fallback below remains correct.
+      const { data: aggregate, error: aggregateError } = await supabase.rpc('get_product_stats_v3');
       if (!aggregateError && aggregate) {
         statsCache = {
           data: {
@@ -990,36 +1038,25 @@ module.exports = {
         return statsCache.data;
       }
 
-      // PostgreSQL counts stay fast on a serverless cold start. Do not
-      // download the complete catalog just to render the header badge.
-      const [totalResult, mappedResult, customResult] = await Promise.all([
-        supabase.from('products').select('id', { count: 'exact', head: true }),
-        supabase.from('products').select('id', { count: 'exact', head: true }).eq('status', 'MAPPED'),
-        supabase.from('products').select('id', { count: 'exact', head: true }).eq('custom', true)
-      ]);
-      const firstError = totalResult.error || mappedResult.error || customResult.error;
-      if (firstError) throw new Error(firstError.message);
-
-      const total = totalResult.count || 0;
-      const mappedCount = mappedResult.count || 0;
+      // If the RPC migration is not installed yet, still count distinct SKUs
+      // in the fallback. Counting table rows here would count every location
+      // row as a separate SKU.
+      // Reuse the paged catalog loader; a plain Supabase select is capped at
+      // 1,000 rows and would silently produce the old ~983-SKU total.
+      const statRows = await module.exports.getSearchIndex();
+      const rolledUp = rollupSkuStats(statRows);
       statsCache = {
         data: {
-          total,
-          customCount: customResult.count || 0,
-          mappedCount,
-          unmappedCount: Math.max(0, total - mappedCount),
+          ...rolledUp,
           isSupabase: true
         },
         time: now
       };
       return statsCache.data;
     }
-    const mappedCount = memoryProducts.filter(isMappedRow).length;
+    const rolledUp = rollupSkuStats(memoryProducts);
     return {
-      total: memoryProducts.length,
-      customCount: memoryProducts.filter(p => p.custom).length,
-      mappedCount,
-      unmappedCount: memoryProducts.length - mappedCount,
+      ...rolledUp,
       isSupabase: false
     };
   },

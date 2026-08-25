@@ -9,8 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/vendor/qrcode.min.js"></script>
-<link rel="stylesheet" href="css/styles.css?v=2.3">
+<link rel="stylesheet" href="css/styles.css?v=3.0">
 </head>
 <body>
 <div id="mainAppWrapper" class="wrap">
@@ -52,11 +53,7 @@
       </button>
     </div>
     <div id="resultsList" class="results-list"></div>
-    <div class="add-row" style="display:flex;gap:6px;flex-wrap:nowrap;width:100%;">
-      <button id="addProductBtn" type="button" style="flex:1 1 0%; min-width:0;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
-        <span data-i18n="addBtn">Add Product</span>
-      </button>
+    <div class="add-row quick-actions" style="display:flex;gap:8px;flex-wrap:nowrap;width:100%;">
       <button id="cartonPutawayBtn" type="button" style="flex:1 1 0%; min-width:0; background: #0284c7; color: white; display: none; align-items: center; justify-content: center; gap: 6px; font-family: 'Poppins', sans-serif; font-weight:700; font-size:13.5px; border:none; border-radius:10px; cursor:pointer;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4-9-4Z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>
         <span data-i18n="cartonBtn">Big Items</span>
@@ -82,7 +79,7 @@
     <div id="emptyPrompt" style="display:none;flex-direction:column;align-items:center;">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M3 11h18"/></svg>
       <div class="e1" data-i18n="e1">No product looked up yet</div>
-      <div class="e2" data-i18n="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. Don't see a product? Tap "Add Product" to save it, or use the ⚡ "Rapid Logger" for high-speed barcode + location mapping.</div>
+      <div class="e2" data-i18n="e2">Tap "Scan" to use the camera, or type a barcode, item code, or name above. If a product is not found, you can add it from the prompt. Use the ⚡ "Rapid Logger" for high-speed barcode + location mapping.</div>
     </div>
   </div>
 
@@ -92,19 +89,23 @@
       <!-- Dynamic tagcards will be appended here -->
     </div>
   </div>
-  <div class="extra-row" id="extraRow" style="display:none;flex-wrap:wrap;gap:8px;">
-    <div class="extra-pill"><div class="pl" data-i18n="barcode">Barcode</div><div class="pv" id="pBarcode">—</div></div>
-    <div class="extra-pill"><div class="pl" data-i18n="onHand">On hand</div><div class="pv" id="pQty">—</div></div>
-    <div class="extra-pill" style="flex:1.5; display: none;"><div class="pl">Responsible Stockman</div><div class="pv" id="pStockman"></div></div>
+  <span id="pQty" hidden></span>
+  <div id="inventorySummaryCard" class="inventory-summary-card" style="display:none;">
+    <div class="inventory-summary-heading"><span>Inventory control</span></div>
+    <div class="inventory-summary-grid">
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="ON_HAND" role="button" tabindex="0" title="Click to correct on-hand quantity"><span>On hand</span><strong id="inventoryOnHand">—</strong></div>
+      <div class="inventory-summary-cell is-derived" data-inventory-derived="AVAILABLE" role="button" tabindex="0" title="Available is calculated from on hand minus reservations"><span>Available</span><strong id="inventoryAvailable">—</strong><em>Calculated</em></div>
+      <div class="inventory-summary-cell is-derived" data-inventory-derived="RESERVED" role="button" tabindex="0" title="Reserved quantity comes from orders"><span>Reserved</span><strong id="inventoryReserved">—</strong><em>Calculated</em></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="RECEIVING" role="button" tabindex="0" title="Click to correct receiving quantity"><span>Receiving</span><strong id="inventoryReceiving">—</strong></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="BULK" role="button" tabindex="0" title="Click to correct bulk quantity"><span>Bulk / carton</span><strong id="inventoryBulk">—</strong></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="SHELF" role="button" tabindex="0" title="Click to correct shelf quantity"><span>Shelf</span><strong id="inventoryShelf">—</strong></div>
+    </div>
+    <button id="inventoryDirectDeliveryBtn" class="inventory-direct-delivery" type="button">Direct Delivery</button>
   </div>
   <div class="card-actions" id="cardActions" style="display:none;">
     <button id="editProductBtn" class="card-action-btn" type="button">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       <span data-i18n="editLocDetails">Edit Location / Details</span>
-    </button>
-    <button id="scanLocationQrBtn" class="card-action-btn" style="background: #d97706; color: white; display: none; gap: 6px; align-items: center;" type="button">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      <span data-i18n="scanNewLoc">Scan QR for New Location</span>
     </button>
   </div>
 
@@ -176,6 +177,14 @@
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
             <span data-i18n="saNavAudit">Audit Shelf QR</span>
           </button>
+          <button id="saNavOperationsBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            <span>Operations</span>
+          </button>
+          <button id="saNavNotificationsBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+            <span>Notifications</span><b id="saNotificationBadge" class="sa-nav-badge" style="display:none;">0</b>
+          </button>
         </nav>
       </div>
 
@@ -216,6 +225,11 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span data-i18n="importDataBtn">Import Data</span>
           </button>
+
+          <button id="saMigrateInventoryBtn" type="button" class="portal-btn-secondary" title="Initialize inventory opening balances">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="9"/></svg>
+            <span>Initialize Inventory</span>
+          </button>
           
           <button id="saExportBtn" type="button" class="portal-btn-primary">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -224,8 +238,10 @@
         </div>
       </div>
 
+      <div id="portalLiveAlert" class="portal-live-alert" role="status" aria-live="polite" aria-atomic="true"></div>
+
       <!-- KPI Metrics Bar -->
-      <div class="portal-kpi-grid">
+      <div id="portalMasterKpis" class="portal-kpi-grid">
         <div class="portal-kpi-card kpi-total">
           <div class="portal-kpi-header">
             <span class="portal-kpi-label" data-i18n="saKpiTotal">Total SKUs</span>
@@ -280,7 +296,21 @@
       </div>
 
       <!-- Master Inventory Data Table Card -->
-      <div class="portal-table-panel">
+      <section id="saOperationsPanel" class="sa-operations" style="display:none;">
+        <div class="sa-operations-heading"><div><h2>Warehouse Operations</h2><p>Review issues, approve physical counts, check activity, and manage staff access.</p></div></div>
+        <div id="saOperationsExceptions" class="sa-exception-grid"></div>
+        <div class="sa-operations-grid">
+          <section class="sa-operations-card"><h3>Count approvals <span id="saPendingCountBadge" class="sa-count-badge">0</span></h3><div id="saPendingAdjustments" class="sa-list-empty">Loading…</div></section>
+          <section class="sa-operations-card"><h3>Recent stock activity</h3><div id="saRecentMovements" class="sa-list-empty">Loading…</div></section>
+        </div>
+        <section class="sa-operations-card"><h3>Staff permissions</h3><p class="sa-card-note">Choose each staff member’s access level. Only Superadmin can change roles.</p><div id="saOperationsUsers" class="sa-list-empty">Loading…</div></section>
+      </section>
+      <section id="saNotificationsPanel" class="sa-notifications" style="display:none;">
+        <div class="sa-notifications-heading"><div><h2>Notifications</h2><p>Live record of product locations saved by warehouse staff.</p></div><button id="saClearNotificationsBtn" type="button" class="portal-btn-secondary">Clear all</button></div>
+        <div id="saNotificationsList" class="sa-notifications-list"></div>
+      </section>
+
+      <div id="portalMasterTable" class="portal-table-panel">
         
         <!-- Controls Toolbar -->
         <div class="portal-toolbar">
@@ -518,8 +548,8 @@
     </div>
 
     <div class="field">
-      <label data-i18n="qtyLabel">Total On Hand Qty</label>
-      <input id="efQty" type="number" inputmode="numeric" autocomplete="off">
+      <label data-i18n="qtyLabel">Legacy location quantity (read-only)</label>
+      <input id="efQty" type="number" inputmode="numeric" autocomplete="off" readonly title="Use Receive Stock or an approved adjustment to change quantity">
     </div>
 
     <div class="field">
@@ -533,6 +563,76 @@
       <button id="cancelEditBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
       <button id="saveEditBtn" class="btn-save" type="button" data-i18n="saveChanges">Save Changes</button>
     </div>
+  </div>
+</div>
+
+<!-- DIRECT DELIVERY MODAL -->
+<div id="inventoryDirectDeliveryOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width:420px;">
+    <h2>Direct Delivery</h2>
+    <div class="form-sub">Record stock that left straight from Receiving before it was put away. It will not be added to Shelf or Bulk.</div>
+    <div class="field" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;">
+      <div id="inventoryDirectDeliveryProductName" style="font-weight:700;color:#0f172a;">Product</div>
+      <div id="inventoryDirectDeliveryMeta" style="font:11px monospace;color:#64748b;margin-top:3px;">Receiving: 0</div>
+    </div>
+    <div class="field field-required"><label for="inventoryDirectDeliveryQty">Quantity delivered</label><input id="inventoryDirectDeliveryQty" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 20"></div>
+    <div class="field field-required"><label for="inventoryDirectDeliveryReference">Delivery reference</label><input id="inventoryDirectDeliveryReference" type="text" autocomplete="off" placeholder="e.g. DR-12345 or customer name"></div>
+    <div id="inventoryDirectDeliveryError" class="form-error"></div>
+    <div class="form-actions"><button id="inventoryDirectDeliveryCancel" type="button" class="btn-cancel">Cancel</button><button id="inventoryDirectDeliverySave" type="button" class="btn-save">Record Delivery</button></div>
+  </div>
+</div>
+
+<!-- INVENTORY RECEIVING MODAL -->
+<div id="inventoryReceiveOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width:440px;">
+    <h2>Receive Stock</h2>
+    <div class="form-sub">Record physically counted stock before putaway. This does not overwrite shelf quantities.</div>
+    <div class="field">
+      <label for="inventoryReceiveLookup">Find product by barcode or stock number</label>
+      <div class="inventory-receive-lookup-row">
+        <input id="inventoryReceiveLookup" type="text" autocomplete="off" placeholder="Scan or type barcode / stock no." style="flex:1;min-width:0;">
+        <button id="inventoryReceiveScanBtn" type="button" class="inventory-receive-scan-btn" title="Scan barcode with camera" aria-label="Scan barcode with camera">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M3 7V4a1 1 0 0 1 1-1h3"/><path d="M17 3h3a1 1 0 0 1 1 1v3"/><path d="M21 17v3a1 1 0 0 1-1 1h-3"/><path d="M7 21H4a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/></svg>
+          <span>Scan</span>
+        </button>
+      </div>
+      <div id="inventoryReceiveSuggestions" class="results-list search-autocomplete-popup" role="listbox" aria-label="Product suggestions"></div>
+      <div id="inventoryReceiveLookupResult" style="font-size:11px;color:#64748b;margin-top:5px;min-height:15px;"></div>
+    </div>
+    <div class="field" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;">
+      <div id="inventoryReceiveProductName" style="font-weight:700;color:#0f172a;">Product</div>
+      <div id="inventoryReceiveProductMeta" style="font:11px monospace;color:#64748b;margin-top:3px;">Barcode: — | Stock No: —</div>
+    </div>
+    <div class="field field-required">
+      <label for="inventoryReceiveQty">Counted quantity</label>
+      <input id="inventoryReceiveQty" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" placeholder="e.g. 100">
+    </div>
+    <div class="loc-grid">
+      <div class="field"><label for="inventoryReceivePackage">Package type</label><select id="inventoryReceivePackage"><option value="EACH">Each / Shelf</option><option value="CARTON">Carton</option><option value="SACK">Sack</option></select></div>
+      <div class="field"><label for="inventoryReceiveLocation">Initial location</label><input id="inventoryReceiveLocation" type="text" value="RECEIVING" autocomplete="off" placeholder="RECEIVING or shelf code"></div>
+    </div>
+    <div class="field"><label for="inventoryReceiveLot">Lot / delivery reference</label><input id="inventoryReceiveLot" type="text" autocomplete="off" placeholder="Optional supplier or delivery reference"></div>
+    <div id="inventoryReceiveError" class="form-error"></div>
+    <div class="form-actions"><button id="inventoryReceiveCancel" type="button" class="btn-cancel">Cancel</button><button id="inventoryReceiveSave" type="button" class="btn-save">Record Receipt</button></div>
+  </div>
+</div>
+
+<!-- QUICK INVENTORY COUNT MODAL -->
+<div id="inventoryQuickAdjustOverlay" class="modal-overlay">
+  <div class="form-panel" style="max-width:420px;">
+    <h2>Quick Inventory Count</h2>
+    <div class="form-sub">Correct a physical count with an audit record. This updates the selected ledger bucket.</div>
+    <div class="field" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;">
+      <div id="inventoryQuickAdjustProductName" style="font-weight:700;color:#0f172a;">Product</div>
+      <div id="inventoryQuickAdjustMeta" style="font:11px monospace;color:#64748b;margin-top:3px;">Barcode: — | Stock No: —</div>
+    </div>
+    <div class="loc-grid">
+      <div class="field"><label for="inventoryQuickAdjustBucket">Balance to edit</label><select id="inventoryQuickAdjustBucket"><option value="ON_HAND">On hand</option><option value="RECEIVING">Receiving</option><option value="BULK">Bulk / carton</option><option value="SHELF">Shelf</option></select></div>
+      <div class="field"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="0" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock"></div>
+    <div id="inventoryQuickAdjustError" class="form-error"></div>
+    <div class="form-actions"><button id="inventoryQuickAdjustCancel" type="button" class="btn-cancel">Cancel</button><button id="inventoryQuickAdjustSave" type="button" class="btn-save">Save Count</button></div>
   </div>
 </div>
 
@@ -1178,6 +1278,6 @@
   <div class="scan-hint">Hold the item barcode steady inside the frame.</div>
 </div>
 
-<script src="js/app.js?v=3.8"></script>
+<script src="js/app.js?v=7.2"></script>
 </body>
 </html>

@@ -63,7 +63,23 @@ Use `npm run seed-supabase` only from a trusted administrative environment. It r
 | `/api/products/:id` | PUT | Staff |
 | `/api/products/:id` | DELETE | Admin |
 | `/api/admin/*` | GET | Admin |
+| `/api/inventory/*` | GET/POST | Authenticated staff; approvals are admin/superadmin |
 | `/api/upload-excel` | POST | Admin |
+
+## Inventory quantity model
+
+New warehouse quantity workflows use the inventory ledger in
+`supabase/schema.sql`. Receiving creates a counted lot, carton/sack stock is
+kept by package type, delivery creation reserves available units, picking
+moves reserved units to dispatch staging, and dispatch removes them from
+on-hand stock. Physical count corrections are submitted by staff and
+approved by an admin or superadmin.
+
+After deploying the application, apply the current `supabase/schema.sql` in
+the Supabase SQL editor, then call `POST /api/inventory/migrate-legacy` once
+as an admin or superadmin to convert existing `products.qty` rows into
+opening-balance lots. The original `products` data is retained for
+compatibility during reconciliation.
 
 ## Project structure
 

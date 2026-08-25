@@ -405,7 +405,6 @@ function updateUserUI() {
 
   const isCartonHandler = currentUser && (currentUser.role === 'carton_handler' || currentUser.username === 'carton' || currentUser.username === 'cartonhandler');
   const isAdminOrSuper = currentUser && (currentUser.role === 'admin' || currentUser.role === 'superadmin' || currentUser.username === 'admin' || currentUser.username === 'superadmin');
-
   if (cartonBtn) cartonBtn.style.display = (isAdminOrSuper || isCartonHandler || (currentUser && currentUser.role === 'stockman')) ? 'inline-flex' : 'none';
   if (ordersBtn) ordersBtn.style.display = isAdminOrSuper ? 'flex' : 'none';
   if (adminBtn) adminBtn.style.display = isAdminOrSuper ? 'flex' : 'none';
@@ -424,17 +423,27 @@ function updateUserUI() {
       if (mainAppWrapper && !window.forceUserAppMode) mainAppWrapper.style.display = 'none';
       if (superAdminPortalView && !window.forceUserAppMode) {
         superAdminPortalView.style.display = 'block';
-        renderPortalDataTable();
+        let savedSuperadminView = 'master';
+        try { savedSuperadminView = localStorage.getItem('wh_superadmin_view') || 'master'; } catch (err) { /* storage is optional */ }
+        if (savedSuperadminView === 'operations') {
+          void renderSuperadminOperations();
+        } else if (savedSuperadminView === 'notifications') {
+          renderSuperadminNotifications();
+        } else {
+          setSuperadminView('master');
+          renderPortalDataTable();
+        }
+        startPortalLiveUpdates();
       }
       if (mainAppWrapper && window.forceUserAppMode) mainAppWrapper.style.display = 'block';
-      if (superAdminPortalView && window.forceUserAppMode) superAdminPortalView.style.display = 'none';
+      if (superAdminPortalView && window.forceUserAppMode) {
+        superAdminPortalView.style.display = 'none';
+        stopPortalLiveUpdates();
+      }
     } else {
+      stopPortalLiveUpdates();
       if (mainAppWrapper) mainAppWrapper.style.display = 'block';
       if (superAdminPortalView) superAdminPortalView.style.display = 'none';
-    }
-
-    if (activeProduct && scanQrBtn) {
-      scanQrBtn.style.display = 'inline-flex';
     }
 
     if (currentUser.role === 'checker') {
@@ -448,6 +457,7 @@ function updateUserUI() {
       if (auditBtn) auditBtn.style.display = 'none';
     }
   } else {
+    stopPortalLiveUpdates();
     const superAdminPortalView = document.getElementById('superAdminPortalView');
     if (mainAppWrapper) mainAppWrapper.style.display = 'block';
     if (superAdminPortalView) superAdminPortalView.style.display = 'none';
@@ -455,7 +465,6 @@ function updateUserUI() {
     closeLoginModal.style.display = 'none';
     document.getElementById('loginFormError').style.display = 'none';
     loginOverlay.classList.add('show');
-    if (scanQrBtn) scanQrBtn.style.display = 'none';
     if (rapidBtn) rapidBtn.style.display = 'none';
     if (auditBtn) auditBtn.style.display = 'none';
   }
@@ -648,7 +657,8 @@ async function initApp() {
 
     // Supabase Realtime WebSocket Subscription for instant multi-stockman push updates!
     try {
-      if (window.supabase) {
+      void startProductRealtime();
+      if (false) {
         window.supabase.channel('products_realtime_sync')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
             const item = payload.new;
@@ -1043,8 +1053,7 @@ function renderProductLocationsUI(p, locs) {
 
     const st = statusInfo(item.status);
     const qtyVal = item.qty;
-    const rawStockman = item.last_modified_by || item.modifiedBy || '';
-    const stockmanVal = (rawStockman && rawStockman !== 'System Import' && rawStockman !== 'Guest Stockman' && rawStockman !== 'Staff Scanner' && rawStockman !== 'Rapid Logger') ? rawStockman : '';
+    const barcodeVal = item.barcode || p.barcode || p.b || '—';
 
     const isCartonLocation = Boolean(
       item.is_carton ||
@@ -1097,7 +1106,7 @@ function renderProductLocationsUI(p, locs) {
       </div>
       <div class="tagcard-bottom">
         <div class="tagcard-bottom-info">
-          <div>${TRANSLATIONS[CURRENT_LANG].cardStockman}: <strong style="font-weight: 600;">${escapeHtml(stockmanVal)}</strong></div>
+          <div>Barcode: <strong style="font-weight: 600;">${escapeHtml(barcodeVal)}</strong></div>
           <div style="opacity: 0.9; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
         </div>
         <div class="tagcard-bottom-actions">
@@ -1114,15 +1123,9 @@ function renderProductLocationsUI(p, locs) {
   window.currentLocs = finalLocs;
 
   const editBtn = document.getElementById('editProductBtn');
-  const scanQrBtn = document.getElementById('scanLocationQrBtn');
 
   editBtn.style.display = 'none';
 
-  if (currentUser) {
-    scanQrBtn.style.display = 'inline-flex';
-  } else {
-    scanQrBtn.style.display = 'none';
-  }
 }
 
 function renderProduct(p) {
@@ -1130,16 +1133,14 @@ function renderProduct(p) {
   document.getElementById('emptyState').style.display = 'none';
   const card = document.getElementById('tagCard');
   card.classList.add('show');
-  document.getElementById('extraRow').style.display = 'flex';
   document.getElementById('cardActions').style.display = 'flex';
-
-  const barcode = p.barcode || p.b;
-  const stockCode = p.stock_no || p.stock_code || p.s;
-  document.getElementById('pBarcode').textContent = barcode || (stockCode ? ('#' + stockCode) : '—');
 
   // 1. Instant local render (0ms latency!)
   const localLocs = getLocationsForProduct(p);
   renderProductLocationsUI(p, localLocs);
+  // renderProductLocationsUI immediately calculates the displayed on-hand total,
+  // which is also the safe fallback while the separate ledger request is loading.
+  loadInventorySummary(p);
 
   // push to persistent recent lookups
   recent = recent.filter(r => (r.id ? r.id !== p.id : (r.barcode || r.b) !== (p.barcode || p.b)));
@@ -1171,6 +1172,336 @@ function renderProduct(p) {
     console.warn("Background fresh locations fetch error:", e);
   });
 }
+
+const INVENTORY_SUMMARY_CACHE_KEY = 'wh_inventory_summary_cache_v1';
+const INVENTORY_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
+const INVENTORY_SUMMARY_CACHE_LIMIT = 120;
+const INVENTORY_SUMMARY_REQUEST_TIMEOUT_MS = 8000;
+const inventorySummaryCache = new Map();
+
+function inventorySummaryCacheKey(key) {
+  return String(key || '').trim().toLowerCase();
+}
+
+function readInventorySummaryCache(key) {
+  const cacheKey = inventorySummaryCacheKey(key);
+  const memoryItem = inventorySummaryCache.get(cacheKey);
+  if (memoryItem && Date.now() - memoryItem.savedAt < INVENTORY_SUMMARY_CACHE_TTL_MS) return memoryItem.summary;
+  try {
+    const stored = JSON.parse(localStorage.getItem(INVENTORY_SUMMARY_CACHE_KEY) || '{}');
+    const item = stored[cacheKey];
+    if (!item || Date.now() - item.savedAt >= INVENTORY_SUMMARY_CACHE_TTL_MS) return null;
+    inventorySummaryCache.set(cacheKey, item);
+    return item.summary;
+  } catch (err) {
+    return null;
+  }
+}
+
+function saveInventorySummaryCache(key, summary) {
+  const cacheKey = inventorySummaryCacheKey(key);
+  const item = { summary, savedAt: Date.now() };
+  inventorySummaryCache.set(cacheKey, item);
+  try {
+    const stored = JSON.parse(localStorage.getItem(INVENTORY_SUMMARY_CACHE_KEY) || '{}');
+    stored[cacheKey] = item;
+    const kept = Object.entries(stored)
+      .filter(([, value]) => value && Date.now() - value.savedAt < INVENTORY_SUMMARY_CACHE_TTL_MS)
+      .sort((a, b) => b[1].savedAt - a[1].savedAt)
+      .slice(0, INVENTORY_SUMMARY_CACHE_LIMIT);
+    localStorage.setItem(INVENTORY_SUMMARY_CACHE_KEY, JSON.stringify(Object.fromEntries(kept)));
+  } catch (err) {
+    // The page can still use the in-memory cache when browser storage is unavailable.
+  }
+}
+
+function invalidateInventorySummaryCache(key) {
+  const cacheKey = inventorySummaryCacheKey(key);
+  inventorySummaryCache.delete(cacheKey);
+  try {
+    const stored = JSON.parse(localStorage.getItem(INVENTORY_SUMMARY_CACHE_KEY) || '{}');
+    delete stored[cacheKey];
+    localStorage.setItem(INVENTORY_SUMMARY_CACHE_KEY, JSON.stringify(stored));
+  } catch (err) {
+    // Nothing else is required; the next live request will refresh the card.
+  }
+}
+
+function productInventoryFallback(product) {
+  const productQty = Number.parseInt(product?.qty, 10);
+  const displayedQty = Number.parseInt((document.getElementById('pQty')?.textContent || '').replace(/,/g, ''), 10);
+  const qty = Math.max(0, Number.isInteger(productQty) ? productQty : (Number.isInteger(displayedQty) ? displayedQty : 0));
+  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0 };
+}
+
+function bestAvailableInventorySummary(product, cachedSummary) {
+  const productSummary = productInventoryFallback(product);
+  // A prior offline request may have cached an empty ledger result. Never let
+  // that stale zero hide a known on-hand quantity from the product record.
+  if (productSummary.onHand > 0 && (!cachedSummary || Number(cachedSummary.onHand || 0) === 0)) return productSummary;
+  return cachedSummary || productSummary;
+}
+
+function renderInventorySummary(summary, statusText) {
+  const set = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = Number(value || 0).toLocaleString();
+  };
+  set('inventoryOnHand', summary.onHand);
+  set('inventoryAvailable', summary.available);
+  set('inventoryReserved', summary.reserved);
+  set('inventoryReceiving', summary.receiving);
+  set('inventoryBulk', summary.bulk);
+  set('inventoryShelf', summary.shelf);
+  const status = document.getElementById('inventorySummaryStatus');
+  if (status) status.textContent = statusText;
+}
+
+let inventorySummaryRequestId = 0;
+let currentInventorySummaryProduct = null;
+async function loadInventorySummary(product) {
+  const card = document.getElementById('inventorySummaryCard');
+  if (!card) return;
+  if (!currentUser) {
+    card.style.display = 'none';
+    return;
+  }
+  const key = product && (product.barcode || product.b || product.stock_no || product.stock_code || product.s);
+  if (!key) return;
+  currentInventorySummaryProduct = product;
+  const requestId = ++inventorySummaryRequestId;
+  card.style.display = 'block';
+  const cachedSummary = readInventorySummaryCache(key);
+  const localSummary = bestAvailableInventorySummary(product, cachedSummary);
+  renderInventorySummary(localSummary, cachedSummary ? 'Updating live balance...' : 'Syncing live balance...');
+  const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+  const timeout = controller ? setTimeout(() => controller.abort(), INVENTORY_SUMMARY_REQUEST_TIMEOUT_MS) : null;
+  try {
+    const response = await authFetch(`/api/inventory/${encodeURIComponent(key)}/summary`, {
+      ...(controller ? { signal: controller.signal } : {}),
+      cache: 'no-store'
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'The live inventory service did not return a balance.');
+    if (requestId !== inventorySummaryRequestId) return;
+    const summary = data.summary || {};
+    saveInventorySummaryCache(key, summary);
+    renderInventorySummary(summary, 'Ledger balance');
+  } catch (err) {
+    if (requestId === inventorySummaryRequestId) {
+      const message = err?.name === 'AbortError'
+        ? 'Live balance timed out — showing saved quantity'
+        : 'Live balance unavailable — showing saved quantity';
+      renderInventorySummary(bestAvailableInventorySummary(product, cachedSummary), message);
+    }
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+const inventoryQuickAdjustOverlay = document.getElementById('inventoryQuickAdjustOverlay');
+const inventoryQuickAdjustSave = document.getElementById('inventoryQuickAdjustSave');
+const inventoryQuickAdjustCancel = document.getElementById('inventoryQuickAdjustCancel');
+const inventoryQuickAdjustBucket = document.getElementById('inventoryQuickAdjustBucket');
+const inventoryQuickAdjustQty = document.getElementById('inventoryQuickAdjustQty');
+const inventoryQuickAdjustReason = document.getElementById('inventoryQuickAdjustReason');
+const inventoryQuickAdjustError = document.getElementById('inventoryQuickAdjustError');
+const inventoryDirectDeliveryBtn = document.getElementById('inventoryDirectDeliveryBtn');
+const inventoryDirectDeliveryOverlay = document.getElementById('inventoryDirectDeliveryOverlay');
+const inventoryDirectDeliveryQty = document.getElementById('inventoryDirectDeliveryQty');
+const inventoryDirectDeliveryReference = document.getElementById('inventoryDirectDeliveryReference');
+const inventoryDirectDeliveryError = document.getElementById('inventoryDirectDeliveryError');
+const inventoryDirectDeliverySave = document.getElementById('inventoryDirectDeliverySave');
+const inventoryDirectDeliveryCancel = document.getElementById('inventoryDirectDeliveryCancel');
+
+function canQuickAdjustInventory() {
+  return Boolean(currentUser && ['stockman', 'carton_handler', 'admin', 'superadmin'].includes(currentUser.role));
+}
+
+function inventorySummaryValue(bucket) {
+  const ids = { ON_HAND: 'inventoryOnHand', RECEIVING: 'inventoryReceiving', BULK: 'inventoryBulk', SHELF: 'inventoryShelf' };
+  return Number.parseInt((document.getElementById(ids[bucket])?.textContent || '0').replace(/,/g, ''), 10) || 0;
+}
+
+function updateInventoryCardImmediately(bucket, targetQty) {
+  const current = {
+    onHand: inventorySummaryValue('ON_HAND'),
+    available: Number.parseInt((document.getElementById('inventoryAvailable')?.textContent || '0').replace(/,/g, ''), 10) || 0,
+    reserved: Number.parseInt((document.getElementById('inventoryReserved')?.textContent || '0').replace(/,/g, ''), 10) || 0,
+    receiving: inventorySummaryValue('RECEIVING'),
+    bulk: inventorySummaryValue('BULK'),
+    shelf: inventorySummaryValue('SHELF')
+  };
+  const field = { ON_HAND: 'onHand', RECEIVING: 'receiving', BULK: 'bulk', SHELF: 'shelf' }[bucket];
+  if (!field) return;
+  current[field] = targetQty;
+  if (bucket === 'ON_HAND') current.available = Math.max(0, targetQty - current.reserved);
+  renderInventorySummary(current, '');
+}
+
+function openInventoryQuickAdjust(bucket) {
+  if (!currentInventorySummaryProduct || !inventoryQuickAdjustOverlay) return;
+  if (!canQuickAdjustInventory()) {
+    showToast('Inventory corrections require a stockman or admin account.');
+    return;
+  }
+  const product = currentInventorySummaryProduct;
+  const name = product.product_name || product.name || product.n || 'Product';
+  const barcode = product.barcode || product.b || '—';
+  const stock = product.stock_no || product.stock_code || product.s || '—';
+  document.getElementById('inventoryQuickAdjustProductName').textContent = name;
+  document.getElementById('inventoryQuickAdjustMeta').textContent = `Barcode: ${barcode} | Stock No: ${stock}`;
+  inventoryQuickAdjustBucket.value = bucket;
+  inventoryQuickAdjustQty.value = inventorySummaryValue(bucket);
+  inventoryQuickAdjustReason.value = 'Physical count correction';
+  inventoryQuickAdjustError.classList.remove('show');
+  inventoryQuickAdjustOverlay.classList.add('show');
+  setTimeout(() => inventoryQuickAdjustQty.focus(), 80);
+}
+
+function openInventoryDirectDelivery() {
+  if (!currentInventorySummaryProduct || !inventoryDirectDeliveryOverlay) return;
+  if (!canQuickAdjustInventory()) {
+    showToast('Direct deliveries require a stockman or admin account.');
+    return;
+  }
+  const receiving = inventorySummaryValue('RECEIVING');
+  if (receiving <= 0) {
+    showToast('There is no stock in Receiving to deliver directly.', 'error');
+    return;
+  }
+  const product = currentInventorySummaryProduct;
+  const name = product.product_name || product.name || product.n || 'Product';
+  const barcode = product.barcode || product.b || '—';
+  const stock = product.stock_no || product.stock_code || product.s || '—';
+  document.getElementById('inventoryDirectDeliveryProductName').textContent = name;
+  document.getElementById('inventoryDirectDeliveryMeta').textContent = `Receiving: ${receiving.toLocaleString()} | Barcode: ${barcode} | Stock No: ${stock}`;
+  inventoryDirectDeliveryQty.max = String(receiving);
+  inventoryDirectDeliveryQty.value = '';
+  inventoryDirectDeliveryReference.value = '';
+  inventoryDirectDeliveryError.classList.remove('show');
+  inventoryDirectDeliveryOverlay.classList.add('show');
+  setTimeout(() => inventoryDirectDeliveryQty.focus(), 80);
+}
+
+const inventorySummaryCard = document.getElementById('inventorySummaryCard');
+if (inventorySummaryCard) {
+  inventorySummaryCard.addEventListener('click', event => {
+    const editable = event.target.closest('[data-inventory-edit]');
+    if (editable) {
+      openInventoryQuickAdjust(editable.dataset.inventoryEdit);
+      return;
+    }
+    const derived = event.target.closest('[data-inventory-derived]');
+    if (derived) showToast('This balance is calculated from the inventory ledger.');
+  });
+  inventorySummaryCard.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const editable = event.target.closest('[data-inventory-edit]');
+    if (editable) {
+      event.preventDefault();
+      openInventoryQuickAdjust(editable.dataset.inventoryEdit);
+    }
+  });
+}
+
+if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
+if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click', async () => {
+  const product = currentInventorySummaryProduct;
+  const targetQty = Number.parseInt(inventoryQuickAdjustQty.value, 10);
+  const reason = inventoryQuickAdjustReason.value.trim();
+  if (!product || !Number.isInteger(targetQty) || targetQty < 0) {
+    inventoryQuickAdjustError.textContent = 'Enter a whole number that is zero or greater.';
+    inventoryQuickAdjustError.classList.add('show');
+    return;
+  }
+  if (!reason) {
+    inventoryQuickAdjustError.textContent = 'Enter a reason for the count correction.';
+    inventoryQuickAdjustError.classList.add('show');
+    return;
+  }
+  inventoryQuickAdjustSave.disabled = true;
+  inventoryQuickAdjustError.classList.remove('show');
+  const key = product.barcode || product.b || product.stock_no || product.stock_code || product.s;
+  try {
+    const response = await authFetch(`/api/inventory/${encodeURIComponent(key)}/quick-adjustment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        barcode: product.barcode || product.b,
+        stock_no: product.stock_no || product.stock_code || product.s,
+        product_name: product.product_name || product.name || product.n,
+        storage_type: inventoryQuickAdjustBucket.value,
+        target_qty: targetQty,
+        reason
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not save inventory correction.');
+    const bucket = inventoryQuickAdjustBucket.value;
+    updateInventoryCardImmediately(bucket, targetQty);
+    if (data.product) {
+      const nextOnHand = Number.parseInt(data.product.qty, 10);
+      currentInventorySummaryProduct = { ...product, ...data.product };
+      if (Number.isInteger(nextOnHand) && bucket !== 'ON_HAND') {
+        updateInventoryCardImmediately('ON_HAND', nextOnHand);
+      }
+    }
+    inventoryQuickAdjustOverlay.classList.remove('show');
+    showToast(`Inventory count updated to ${targetQty.toLocaleString()} units.`);
+    invalidateInventorySummaryCache(key);
+    loadInventorySummary(currentInventorySummaryProduct || product);
+  } catch (err) {
+    inventoryQuickAdjustError.textContent = err.message;
+    inventoryQuickAdjustError.classList.add('show');
+  } finally {
+    inventoryQuickAdjustSave.disabled = false;
+  }
+});
+
+if (inventoryDirectDeliveryBtn) inventoryDirectDeliveryBtn.addEventListener('click', openInventoryDirectDelivery);
+if (inventoryDirectDeliveryCancel) inventoryDirectDeliveryCancel.addEventListener('click', () => inventoryDirectDeliveryOverlay?.classList.remove('show'));
+if (inventoryDirectDeliverySave) inventoryDirectDeliverySave.addEventListener('click', async () => {
+  const product = currentInventorySummaryProduct;
+  const qty = Number.parseInt(inventoryDirectDeliveryQty.value, 10);
+  const reference = inventoryDirectDeliveryReference.value.trim();
+  const receiving = inventorySummaryValue('RECEIVING');
+  if (!product || !Number.isInteger(qty) || qty <= 0 || qty > receiving) {
+    inventoryDirectDeliveryError.textContent = `Enter a whole number from 1 to ${receiving.toLocaleString()}.`;
+    inventoryDirectDeliveryError.classList.add('show');
+    return;
+  }
+  if (!reference) {
+    inventoryDirectDeliveryError.textContent = 'Enter a delivery reference or customer name.';
+    inventoryDirectDeliveryError.classList.add('show');
+    return;
+  }
+  inventoryDirectDeliverySave.disabled = true;
+  inventoryDirectDeliveryError.classList.remove('show');
+  const key = product.barcode || product.b || product.stock_no || product.stock_code || product.s;
+  try {
+    const response = await authFetch(`/api/inventory/${encodeURIComponent(key)}/direct-delivery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qty, delivery_reference: reference })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not record the direct delivery.');
+    const nextOnHand = Math.max(0, inventorySummaryValue('ON_HAND') - qty);
+    updateInventoryCardImmediately('RECEIVING', Math.max(0, receiving - qty));
+    updateInventoryCardImmediately('ON_HAND', nextOnHand);
+    if (data.product) currentInventorySummaryProduct = { ...product, ...data.product, qty: nextOnHand };
+    inventoryDirectDeliveryOverlay.classList.remove('show');
+    showToast(`Direct delivery recorded: ${qty.toLocaleString()} unit(s) removed from Receiving.`);
+    invalidateInventorySummaryCache(key);
+    loadInventorySummary(currentInventorySummaryProduct || product);
+  } catch (err) {
+    inventoryDirectDeliveryError.textContent = err.message;
+    inventoryDirectDeliveryError.classList.add('show');
+  } finally {
+    inventoryDirectDeliverySave.disabled = false;
+  }
+});
 
 function renderRecent() {
   const strip = document.getElementById('recentStrip');
@@ -1433,6 +1764,36 @@ function scoreProductMatch(p, qTrim, qStripped, tokens) {
 let searchRequestId = 0;
 let searchFetchTimer = null;
 let searchFetchController = null;
+let missingProductPromptTimer = null;
+let pendingMissingProductQuery = '';
+
+// Pausing while typing must never select a product. It only checks whether
+// the query has no possible matches, then offers the Add Product prompt.
+async function promptOnlyWhenSearchIsMissing(query) {
+  const q = String(query || '').trim();
+  if (!q || (document.getElementById('searchInput')?.value || '').trim() !== q) return;
+
+  const qLower = q.toLowerCase();
+  const qStripped = qLower.replace(/^0+/, '');
+  const tokens = qLower.split(/\s+/).filter(Boolean);
+  const hasLocalMatch = PRODUCTS.some(product => {
+    if (product._searchStr !== undefined && !productMatchesAllSearchTokens(product, tokens)) return false;
+    return scoreProductMatch(product, qLower, qStripped, tokens) > 0;
+  });
+  if (hasLocalMatch) return;
+
+  try {
+    const response = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=1`);
+    const result = await response.json();
+    if ((document.getElementById('searchInput')?.value || '').trim() !== q) return;
+    if (result.success && Array.isArray(result.products) && result.products.length === 0) {
+      showNotFoundModal(q);
+    }
+  } catch (err) {
+    // Do not offer Add Product while the database search itself is unavailable.
+    console.warn('Missing-product check failed:', err);
+  }
+}
 
 // Final scan / Enter resolution: a product with no mapped location jumps
 // straight into the Add Product modal (pre-filled) so it can be mapped;
@@ -1455,6 +1816,7 @@ function renderOrPromptLocation(p, code) {
 
 async function doSearch(q, isFinal = false) {
   q = (q || '').trim();
+  if (isFinal) clearTimeout(missingProductPromptTimer);
   if (!q) {
     clearTimeout(searchFetchTimer);
     if (searchFetchController) {
@@ -1725,6 +2087,7 @@ const searchInput = document.getElementById('searchInput');
 if (searchInput) {
   searchInput.addEventListener('input', e => {
     const val = e.target.value;
+    clearTimeout(missingProductPromptTimer);
     if (!val.trim()) {
       searchRequestId++;
       clearTimeout(searchFetchTimer);
@@ -1737,10 +2100,20 @@ if (searchInput) {
     }
     // Execute search immediately (0ms latency)
     doSearch(val, false);
+    // A barcode scan finishes as an Enter search. For typed entries, wait
+    // briefly for the worker to stop typing and only offer Add Product when
+    // there are no matches. Never auto-open a product from a typing pause.
+    if (val.trim().length >= 3) {
+      const queryAtSchedule = val.trim();
+      missingProductPromptTimer = setTimeout(() => {
+        void promptOnlyWhenSearchIsMissing(queryAtSchedule);
+      }, 700);
+    }
   });
 
   searchInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       doSearch(e.target.value, true);
     } else if (e.key === 'Escape') {
       hideResults();
@@ -1997,6 +2370,35 @@ function playScanBeep(isQr = false) {
   }
 }
 
+// A separate three-note chime makes a saved shelf location distinguishable
+// from barcode and QR scan sounds, especially when several staff are working.
+function playLocationSaveSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!globalAudioCtx || globalAudioCtx.state === 'closed') globalAudioCtx = new AudioCtx();
+    if (globalAudioCtx.state === 'suspended') globalAudioCtx.resume().catch(() => {});
+
+    const now = globalAudioCtx.currentTime;
+    [523.25, 659.25, 783.99].forEach((frequency, index) => {
+      const start = now + index * 0.095;
+      const oscillator = globalAudioCtx.createOscillator();
+      const gain = globalAudioCtx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.16, start + 0.018);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.25);
+      oscillator.connect(gain);
+      gain.connect(globalAudioCtx.destination);
+      oscillator.start(start);
+      oscillator.stop(start + 0.26);
+    });
+  } catch (err) {
+    console.warn('Location save sound error:', err);
+  }
+}
+
 window.playScanBeep = playScanBeep;
 window.playScanBeepSound = playScanBeep;
 
@@ -2129,6 +2531,10 @@ function onScanSuccess(code) {
     handleCheckerLocationScan(code);
   } else if (scanTarget === 'rapid_barcode') {
     handleRapidBarcodeScanned(code);
+  } else if (scanTarget === 'inventory_receive_barcode') {
+    const receiveLookup = document.getElementById('inventoryReceiveLookup');
+    if (receiveLookup) receiveLookup.value = code;
+    findInventoryReceiveProduct(code);
   } else if (scanTarget === 'rapid_location_qr') {
     currentRapidLocation = code.trim();
     rapidLocationBadgeVal.textContent = currentRapidLocation;
@@ -2354,7 +2760,6 @@ function stopScanner() {
 const addOverlay = document.getElementById('addOverlay');
 const formError = document.getElementById('formError');
 
-document.getElementById('addProductBtn').addEventListener('click', openAddForm);
 document.getElementById('cancelAddBtn').addEventListener('click', closeAddForm);
 document.getElementById('saveProductBtn').addEventListener('click', saveNewProduct);
 
@@ -2515,6 +2920,196 @@ if (efAddQtyEl) {
     }
   });
 }
+
+const inventoryReceiveOverlay = document.getElementById('inventoryReceiveOverlay');
+const inventoryReceiveBtn = document.getElementById('receiveInventoryBtn');
+const inventoryReceiveScanBtn = document.getElementById('inventoryReceiveScanBtn');
+const inventoryReceiveCancel = document.getElementById('inventoryReceiveCancel');
+const inventoryReceiveSave = document.getElementById('inventoryReceiveSave');
+let inventoryReceiveTargetProduct = null;
+
+function openInventoryReceiveModal(product = activeProduct) {
+  if (!inventoryReceiveOverlay) return;
+  inventoryReceiveTargetProduct = product || null;
+  const activeProduct = product || {};
+  const lookup = document.getElementById('inventoryReceiveLookup');
+  const name = activeProduct.product_name || activeProduct.name || activeProduct.n || 'Product';
+  const barcode = activeProduct.barcode || activeProduct.b || '—';
+  const stock = activeProduct.stock_no || activeProduct.stock_code || activeProduct.s || '—';
+  document.getElementById('inventoryReceiveProductName').textContent = name;
+  document.getElementById('inventoryReceiveProductMeta').textContent = `Barcode: ${barcode} | Stock No: ${stock}`;
+  if (lookup) lookup.value = product ? (activeProduct.barcode || activeProduct.b || activeProduct.stock_no || activeProduct.stock_code || activeProduct.s || '') : '';
+  if (!product) {
+    document.getElementById('inventoryReceiveProductName').textContent = 'No product selected';
+    document.getElementById('inventoryReceiveProductMeta').textContent = 'Barcode: — | Stock No: —';
+    const resultEl = document.getElementById('inventoryReceiveLookupResult');
+    if (resultEl) resultEl.textContent = 'Find a product before recording the receipt.';
+  } else {
+    const resultEl = document.getElementById('inventoryReceiveLookupResult');
+    if (resultEl) resultEl.textContent = 'Product selected. Enter the physically counted quantity.';
+  }
+  document.getElementById('inventoryReceiveQty').value = '';
+  document.getElementById('inventoryReceivePackage').value = 'EACH';
+  document.getElementById('inventoryReceiveLocation').value = 'RECEIVING';
+  document.getElementById('inventoryReceiveLot').value = '';
+  document.getElementById('inventoryReceiveError').classList.remove('show');
+  hideInventoryReceiveSuggestions();
+  inventoryReceiveOverlay.classList.add('show');
+  setTimeout(() => (product ? document.getElementById('inventoryReceiveQty') : lookup)?.focus(), 80);
+}
+
+if (inventoryReceiveBtn) inventoryReceiveBtn.addEventListener('click', openInventoryReceiveModal);
+if (inventoryReceiveCancel) inventoryReceiveCancel.addEventListener('click', () => inventoryReceiveOverlay?.classList.remove('show'));
+if (inventoryReceiveScanBtn) inventoryReceiveScanBtn.addEventListener('click', () => startScanner('inventory_receive_barcode'));
+async function findInventoryReceiveProduct(scannedCode) {
+  const lookup = document.getElementById('inventoryReceiveLookup');
+  const resultEl = document.getElementById('inventoryReceiveLookupResult');
+  const errorEl = document.getElementById('inventoryReceiveError');
+  const query = String(scannedCode || lookup?.value || '').trim();
+  if (!query) {
+    resultEl.textContent = 'Enter a barcode or stock number.';
+    return;
+  }
+  const normalized = query.toLowerCase();
+  const localProduct = PRODUCTS.find(product => [
+    product.barcode || product.b || '',
+    product.barcode_2 || product.b2 || '',
+    product.stock_no || product.stock_code || product.s || ''
+  ].some(value => String(value).trim().toLowerCase() === normalized));
+  if (localProduct) {
+    inventoryReceiveTargetProduct = localProduct;
+    openInventoryReceiveModal(localProduct);
+    return;
+  }
+  resultEl.textContent = 'Finding product…';
+  errorEl.classList.remove('show');
+  try {
+    const response = await authFetch(`/api/products/lookup/${encodeURIComponent(query)}`);
+    const data = await response.json();
+    if (!response.ok || !data.success || !data.product) throw new Error(data.message || 'Product not found.');
+    inventoryReceiveTargetProduct = data.product;
+    openInventoryReceiveModal(data.product);
+  } catch (err) {
+    inventoryReceiveTargetProduct = null;
+    resultEl.textContent = '';
+    errorEl.textContent = err.message;
+    errorEl.classList.add('show');
+  }
+}
+const inventoryReceiveLookup = document.getElementById('inventoryReceiveLookup');
+const inventoryReceiveSuggestions = document.getElementById('inventoryReceiveSuggestions');
+
+function hideInventoryReceiveSuggestions() {
+  if (!inventoryReceiveSuggestions) return;
+  inventoryReceiveSuggestions.innerHTML = '';
+  inventoryReceiveSuggestions.style.display = 'none';
+}
+
+function clearInventoryReceiveSelection(message) {
+  inventoryReceiveTargetProduct = null;
+  document.getElementById('inventoryReceiveProductName').textContent = 'No product selected';
+  document.getElementById('inventoryReceiveProductMeta').textContent = 'Barcode: — | Stock No: —';
+  const resultEl = document.getElementById('inventoryReceiveLookupResult');
+  if (resultEl) resultEl.textContent = message || 'Choose a product from the suggestions.';
+}
+
+function showInventoryReceiveSuggestions(query) {
+  if (!inventoryReceiveSuggestions) return;
+  const q = String(query || '').trim().toLowerCase();
+  if (q.length < 2 || !PRODUCTS.length) return hideInventoryReceiveSuggestions();
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const matches = [];
+  for (let index = 0; index < PRODUCTS.length; index++) {
+    const product = PRODUCTS[index];
+    const text = product._searchStr || [product.barcode || product.b, product.barcode_2 || product.b2, product.stock_no || product.stock_code || product.s, product.product_name || product.name || product.n].join(' ').toLowerCase();
+    if (!tokens.every(token => text.includes(token))) continue;
+    const barcode = String(product._b || product.barcode || product.b || '');
+    const stock = String(product._s || product.stock_no || product.stock_code || product.s || '');
+    const name = String(product._n || product.product_name || product.name || product.n || '').toLowerCase();
+    const score = barcode.startsWith(q) || stock.startsWith(q) ? 4 : (name.startsWith(q) ? 3 : (name.includes(q) ? 2 : 1));
+    matches.push({ product, score });
+    if (matches.length >= 30) break;
+  }
+  matches.sort((a, b) => b.score - a.score);
+  const unique = new Map();
+  for (const match of matches) {
+    const product = match.product;
+    const key = String(product.barcode || product.b || product.stock_no || product.stock_code || product.s || product.id);
+    if (!unique.has(key)) unique.set(key, product);
+    if (unique.size >= 12) break;
+  }
+  if (!unique.size) return hideInventoryReceiveSuggestions();
+
+  inventoryReceiveSuggestions.innerHTML = '';
+  for (const product of unique.values()) {
+    const name = product.product_name || product.name || product.n || 'Unnamed product';
+    const barcode = product.barcode || product.b || product.barcode_2 || product.b2 || '—';
+    const stock = product.stock_no || product.stock_code || product.s || '—';
+    const item = document.createElement('div');
+    item.className = 'inventory-receive-suggestion';
+    item.setAttribute('role', 'option');
+    item.innerHTML = `<div style="font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</div><div style="font:11px var(--mono);color:var(--muted);margin-top:2px;">Barcode: ${escapeHtml(barcode)} &nbsp;|&nbsp; Stock No: ${escapeHtml(stock)}</div>`;
+    item.addEventListener('pointerdown', event => {
+      event.preventDefault();
+      if (inventoryReceiveLookup) inventoryReceiveLookup.value = barcode;
+      inventoryReceiveTargetProduct = product;
+      openInventoryReceiveModal(product);
+    });
+    inventoryReceiveSuggestions.appendChild(item);
+  }
+  inventoryReceiveSuggestions.style.display = 'block';
+}
+
+if (inventoryReceiveLookup) inventoryReceiveLookup.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    hideInventoryReceiveSuggestions();
+  }
+});
+if (inventoryReceiveLookup) inventoryReceiveLookup.addEventListener('input', () => {
+  const query = inventoryReceiveLookup.value.trim().toLowerCase();
+  clearInventoryReceiveSelection(query ? 'Choose a product from the suggestions.' : 'Find a product before recording the receipt.');
+  showInventoryReceiveSuggestions(query);
+});
+if (inventoryReceiveLookup) inventoryReceiveLookup.addEventListener('blur', () => setTimeout(hideInventoryReceiveSuggestions, 160));
+if (inventoryReceiveSave) inventoryReceiveSave.addEventListener('click', async () => {
+  const product = inventoryReceiveTargetProduct || activeProduct;
+  if (!product) return;
+  const qty = Number.parseInt(document.getElementById('inventoryReceiveQty').value, 10);
+  const errorEl = document.getElementById('inventoryReceiveError');
+  if (!Number.isInteger(qty) || qty <= 0) {
+    errorEl.textContent = 'Enter a positive counted quantity.';
+    errorEl.classList.add('show');
+    return;
+  }
+  inventoryReceiveSave.disabled = true;
+  try {
+    const response = await authFetch('/api/inventory/receipts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        barcode: product.barcode || product.b,
+        stock_no: product.stock_no || product.stock_code || product.s,
+        product_name: product.product_name || product.name || product.n,
+        qty,
+        package_type: document.getElementById('inventoryReceivePackage').value,
+        location_code: document.getElementById('inventoryReceiveLocation').value.trim() || 'RECEIVING',
+        lot_code: document.getElementById('inventoryReceiveLot').value.trim()
+      })
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not record receipt.');
+    inventoryReceiveOverlay.classList.remove('show');
+    showToast(`Received ${qty.toLocaleString()} units into inventory ledger.`);
+    invalidateInventorySummaryCache(product.barcode || product.b || product.stock_no || product.stock_code || product.s);
+    loadInventorySummary(product);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.add('show');
+  } finally {
+    inventoryReceiveSave.disabled = false;
+  }
+});
 
 function openEditForm() {
   if (!activeProduct) return;
@@ -3049,17 +3644,26 @@ function showLocationFullInfo() {
 }
 
 function showNotFoundModal(query) {
+  pendingMissingProductQuery = String(query || '').trim();
   document.getElementById('notFoundMessage').textContent = `No product matching "${query}" was found in the database. Would you like to add it now?`;
   document.getElementById('notFoundOverlay').classList.add('show');
 }
 
 document.getElementById('cancelNotFoundBtn').addEventListener('click', () => {
   document.getElementById('notFoundOverlay').classList.remove('show');
+  pendingMissingProductQuery = '';
 });
 
 document.getElementById('confirmNotFoundBtn').addEventListener('click', () => {
+  const query = pendingMissingProductQuery;
   document.getElementById('notFoundOverlay').classList.remove('show');
   openAddForm();
+  const isBarcode = /^\d+$/.test(query);
+  const isStockCode = /^[a-z]{1,8}[-\s]?\d[\w-]*$/i.test(query);
+  document.getElementById('fBarcode').value = isBarcode ? query : '';
+  document.getElementById('fStock').value = isStockCode ? query : '';
+  document.getElementById('fName').value = isBarcode || isStockCode ? '' : query;
+  pendingMissingProductQuery = '';
 });
 
 function renderCategoryDropdown(filterText = '') {
@@ -3202,9 +3806,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-const scanLocationQrBtnEl = document.getElementById('scanLocationQrBtn');
-if (scanLocationQrBtnEl) scanLocationQrBtnEl.addEventListener('click', () => startScanner('location_qr'));
-
 function parseLocationQR(text) {
   text = text.trim();
   const parts = text.split('-');
@@ -3296,6 +3897,10 @@ async function saveAddStockToLocation() {
     showToast("Total quantity cannot be negative.", 'error');
     return;
   }
+  if (addQty < 0) {
+    showToast('Quantity reductions require a physical count and supervisor-approved adjustment.', 'error');
+    return;
+  }
 
   const btn = document.getElementById('confirmAddStockBtn');
   if (btn && btn.disabled) return;
@@ -3305,6 +3910,25 @@ async function saveAddStockToLocation() {
     const idx = window.currentEditingLocIndex;
 
     if (id) {
+      if (addQty > 0) {
+        const item = window.currentLocs && window.currentLocs[idx] ? window.currentLocs[idx] : activeProduct;
+        const loc = item && (item.loc || `${item.floor || '1'}-${item.row || item.batch || '00'}-${item.shelf || '00'}-${item.level || '0'}`);
+        const receiptResponse = await authFetch('/api/inventory/receipts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            barcode: item && (item.barcode || item.b),
+            stock_no: item && (item.stock_no || item.stock_code || item.s),
+            product_name: item && (item.product_name || item.name || item.n),
+            qty: addQty,
+            location_code: loc,
+            package_type: 'EACH',
+            source_reference: 'Add Stock to Location'
+          })
+        });
+        const receiptData = await receiptResponse.json();
+        if (!receiptResponse.ok || !receiptData.success) throw new Error(receiptData.error || 'Could not record inventory receipt.');
+      }
       const payload = {
         qty: finalQty,
         last_modified_by: stockman || (currentUser ? currentUser.full_name : 'Staff Stockman'),
@@ -4647,6 +5271,7 @@ async function saveRapidEntry() {
   }
 
   const validQty = rfQty ? (parseInt(rfQty.value, 10) || 0) : 0;
+  let rapidLedgerQty = validQty;
 
   const btn = document.getElementById('saveRapidBtn') || document.getElementById('rfSubmitBtn');
   if (btn && btn.disabled) return;
@@ -4696,6 +5321,8 @@ async function saveRapidEntry() {
       }
       if (userAction === 'add') {
         payload.qty = (parseInt(currentRapidExistingRow.qty, 10) || 0) + parseInt(payload.qty, 10);
+      } else if (userAction === 'replace') {
+        rapidLedgerQty = 0;
       }
     }
 
@@ -4704,6 +5331,24 @@ async function saveRapidEntry() {
 
     const url = targetRow ? `/api/products/${targetRow.id}` : '/api/products';
     const method = targetRow ? 'PUT' : 'POST';
+
+    if (rapidLedgerQty > 0) {
+      const inventoryResponse = await authFetch('/api/inventory/receipts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barcode: payload.barcode,
+          stock_no: payload.stock_no,
+          product_name: payload.product_name,
+          qty: rapidLedgerQty,
+          location_code: loc,
+          package_type: 'EACH',
+          source_reference: 'Rapid Logger'
+        })
+      });
+      const inventoryData = await inventoryResponse.json();
+      if (!inventoryResponse.ok || !inventoryData.success) throw new Error(inventoryData.error || 'Could not record rapid entry in inventory ledger.');
+    }
 
     // --- INSTANT OPTIMISTIC RESET FOR HIGH-SPEED LOGGING ---
     rapidSessionCount++;
@@ -5628,6 +6273,25 @@ if (cartonSaveLocationBtn) {
     };
 
     try {
+      if (putawayQty > 0) {
+        const inventoryOperation = targetRow && !sameLocRow ? 'putaway' : 'receipts';
+        const inventoryResponse = await authFetch('/api/inventory/' + inventoryOperation, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            barcode: resolvedBarcode,
+            stock_no: resolvedStock,
+            product_name: resolvedName,
+            qty: putawayQty,
+            to_location: loc,
+            location_code: loc,
+            package_type: 'CARTON',
+            source_reference: 'Big Items Putaway'
+          })
+        });
+        const inventoryData = await inventoryResponse.json();
+        if (!inventoryResponse.ok || !inventoryData.success) throw new Error(inventoryData.error || 'Could not update inventory ledger.');
+      }
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
@@ -5738,43 +6402,49 @@ if (downloadXlsxBtn) {
 }
 
 async function exportWarehouseDataToExcel() {
-  const status = document.getElementById('expStatusFilter').value;
-  const floor = document.getElementById('expFloorFilter').value;
+  const status = document.getElementById('expStatusFilter')?.value || 'ALL';
+  const floor = document.getElementById('expFloorFilter')?.value || 'ALL';
 
   showToast('Generating Excel report...');
+  if (downloadXlsxBtn) downloadXlsxBtn.disabled = true;
+  const exportButton = document.getElementById('saExportBtn');
+  if (exportButton) exportButton.disabled = true;
 
   try {
-    let items = productsData;
-    if (status !== 'ALL') {
-      if (status === 'MAPPED') {
-        items = items.filter(p => (p.status || '').toUpperCase() === 'MAPPED' || p.floor || p.row || p.shelf);
-      } else if (status === 'UNMAPPED') {
-        items = items.filter(p => (p.status || '').toUpperCase() !== 'MAPPED' && !p.floor && !p.row && !p.shelf);
-      }
+    // Export from the database, not the browser search cache. The cache is
+    // intentionally compact and may only contain recently loaded records.
+    const response = await authFetch(`/api/admin/export-data?status=${encodeURIComponent(status)}&floor=${encodeURIComponent(floor)}`, { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.success || !Array.isArray(data.products)) {
+      throw new Error(data.error || 'Could not load the Master Inventory export data.');
     }
-    if (floor !== 'ALL') {
-      items = items.filter(p => String(p.floor) === String(floor));
-    }
+    const items = data.products;
 
     const exportRows = items.map((p, idx) => ({
       '#': idx + 1,
       'Product Name': p.product_name || p.name || '—',
       'Stock No': p.stock_no || p.stock_code || '—',
       'Barcode': p.barcode || '—',
-      'Category': p.category || '—',
-      'Department': p.department || p.subcategory || '—',
+      'Department / Category': p.department || p.category || p.subcategory || '—',
       'Floor': p.floor || '—',
-      'Row (Aisle)': p.row || '—',
+      'Row': p.batch || p.row || '—',
       'Shelf': p.shelf || '—',
       'Level': p.level || '—',
-      'Full Location': p.locFull || p.storage_location || (p.floor ? `${p.floor}-${p.row}-${p.shelf}-${p.level}` : 'UNMAPPED'),
+      'Shelf Location': p.loc || p.locFull || p.location_storage || p.storage_location || (p.floor ? `${p.floor}-${p.batch || p.row}-${p.shelf}-${p.level}` : 'UNMAPPED'),
       'On Hand Qty': p.qty !== undefined ? p.qty : 0,
-      'Status': p.status || (p.floor ? 'MAPPED' : 'UNMAPPED'),
+      'Status': p.status || ((p.floor || p.row || p.shelf) ? 'MAPPED' : 'UNMAPPED'),
       'Last Modified By': p.last_modified_by || 'System'
     }));
 
     if (typeof XLSX !== 'undefined') {
       const worksheet = XLSX.utils.json_to_sheet(exportRows);
+      worksheet['!cols'] = [
+        { wch: 7 }, { wch: 38 }, { wch: 16 }, { wch: 18 }, { wch: 25 },
+        { wch: 9 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 22 },
+        { wch: 15 }, { wch: 13 }, { wch: 22 }
+      ];
+      worksheet['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 12, r: Math.max(exportRows.length, 1) } }) };
+      worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Warehouse Inventory');
 
@@ -5785,6 +6455,9 @@ async function exportWarehouseDataToExcel() {
     }
   } catch (err) {
     showToast('Failed to export Excel file: ' + err.message, 'error');
+  } finally {
+    if (downloadXlsxBtn) downloadXlsxBtn.disabled = false;
+    if (exportButton) exportButton.disabled = false;
   }
 }
 
@@ -5903,6 +6576,212 @@ const portalPageSize = 25;
 let portalDebounceTimer = null;
 let portalAbortController = null;
 let portalStatsCached = null;
+let portalLivePollingTimer = null;
+let portalLivePollingBusy = false;
+let portalLivePageSnapshot = null;
+let portalLiveAlertTimer = null;
+let portalLiveRefreshTimer = null;
+let portalLiveOperationsTimer = null;
+let browserSupabaseClient = null;
+let browserSupabaseClientPromise = null;
+let browserProductRealtimeChannel = null;
+let portalNotifications = [];
+
+function portalNotificationsKey() {
+  return `wh_superadmin_notifications_${currentUser?.username || 'superadmin'}`;
+}
+
+function loadPortalNotifications() {
+  try { portalNotifications = JSON.parse(localStorage.getItem(portalNotificationsKey()) || '[]'); } catch (err) { portalNotifications = []; }
+  if (!Array.isArray(portalNotifications)) portalNotifications = [];
+  updatePortalNotificationBadge();
+}
+
+function savePortalNotifications() {
+  try { localStorage.setItem(portalNotificationsKey(), JSON.stringify(portalNotifications.slice(0, 120))); } catch (err) { /* storage is optional */ }
+}
+
+function updatePortalNotificationBadge() {
+  const badge = document.getElementById('saNotificationBadge');
+  if (!badge) return;
+  const unread = portalNotifications.filter(item => !item.read).length;
+  badge.textContent = unread > 99 ? '99+' : String(unread);
+  badge.style.display = unread ? 'inline-block' : 'none';
+}
+
+function recordPortalNotification(product) {
+  const location = portalProductLocation(product);
+  const key = `${portalProductLiveKey(product)}|${portalProductLiveSignature(product)}`;
+  const now = Date.now();
+  if (portalNotifications.some(item => item.key === key && now - Number(item.time || 0) < 5000)) return;
+  portalNotifications.unshift({ key, time: now, read: false, product: product.product_name || product.name || product.barcode || product.stock_no || 'Product', location, actor: product.last_modified_by || 'Warehouse staff' });
+  portalNotifications = portalNotifications.slice(0, 120);
+  savePortalNotifications();
+  updatePortalNotificationBadge();
+  if (document.getElementById('saNotificationsPanel')?.style.display !== 'none') renderSuperadminNotifications();
+}
+
+function portalProductIsMapped(product) {
+  return (product && String(product.status || '').toUpperCase() === 'MAPPED') || Boolean(product && (product.floor || product.row || product.shelf));
+}
+
+function portalProductLocation(product) {
+  if (!product) return 'Unassigned';
+  const floor = product.floor ?? '';
+  const row = product.batch ?? product.row ?? '';
+  const shelf = product.shelf ?? '';
+  const level = product.level ?? '0';
+  return [floor, row, shelf, level].join('-');
+}
+
+function portalProductLiveKey(product) {
+  return String(product && product.id !== undefined ? product.id : `${product?.barcode || ''}|${product?.stock_no || ''}`);
+}
+
+function portalProductLiveSignature(product) {
+  return `${portalProductIsMapped(product) ? 'mapped' : 'unmapped'}|${portalProductLocation(product)}|${product?.status || ''}`;
+}
+
+function showPortalLocationAlert(product) {
+  const alert = document.getElementById('portalLiveAlert');
+  if (!alert || !product) return;
+  const name = product.product_name || product.name || product.barcode || product.stock_no || 'Product';
+  const location = portalProductLocation(product);
+  const modifier = product.last_modified_by ? ` · ${product.last_modified_by}` : '';
+  recordPortalNotification(product);
+  alert.innerHTML = `<span class="portal-live-alert-icon" aria-hidden="true">📍</span><span><strong>Location saved</strong><br><b>${escapeHtml(name)}</b> → Floor ${escapeHtml(String(product.floor ?? ''))}, Row ${escapeHtml(String(product.batch ?? product.row ?? ''))}, Shelf ${escapeHtml(String(product.shelf ?? ''))}, Level ${escapeHtml(String(product.level ?? '0'))}${escapeHtml(modifier)}</span>`;
+  alert.dataset.location = location;
+  alert.classList.remove('show');
+  requestAnimationFrame(() => alert.classList.add('show'));
+  clearTimeout(portalLiveAlertTimer);
+  portalLiveAlertTimer = setTimeout(() => alert.classList.remove('show'), 6500);
+  playLocationSaveSound();
+}
+
+function setPortalLiveStatus(mode = 'live') {
+  const status = document.getElementById('portalLiveStatus');
+  if (!status) return;
+  status.classList.toggle('is-fallback', mode !== 'live');
+  status.innerHTML = `<span></span>${mode === 'live' ? 'Live updates on' : 'Live check on'}`;
+}
+
+function handlePortalLiveProduct(product, { initial = false } = {}) {
+  if (!product || initial || !portalProductIsMapped(product)) return;
+  const key = portalProductLiveKey(product);
+  const previous = portalLivePageSnapshot && portalLivePageSnapshot.get(key);
+  if (!previous || previous.signature !== portalProductLiveSignature(product)) {
+    showPortalLocationAlert(product);
+  }
+}
+
+function schedulePortalTableRefresh() {
+  clearTimeout(portalLiveRefreshTimer);
+  portalLiveRefreshTimer = setTimeout(() => {
+    if (currentUser && (currentUser.role === 'superadmin' || currentUser.username === 'superadmin')) {
+      void renderPortalDataTable({ refreshStats: true });
+      if (document.getElementById('saOperationsPanel')?.style.display !== 'none') {
+        clearTimeout(portalLiveOperationsTimer);
+        portalLiveOperationsTimer = setTimeout(() => void renderSuperadminOperations(), 260);
+      }
+    }
+  }, 180);
+}
+
+async function getBrowserSupabaseClient() {
+  if (browserSupabaseClient) return browserSupabaseClient;
+  if (browserSupabaseClientPromise) return browserSupabaseClientPromise;
+  browserSupabaseClientPromise = (async () => {
+    try {
+      const api = window.supabase;
+      if (!api || typeof api.createClient !== 'function') return null;
+      const response = await fetch('/api/realtime-config', { cache: 'no-store' });
+      const config = await response.json();
+      if (!config.success || !config.url || !config.anonKey) return null;
+      browserSupabaseClient = api.createClient(config.url, config.anonKey, {
+        realtime: { params: { eventsPerSecond: 10 } }
+      });
+      // Keep the client available to older code that checks window.supabase.
+      window.supabase = browserSupabaseClient;
+      return browserSupabaseClient;
+    } catch (err) {
+      console.warn('Browser Realtime config unavailable:', err.message);
+      return null;
+    }
+  })().finally(() => {
+    browserSupabaseClientPromise = null;
+  });
+  return browserSupabaseClientPromise;
+}
+
+function handleProductRealtimeEvent(payload) {
+  const item = payload && payload.new;
+  if (!item || (!item.product_name && !item.barcode && !item.stock_no)) return;
+
+  const stockman = item.last_modified_by ? `by ${item.last_modified_by}` : '';
+  showToast(`🔔 Stock updated ${stockman}: ${item.product_name || item.barcode} (Qty: ${item.qty ?? 0})`);
+  const existingIdx = PRODUCTS.findIndex(p => String(p.id) === String(item.id));
+  if (existingIdx >= 0) PRODUCTS[existingIdx] = { ...PRODUCTS[existingIdx], ...item };
+  else PRODUCTS.push(item);
+  rebuildIndex();
+
+  if (activeProduct && ((activeProduct.barcode && activeProduct.barcode === item.barcode) || (activeProduct.barcode_2 && activeProduct.barcode_2 === item.barcode_2) || (activeProduct.stock_no && activeProduct.stock_no === item.stock_no))) {
+    renderProduct(item);
+  }
+
+  if (currentUser && (currentUser.role === 'superadmin' || currentUser.username === 'superadmin')) {
+    handlePortalLiveProduct(item);
+    schedulePortalTableRefresh();
+  }
+}
+
+async function startProductRealtime() {
+  if (browserProductRealtimeChannel) return;
+  const client = await getBrowserSupabaseClient();
+  if (!client) return;
+  try {
+    browserProductRealtimeChannel = client.channel('products_realtime_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, handleProductRealtimeEvent)
+      .subscribe(status => setPortalLiveStatus(status === 'SUBSCRIBED' ? 'live' : 'fallback'));
+  } catch (err) {
+    browserProductRealtimeChannel = null;
+    console.warn('Supabase Realtime subscription unavailable:', err.message);
+  }
+}
+
+function stopPortalLiveUpdates() {
+  clearInterval(portalLivePollingTimer);
+  portalLivePollingTimer = null;
+  portalLivePageSnapshot = null;
+  clearTimeout(portalLiveAlertTimer);
+  clearTimeout(portalLiveRefreshTimer);
+  clearTimeout(portalLiveOperationsTimer);
+  const alert = document.getElementById('portalLiveAlert');
+  if (alert) alert.classList.remove('show');
+}
+
+async function pollPortalLiveTable() {
+  if (portalLivePollingBusy || !currentUser || (currentUser.role !== 'superadmin' && currentUser.username !== 'superadmin')) return;
+  const portal = document.getElementById('superAdminPortalView');
+  if (!portal || portal.style.display === 'none') return;
+  portalLivePollingBusy = true;
+  try {
+    await renderPortalDataTable({ live: true, refreshStats: true });
+    if (document.getElementById('saOperationsPanel')?.style.display !== 'none') {
+      await renderSuperadminOperations();
+    }
+  } finally {
+    portalLivePollingBusy = false;
+  }
+}
+
+function startPortalLiveUpdates() {
+  stopPortalLiveUpdates();
+  loadPortalNotifications();
+  void startProductRealtime();
+  setPortalLiveStatus('fallback');
+  void pollPortalLiveTable();
+  portalLivePollingTimer = setInterval(() => { void pollPortalLiveTable(); }, 2000);
+}
 
 async function fetchPortalKPIs(force = false) {
   if (portalStatsCached && !force) return portalStatsCached;
@@ -5956,6 +6835,19 @@ async function renderPortalDataTable(options = {}) {
     }
 
     const { products: pageItems, total: totalRecords, totalPages } = data;
+
+    if (options.live) {
+      const nextSnapshot = new Map();
+      (pageItems || []).forEach(product => {
+        const key = portalProductLiveKey(product);
+        const previous = portalLivePageSnapshot && portalLivePageSnapshot.get(key);
+        nextSnapshot.set(key, { signature: portalProductLiveSignature(product) });
+        if (previous && previous.signature !== portalProductLiveSignature(product) && portalProductIsMapped(product)) {
+          showPortalLocationAlert(product);
+        }
+      });
+      portalLivePageSnapshot = nextSnapshot;
+    }
 
     const startIdx = (portalCurrentPage - 1) * portalPageSize;
     const pagInfo = document.getElementById('portalPaginationInfo');
@@ -6177,6 +7069,126 @@ if (saExportBtn) {
 
 const saImportBtn = document.getElementById('saImportBtn');
 const saImportFile = document.getElementById('saImportFile');
+const saMigrateInventoryBtn = document.getElementById('saMigrateInventoryBtn');
+if (saMigrateInventoryBtn) {
+  saMigrateInventoryBtn.addEventListener('click', async () => {
+    const confirmed = window.confirm('Initialize inventory from the existing product quantities? This should normally be done once after applying the database schema.');
+    if (!confirmed) return;
+    saMigrateInventoryBtn.disabled = true;
+    try {
+      const response = await authFetch('/api/inventory/migrate-legacy', { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Inventory migration failed.');
+      showToast(`Inventory initialized: ${data.migration?.lotsCreated || 0} opening lots created.`);
+      portalStatsCached = null;
+      await fetchPortalKPIs(true);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      saMigrateInventoryBtn.disabled = false;
+    }
+  });
+}
+
+function formatOperationTime(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : 'Just now';
+}
+
+function setSuperadminView(view) {
+  const isOperations = view === 'operations';
+  const isNotifications = view === 'notifications';
+  try { localStorage.setItem('wh_superadmin_view', view); } catch (err) { /* storage is optional */ }
+  const operations = document.getElementById('saOperationsPanel');
+  const notifications = document.getElementById('saNotificationsPanel');
+  const kpis = document.getElementById('portalMasterKpis');
+  const table = document.getElementById('portalMasterTable');
+  const main = document.querySelector('.portal-main');
+  if (operations) operations.style.display = isOperations ? 'flex' : 'none';
+  if (notifications) notifications.style.display = isNotifications ? 'flex' : 'none';
+  if (kpis) kpis.style.display = isOperations || isNotifications ? 'none' : 'grid';
+  if (table) table.style.display = isOperations || isNotifications ? 'none' : 'block';
+  if (main) {
+    main.classList.toggle('operations-active', isOperations || isNotifications);
+    main.classList.toggle('notifications-active', isNotifications);
+  }
+  document.querySelectorAll('.portal-nav-item').forEach(button => button.classList.remove('active'));
+  document.getElementById(isOperations ? 'saNavOperationsBtn' : (isNotifications ? 'saNavNotificationsBtn' : 'saNavMasterBtn'))?.classList.add('active');
+  const title = document.querySelector('.portal-header-title');
+  const subtitle = document.querySelector('.portal-header-sub');
+  if (title) title.textContent = isOperations ? 'Warehouse Operations' : (isNotifications ? 'Notifications' : 'Master Inventory');
+  if (subtitle) subtitle.textContent = isOperations ? 'Live exceptions, count approvals, stock activity, and staff access.' : (isNotifications ? 'Live updates from warehouse product-location activity.' : 'Live warehouse catalog, storage coordinates, mapping health, and SKU stock tracking');
+}
+
+function renderSuperadminNotifications() {
+  setSuperadminView('notifications');
+  portalNotifications.forEach(item => { item.read = true; });
+  savePortalNotifications();
+  updatePortalNotificationBadge();
+  const list = document.getElementById('saNotificationsList');
+  if (!list) return;
+  list.innerHTML = portalNotifications.length ? portalNotifications.map(item => `<article class="sa-notification-item"><div class="sa-notification-icon">📍</div><div class="sa-notification-content"><strong>Location saved: ${escapeHtml(item.product)}</strong><p>${escapeHtml(item.location || 'Location updated')} · ${escapeHtml(item.actor || 'Warehouse staff')}</p><div class="sa-notification-time">${formatOperationTime(item.time)}</div></div></article>`).join('') : '<div class="sa-notifications-empty">No location notifications yet. New saved locations will appear here automatically.</div>';
+}
+
+async function renderSuperadminOperations() {
+  setSuperadminView('operations');
+  const exceptionsEl = document.getElementById('saOperationsExceptions');
+  const pendingEl = document.getElementById('saPendingAdjustments');
+  const movementsEl = document.getElementById('saRecentMovements');
+  const usersEl = document.getElementById('saOperationsUsers');
+  try {
+    const response = await authFetch('/api/admin/inventory/operations?limit=100', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not load operations.');
+    const operations = data.operations || {};
+    const pending = operations.pendingAdjustments || [];
+    const receiving = operations.receivingAlerts || [];
+    const unmapped = Number(data.stats?.unmappedCount || 0);
+    if (exceptionsEl) exceptionsEl.innerHTML = `<div class="sa-exception alert"><b>${pending.length.toLocaleString()}</b><span>Physical counts awaiting approval</span></div><div class="sa-exception warn"><b>${receiving.length.toLocaleString()}</b><span>Receipts older than 24 hours to check</span></div><div class="sa-exception info"><b>${unmapped.toLocaleString()}</b><span>Products still needing a shelf location</span></div>`;
+    document.getElementById('saPendingCountBadge').textContent = pending.length.toLocaleString();
+    if (pendingEl) pendingEl.innerHTML = pending.length ? pending.map(item => `<div class="sa-operation-row"><div class="sa-operation-main"><strong>${escapeHtml(item.sku_key || 'Product')} · ${Number(item.system_qty || 0)} → ${Number(item.counted_qty || 0)}</strong><div class="sa-operation-meta">${escapeHtml(item.reason || 'Physical count')} · ${escapeHtml(item.submitted_by || 'Staff')} · ${formatOperationTime(item.created_at)}</div></div><button class="sa-small-btn" data-adjustment-action="approve" data-adjustment-id="${item.id}">Approve</button><button class="sa-small-btn danger" data-adjustment-action="reject" data-adjustment-id="${item.id}">Reject</button></div>`).join('') : '<div class="sa-list-empty">No count approvals waiting.</div>';
+    const movements = operations.movements || [];
+    if (movementsEl) movementsEl.innerHTML = movements.length ? movements.slice(0, 12).map(item => `<div class="sa-operation-row"><div class="sa-operation-main"><strong>${escapeHtml(item.movement_type || 'STOCK')} · ${Number(item.qty || 0).toLocaleString()} units · ${escapeHtml(item.sku_key || '')}</strong><div class="sa-operation-meta">${escapeHtml(item.actor_name || 'System')} · ${escapeHtml(item.reason || item.reference_type || 'Stock movement')} · ${formatOperationTime(item.created_at)}</div></div></div>`).join('') : '<div class="sa-list-empty">No stock activity yet.</div>';
+    const users = data.users || [];
+    if (usersEl) usersEl.innerHTML = users.length ? users.map(user => `<div class="sa-operation-row"><div class="sa-operation-main"><strong>${escapeHtml(user.full_name || user.username)}</strong><div class="sa-operation-meta">@${escapeHtml(user.username || '')}</div></div><select class="sa-role-select" data-user-role-id="${user.id}" aria-label="Role for ${escapeHtml(user.username || 'user')}"><option value="stockman" ${user.role === 'stockman' ? 'selected' : ''}>Stockman</option><option value="checker" ${user.role === 'checker' ? 'selected' : ''}>Checker</option><option value="carton_handler" ${user.role === 'carton_handler' ? 'selected' : ''}>Big Items</option><option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option></select></div>`).join('') : '<div class="sa-list-empty">No staff accounts found.</div>';
+  } catch (err) {
+    const message = escapeHtml(err.message || 'Could not load operations.');
+    if (exceptionsEl) exceptionsEl.innerHTML = `<div class="sa-list-empty">${message}</div>`;
+    if (pendingEl) pendingEl.innerHTML = `<div class="sa-list-empty">${message}</div>`;
+  }
+}
+
+document.getElementById('saOperationsRefreshBtn')?.addEventListener('click', renderSuperadminOperations);
+document.getElementById('saPendingAdjustments')?.addEventListener('click', async event => {
+  const button = event.target.closest('[data-adjustment-action]');
+  if (!button) return;
+  const action = button.dataset.adjustmentAction;
+  button.disabled = true;
+  try {
+    const response = await authFetch(`/api/inventory/adjustments/${encodeURIComponent(button.dataset.adjustmentId)}/${action}`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || `Could not ${action} count.`);
+    showToast(`Count ${action}d.`);
+    await renderSuperadminOperations();
+  } catch (err) {
+    showToast(err.message, 'error');
+    button.disabled = false;
+  }
+});
+document.getElementById('saOperationsUsers')?.addEventListener('change', async event => {
+  const select = event.target.closest('[data-user-role-id]');
+  if (!select) return;
+  select.disabled = true;
+  try {
+    const response = await authFetch(`/api/users/${encodeURIComponent(select.dataset.userRoleId)}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: select.value }) });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not change role.');
+    showToast('Staff permission updated.');
+  } catch (err) {
+    showToast(err.message, 'error');
+    await renderSuperadminOperations();
+  } finally { select.disabled = false; }
+});
 if (saImportBtn && saImportFile) {
   saImportBtn.addEventListener('click', () => {
     saImportFile.click();
@@ -6248,10 +7260,34 @@ const saNavMasterBtn = document.getElementById('saNavMasterBtn');
 if (saNavMasterBtn) {
   saNavMasterBtn.addEventListener('click', (e) => {
     e.preventDefault();
+    setSuperadminView('master');
     renderPortalDataTable();
     showToast('Viewing Master Inventory Database.');
   });
 }
+
+const saNavOperationsBtn = document.getElementById('saNavOperationsBtn');
+if (saNavOperationsBtn) {
+  saNavOperationsBtn.addEventListener('click', event => {
+    event.preventDefault();
+    void renderSuperadminOperations();
+  });
+}
+
+const saNavNotificationsBtn = document.getElementById('saNavNotificationsBtn');
+if (saNavNotificationsBtn) {
+  saNavNotificationsBtn.addEventListener('click', event => {
+    event.preventDefault();
+    renderSuperadminNotifications();
+  });
+}
+
+document.getElementById('saClearNotificationsBtn')?.addEventListener('click', () => {
+  portalNotifications = [];
+  savePortalNotifications();
+  updatePortalNotificationBadge();
+  renderSuperadminNotifications();
+});
 
 const saNavCartonBtn = document.getElementById('saNavCartonBtn');
 if (saNavCartonBtn) {

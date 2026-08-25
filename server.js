@@ -17,6 +17,7 @@ let XLSX;
 try { XLSX = require('xlsx'); } catch (e) { XLSX = null; }
 
 const db = require('./db/supabase');
+const inventory = require('./db/inventory');
 const os = require('os');
 const {
   clearSessionCookie,
@@ -91,6 +92,28 @@ app.get('/api/ping', (req, res) => {
   res.json({ success: true, message: 'pong', env: process.env.NODE_ENV || 'unknown' });
 });
 
+// The browser may use Supabase Realtime with the public anon key. Never send
+// the server service-role key to the client.
+app.get('/api/realtime-config', (req, res) => {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const candidate = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
+  let isAnonKey = false;
+  try {
+    const parts = candidate.split('.');
+    if (parts.length >= 2) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+      isAnonKey = payload.role === 'anon';
+    }
+  } catch (e) {
+    isAnonKey = false;
+  }
+
+  if (!supabaseUrl || !isAnonKey) {
+    return res.json({ success: false, realtime: false });
+  }
+  res.json({ success: true, realtime: true, url: supabaseUrl, anonKey: candidate });
+});
+
 
 // Login Endpoint
 app.post('/api/auth/login', loginRateLimit, async (req, res) => {
@@ -147,6 +170,18 @@ app.post('/api/users', requireAuth, requireRole('admin', 'superadmin'), async (r
     res.status(201).json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/users/:id/role', requireAuth, requireRole('superadmin'), async (req, res) => {
+  try {
+    const role = String(req.body?.role || '').trim();
+    const allowedRoles = ['stockman', 'checker', 'carton_handler', 'admin'];
+    if (!allowedRoles.includes(role)) return res.status(400).json({ success: false, error: 'Invalid role.' });
+    const user = await db.updateUserRole(req.params.id, role);
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
   }
 });
 
@@ -443,6 +478,187 @@ app.get('/api/products/by-location', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Inventory ledger API. Product-location endpoints remain available for
+// compatibility, while all new quantity workflows use these endpoints.
+// ---------------------------------------------------------------------------
+const inventoryStaff = requireRole('stockman', 'carton_handler', 'admin', 'superadmin');
+const inventorySupervisor = requireRole('admin', 'superadmin');
+
+async function applyCatalogOnHandDelta(sku, delta, actor) {
+  if (!delta) return null;
+  const product = await db.getProductByBarcodeOrStock(sku);
+  if (!product) throw new Error('Product not found.');
+  const currentQty = Number.parseInt(product.qty, 10) || 0;
+  const nextQty = currentQty + Number(delta);
+  if (nextQty < 0) throw new Error('This change would make the on-hand quantity negative.');
+  return db.updateProduct(product.id, {
+    qty: nextQty,
+    last_modified_by: actor || 'Stockman'
+  });
+}
+
+app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
+  try {
+    const [ledgerSummary, product] = await Promise.all([
+      inventory.summary(req.params.sku),
+      db.getProductByBarcodeOrStock(req.params.sku)
+    ]);
+    const catalogQty = product ? Number.parseInt(product.qty, 10) : NaN;
+    // The catalog quantity is the current on-hand source until the external
+    // stock integration is connected. Location buckets are counted separately
+    // and start at zero until staff records a receipt or putaway.
+    const onHand = Number.isInteger(catalogQty) && catalogQty >= 0 ? catalogQty : Number(ledgerSummary.onHand || 0);
+    const summary = {
+      ...ledgerSummary,
+      onHand,
+      available: Math.max(0, onHand - Number(ledgerSummary.reserved || 0))
+    };
+    // Inventory cards are edited in-place. A cached response here can show a
+    // value from before a successful save, so always return a fresh balance.
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.json({ success: true, summary });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/inventory/:sku/history', requireAuth, async (req, res) => {
+  try {
+    const history = await inventory.history(req.params.sku, Number.parseInt(req.query.limit || '100', 10));
+    res.json({ success: true, history });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, async (req, res) => {
+  try {
+    const storageType = String(req.body?.storage_type || req.body?.storageType || '').trim().toUpperCase();
+    if (storageType === 'ON_HAND') {
+      const targetQty = Number.parseInt(req.body?.target_qty ?? req.body?.targetQty, 10);
+      if (!Number.isInteger(targetQty) || targetQty < 0) {
+        return res.status(400).json({ success: false, error: 'On-hand quantity must be a non-negative whole number.' });
+      }
+      const product = await db.getProductByBarcodeOrStock(req.params.sku);
+      if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
+      const updatedProduct = await db.updateProduct(product.id, {
+        qty: targetQty,
+        last_modified_by: req.user.full_name || req.user.username
+      });
+      return res.json({
+        success: true,
+        adjustment: { skuKey: req.params.sku, storageType, targetQty, source: 'CATALOG_ON_HAND' },
+        product: updatedProduct
+      });
+    }
+    const result = await inventory.quickAdjust({ ...(req.body || {}), sku_key: req.params.sku }, req.user.full_name || req.user.username);
+    // Until an external stock system is connected, the catalog quantity is
+    // the current on-hand total. A physical bucket change therefore changes
+    // that total by the same amount.
+    const product = await applyCatalogOnHandDelta(req.params.sku, Number(result?.delta || 0), req.user.full_name || req.user.username);
+    res.json({ success: true, adjustment: result, product });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// Stock that leaves straight from the receiving area never reaches a shelf.
+// This creates a DISPATCH movement and deducts only from RECEIVING lots.
+app.post('/api/inventory/:sku/direct-delivery', requireAuth, inventoryStaff, async (req, res) => {
+  try {
+    const result = await inventory.directDispatch({ ...(req.body || {}), sku_key: req.params.sku }, req.user.full_name || req.user.username);
+    const product = await applyCatalogOnHandDelta(req.params.sku, -Number(result?.dispatched || 0), req.user.full_name || req.user.username);
+    res.json({ success: true, delivery: result, product });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/inventory/warehouse-summary', requireAuth, async (req, res) => {
+  try {
+    const summary = await inventory.warehouseSummary();
+    res.json({ success: true, summary });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/receipts', requireAuth, inventoryStaff, async (req, res) => {
+  try {
+    const result = await inventory.receive(req.body || {}, req.user.full_name || req.user.username);
+    res.status(201).json({ success: true, receipt: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/movements', requireAuth, inventoryStaff, async (req, res) => {
+  try {
+    const result = await inventory.move(req.body || {}, req.user.full_name || req.user.username);
+    res.json({ success: true, movement: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/putaway', requireAuth, inventoryStaff, async (req, res) => {
+  try {
+    const result = await inventory.putaway(req.body || {}, req.user.full_name || req.user.username);
+    res.json({ success: true, movement: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/adjustments', requireAuth, inventoryStaff, async (req, res) => {
+  try {
+    const result = await inventory.requestAdjustment(req.body || {}, req.user.full_name || req.user.username);
+    res.status(201).json({ success: true, adjustment: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/adjustments/:id/approve', requireAuth, inventorySupervisor, async (req, res) => {
+  try {
+    const result = await inventory.approveAdjustment(req.params.id, req.user.full_name || req.user.username);
+    res.json({ success: true, adjustment: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/adjustments/:id/reject', requireAuth, requireRole('superadmin'), async (req, res) => {
+  try {
+    const result = await inventory.rejectAdjustment(req.params.id, req.user.full_name || req.user.username);
+    res.json({ success: true, adjustment: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/inventory/operations', requireAuth, requireRole('superadmin'), async (req, res) => {
+  try {
+    const [operations, users, stats] = await Promise.all([
+      inventory.adminOperations(req.query.limit), db.getUsers(), db.getStats()
+    ]);
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.json({ success: true, operations, users, stats });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/inventory/migrate-legacy', requireAuth, inventorySupervisor, async (req, res) => {
+  try {
+    const result = await inventory.migrateLegacy(req.user.full_name || req.user.username);
+    res.json({ success: true, migration: result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Stock Transfer between shelf locations
 app.post('/api/products/transfer', async (req, res) => {
   try {
@@ -475,7 +691,7 @@ app.get('/api/products/:id', async (req, res) => {
 });
 
 // Add new product
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', requireAuth, async (req, res) => {
   try {
     const name = req.body.name || req.body.product_name;
     const floor = req.body.floor;
@@ -587,13 +803,15 @@ app.delete('/api/products/:id', async (req, res) => {
 app.get('/api/admin/stats', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   try {
     const stats = await db.getStats();
+    const warehouse = await inventory.warehouseSummary();
     res.json({
       success: true,
       stats: {
         totalProducts: stats.total || 0,
         mappedCount: stats.mappedCount || 0,
         unmappedCount: stats.unmappedCount || 0,
-        totalQty: stats.total || 0
+        totalQty: warehouse.onHand || 0,
+        warehouse
       }
     });
   } catch (err) {
@@ -745,7 +963,7 @@ app.get('/api/orders', requireAuth, requireRole('admin', 'superadmin'), (req, re
   res.json({ success: true, orders: memoryOrders });
 });
 
-app.post('/api/orders', requireAuth, requireRole('admin', 'superadmin'), (req, res) => {
+app.post('/api/orders', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
   const { order_no, customer_name, items } = req.body;
   const newOrder = {
     id: Date.now(),
@@ -755,9 +973,47 @@ app.post('/api/orders', requireAuth, requireRole('admin', 'superadmin'), (req, r
     created_at: new Date().toISOString(),
     items: items || []
   };
+  if (newOrder.items.length > 0) {
+    try {
+      const reservation = await inventory.reserveOrder(newOrder.id, newOrder.items, req.user.full_name || req.user.username);
+      newOrder.status = 'RESERVED';
+      newOrder.reservation = reservation;
+    } catch (err) {
+      return res.status(409).json({ success: false, error: err.message });
+    }
+  }
   memoryOrders.unshift(newOrder);
   res.status(201).json({ success: true, order: newOrder });
 });
+
+app.post('/api/orders/:id/reserve', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
+  try {
+    const order = memoryOrders.find(item => String(item.id) === String(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+    const result = await inventory.reserveOrder(order.id, order.items, req.user.full_name || req.user.username);
+    order.status = 'RESERVED'; order.reservation = result;
+    res.json({ success: true, order, reservation: result });
+  } catch (err) {
+    res.status(409).json({ success: false, error: err.message });
+  }
+});
+
+async function applyOrderInventoryAction(req, res, action, nextStatus) {
+  try {
+    const order = memoryOrders.find(item => String(item.id) === String(req.params.id));
+    if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+    const result = await inventory.orderAction(action, order.id, req.user.full_name || req.user.username);
+    order.status = nextStatus;
+    order.items = order.items.map(item => ({ ...item, status: nextStatus, picked_qty: action === 'pick' || action === 'dispatch' ? (item.requested_qty || item.qty || 0) : (item.picked_qty || 0) }));
+    res.json({ success: true, order, inventory: result });
+  } catch (err) {
+    res.status(409).json({ success: false, error: err.message });
+  }
+}
+
+app.post('/api/orders/:id/pick', requireAuth, requireRole('admin', 'superadmin'), (req, res) => applyOrderInventoryAction(req, res, 'pick', 'PICKED'));
+app.post('/api/orders/:id/dispatch', requireAuth, requireRole('admin', 'superadmin'), (req, res) => applyOrderInventoryAction(req, res, 'dispatch', 'DISPATCHED'));
+app.post('/api/orders/:id/cancel', requireAuth, requireRole('admin', 'superadmin'), (req, res) => applyOrderInventoryAction(req, res, 'release', 'CANCELLED'));
 
 // S-Shape Route Optimizer Engine Endpoint
 app.get('/api/orders/:id/route', requireAuth, requireRole('admin', 'superadmin'), async (req, res) => {
