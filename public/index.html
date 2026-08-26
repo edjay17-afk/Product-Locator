@@ -529,15 +529,15 @@
         </div>
         <div>
           <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
-          <input id="efRow" type="text" inputmode="numeric" autocomplete="off">
+          <input id="efRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
         </div>
         <div>
           <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
-          <input id="efShelf" type="text" inputmode="numeric" autocomplete="off">
+          <input id="efShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
         </div>
         <div>
           <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
-          <input id="efLevel" type="text" inputmode="numeric" autocomplete="off">
+          <input id="efLevel" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
         </div>
       </div>
       <div id="editLocSuggestions" style="margin-top: 10px; display: none;">
@@ -548,8 +548,8 @@
     </div>
 
     <div class="field">
-      <label data-i18n="qtyLabel">Legacy location quantity (read-only)</label>
-      <input id="efQty" type="number" inputmode="numeric" autocomplete="off" readonly title="Use Receive Stock or an approved adjustment to change quantity">
+      <label data-i18n="qtyLabel">How many are on hand?</label>
+      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
     </div>
 
     <div class="field">
@@ -794,6 +794,36 @@
       </div>
     </div>
 
+    <div class="field field-required">
+      <label>Location &amp; quantity</label>
+      <div class="loc-grid">
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
+          <select id="rfFloor">
+            <option value="1" data-i18n="floor1">1st Floor</option>
+            <option value="2" data-i18n="floor2">2nd Floor</option>
+            <option value="3" data-i18n="floor3">3rd Floor</option>
+          </select>
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
+          <input id="rfRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
+          <input id="rfShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+        </div>
+        <div>
+          <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
+          <input id="rfLevel" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off">
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <div class="hint" style="margin-bottom:4px;" data-i18n="rapidQtyLabel">Quantity</div>
+        <input id="rfQty" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off">
+      </div>
+    </div>
+
     <!-- 2. Dynamic New Product Fields Group (Hidden by default) -->
     <div id="rapidNewProductFields" style="display: none; border: 1px dashed var(--line); padding: 14px; border-radius: 8px; margin-bottom: 20px; background: #faf5ff;">
       <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; color: #7c3aed; margin-bottom: 12px;" data-i18n="newProductFieldsTitle">🆕 NEW PRODUCT DETAILS</div>
@@ -999,14 +1029,37 @@
       </div>
     </div>
 
-    <!-- Destination Location Input -->
+    <!-- Guided destination location inputs -->
     <div class="field">
-      <label>Target Destination Location</label>
-      <div class="hint">Scan destination QR code or type coordinates (e.g. 1-05-02-01)</div>
-      <div class="field-scan-row">
-        <input id="transferDestLocInput" type="text" placeholder="e.g. 1-05-02-01" autocomplete="off" style="font-family: monospace; font-size: 15px;">
-        <button id="scanDestLocBtn" type="button" style="background: #7c3aed; padding: 0 14px;">Scan QR</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:6px;">
+        <label style="margin:0;">Target Destination Location</label>
+        <button id="scanDestLocBtn" type="button" style="background:#7c3aed; padding:7px 12px; min-height:34px; border-radius:8px;">Scan QR</button>
       </div>
+      <div class="hint">Choose each part of the shelf location. Scanning a location QR will fill these fields automatically.</div>
+      <div class="transfer-location-grid">
+        <label class="transfer-location-field">
+          <span>Floor</span>
+          <select id="transferDestFloor" aria-label="Destination floor">
+            <option value="">Select</option>
+            <option value="1">Floor 1</option>
+            <option value="2">Floor 2</option>
+            <option value="3">Floor 3</option>
+          </select>
+        </label>
+        <label class="transfer-location-field">
+          <span>Row number</span>
+          <input id="transferDestRow" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="05" aria-label="Destination row number">
+        </label>
+        <label class="transfer-location-field">
+          <span>Shelf number</span>
+          <input id="transferDestShelf" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="02" aria-label="Destination shelf number">
+        </label>
+        <label class="transfer-location-field">
+          <span>Level</span>
+          <input id="transferDestLevel" type="number" min="0" max="99" step="1" inputmode="numeric" placeholder="01" aria-label="Destination level number">
+        </label>
+      </div>
+      <div class="transfer-location-preview">Destination code: <strong id="transferDestPreview">—</strong></div>
     </div>
 
     <!-- Quantity to Transfer -->

@@ -69,7 +69,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. Scan / Search Product",
     rapidSearchPlaceholder: "Search product name, code, barcode...",
     rapidLocLabel: "2. Scan Location QR",
-    rapidQtyLabel: "3. Quantity On Hand",
+    rapidQtyLabel: "Quantity",
     rapidSubmit: "Add & Next",
     rapidSuccessLog: "Last Registered Items (This Session)",
     rapidLocError: "Invalid location format. Expected format like '1-02-01-03'.",
@@ -234,7 +234,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. 搜索或扫描商品",
     rapidSearchPlaceholder: "搜索商品名称、货号或条形码...",
     rapidLocLabel: "2. 扫描库位二维码",
-    rapidQtyLabel: "3. 现有库存数量",
+    rapidQtyLabel: "数量",
     rapidSubmit: "添加 & 下一个",
     rapidSuccessLog: "本次登记记录（最近5条）",
     rapidLocError: "库位格式错误。应为 '楼层-排号-货架号-层数' 格式（如 1-02-01-03）。",
@@ -2537,6 +2537,8 @@ function onScanSuccess(code) {
     findInventoryReceiveProduct(code);
   } else if (scanTarget === 'rapid_location_qr') {
     currentRapidLocation = code.trim();
+    const parsedRapidLocation = parseLocationQR(currentRapidLocation);
+    if (parsedRapidLocation) setRapidLocationFields(parsedRapidLocation);
     rapidLocationBadgeVal.textContent = currentRapidLocation;
     rapidLocationBadge.style.display = 'block';
     checkRapidExistingLocationProduct();
@@ -4603,6 +4605,10 @@ const rfName = document.getElementById('rfName');
 const rfStock = document.getElementById('rfStock');
 const rfCategory = document.getElementById('rfCategory');
 const rfSubcategory = document.getElementById('rfSubcategory');
+const rfFloor = document.getElementById('rfFloor');
+const rfRow = document.getElementById('rfRow');
+const rfShelf = document.getElementById('rfShelf');
+const rfLevel = document.getElementById('rfLevel');
 const rfQty = document.getElementById('rfQty');
 const rapidFormError = document.getElementById('rapidFormError');
 const rapidLogList = document.getElementById('rapidLogList');
@@ -4639,6 +4645,35 @@ if (scanForRapidBarcodeBtnEl) scanForRapidBarcodeBtnEl.addEventListener('click',
 const scanForRapidLocBtnEl = document.getElementById('scanForRapidLocBtn');
 if (scanForRapidLocBtnEl) scanForRapidLocBtnEl.addEventListener('click', () => startScanner('rapid_location_qr'));
 
+function setRapidLocationFields(location) {
+  if (rfFloor) rfFloor.value = location.floor || '1';
+  if (rfRow) rfRow.value = location.row || '';
+  if (rfShelf) rfShelf.value = location.shelf || '';
+  if (rfLevel) rfLevel.value = location.level || '0';
+}
+
+function updateRapidLocationFromFields() {
+  const row = rfRow ? rfRow.value.trim() : '';
+  const shelf = rfShelf ? rfShelf.value.trim() : '';
+  if (!row || !shelf) {
+    currentRapidLocation = '';
+    currentRapidExistingRow = null;
+    if (rapidLocationBadge) rapidLocationBadge.style.display = 'none';
+    return;
+  }
+
+  const floor = rfFloor ? rfFloor.value : '1';
+  const level = rfLevel && rfLevel.value.trim() !== '' ? rfLevel.value.trim() : '0';
+  currentRapidLocation = `${floor}-${pad2(row)}-${pad2(shelf)}-${pad2(level)}`;
+  rapidLocationBadgeVal.textContent = currentRapidLocation;
+  rapidLocationBadge.style.display = 'block';
+  checkRapidExistingLocationProduct();
+}
+
+[rfFloor, rfRow, rfShelf, rfLevel].forEach(input => {
+  if (input) input.addEventListener('change', updateRapidLocationFromFields);
+});
+
 function openRapidLogger() {
   currentRapidBarcode = '';
   currentRapidLocation = '';
@@ -4651,6 +4686,10 @@ function openRapidLogger() {
   rfStock.value = '';
   rfCategory.value = '';
   rfSubcategory.value = '';
+  if (rfFloor) rfFloor.value = '1';
+  if (rfRow) rfRow.value = '';
+  if (rfShelf) rfShelf.value = '';
+  if (rfLevel) rfLevel.value = '0';
   if (rfQty) rfQty.value = '0';
   
   rapidBarcodeBadge.style.display = 'none';
@@ -5134,6 +5173,8 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
       overlay.classList.remove('show');
       currentRapidLocation = locCode;
       currentRapidExistingRow = row;
+      const parsedLocation = parseLocationQR(locCode);
+      if (parsedLocation) setRapidLocationFields(parsedLocation);
       if (rfQty) rfQty.value = qtyVal;
 
       rapidLocationBadgeVal.innerHTML = `${locCode} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Selected existing location: Qty ${qtyVal} (will update)</span>`;
@@ -5389,6 +5430,10 @@ async function saveRapidEntry() {
     rfStock.value = '';
     rfCategory.value = '';
     rfSubcategory.value = '';
+    if (rfFloor) rfFloor.value = '1';
+    if (rfRow) rfRow.value = '';
+    if (rfShelf) rfShelf.value = '';
+    if (rfLevel) rfLevel.value = '0';
     if (rfQty) rfQty.value = '0';
 
     if (rapidBarcodeBadge) rapidBarcodeBadge.style.display = 'none';
@@ -5621,6 +5666,50 @@ document.addEventListener('keydown', (e) => {
 // --- OPTION 1: WAREHOUSE SHELF AUDIT & 1-TAP STOCK TRANSFER ---
 let currentTransferItem = null;
 
+const transferDestinationFields = {
+  floor: document.getElementById('transferDestFloor'),
+  row: document.getElementById('transferDestRow'),
+  shelf: document.getElementById('transferDestShelf'),
+  level: document.getElementById('transferDestLevel')
+};
+
+function formatTransferLocationPart(value, minimum) {
+  const raw = String(value ?? '').trim();
+  if (!/^\d+$/.test(raw)) return '';
+  const number = Number.parseInt(raw, 10);
+  return Number.isInteger(number) && number >= minimum && number <= 99 ? String(number).padStart(2, '0') : '';
+}
+
+function getTransferDestinationLocation() {
+  const floor = String(transferDestinationFields.floor?.value || '').trim();
+  const row = formatTransferLocationPart(transferDestinationFields.row?.value, 1);
+  const shelf = formatTransferLocationPart(transferDestinationFields.shelf?.value, 1);
+  const level = formatTransferLocationPart(transferDestinationFields.level?.value, 0);
+  return ['1', '2', '3'].includes(floor) && row && shelf && level ? `${floor}-${row}-${shelf}-${level}` : '';
+}
+
+function updateTransferDestinationPreview() {
+  const preview = document.getElementById('transferDestPreview');
+  if (preview) preview.textContent = getTransferDestinationLocation() || '—';
+}
+
+function setTransferDestinationFields(location) {
+  if (!location) return;
+  if (transferDestinationFields.floor) transferDestinationFields.floor.value = String(location.floor || '').replace(/^0+/, '') || '0';
+  if (transferDestinationFields.row) transferDestinationFields.row.value = Number.parseInt(location.row, 10) || '';
+  if (transferDestinationFields.shelf) transferDestinationFields.shelf.value = Number.parseInt(location.shelf, 10) || '';
+  if (transferDestinationFields.level) {
+    const level = Number.parseInt(location.level, 10);
+    transferDestinationFields.level.value = Number.isInteger(level) && level >= 0 ? level : '';
+  }
+  updateTransferDestinationPreview();
+}
+
+Object.values(transferDestinationFields).forEach(field => {
+  field?.addEventListener('input', updateTransferDestinationPreview);
+  field?.addEventListener('change', updateTransferDestinationPreview);
+});
+
 window.openTransferModalForProductIndex = function(index) {
   const locs = window.currentLocs || [];
   const item = locs[index];
@@ -5632,9 +5721,12 @@ window.openTransferModalForProductIndex = function(index) {
   document.getElementById('transferSourceLoc').textContent = item.loc || `${item.floor}-${item.row}-${item.shelf}-${item.level}`;
   document.getElementById('transferSourceMaxQty').textContent = item.qty || 0;
   
-  const destInput = document.getElementById('transferDestLocInput');
   const qtyInput = document.getElementById('transferQtyInput');
-  if (destInput) destInput.value = '';
+  Object.values(transferDestinationFields).forEach(field => { if (field) field.value = ''; });
+  if (transferDestinationFields.floor && ['1', '2', '3'].includes(String(item.floor || ''))) {
+    transferDestinationFields.floor.value = String(item.floor);
+  }
+  updateTransferDestinationPreview();
   if (qtyInput) {
     qtyInput.value = item.qty || 1;
     qtyInput.max = item.qty || 1;
@@ -5662,12 +5754,11 @@ if (scanDestLocBtn) {
   scanDestLocBtn.addEventListener('click', () => {
     openScanner((scannedText) => {
       const parsed = parseLocationQR(scannedText);
-      const destInput = document.getElementById('transferDestLocInput');
-      if (parsed && destInput) {
-        destInput.value = `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}`;
-        showToast(`Scanned destination: ${destInput.value}`);
-      } else if (destInput) {
-        destInput.value = scannedText.trim();
+      if (parsed) {
+        setTransferDestinationFields(parsed);
+        showToast(`Scanned destination: ${getTransferDestinationLocation()}`);
+      } else {
+        showToast(CURRENT_LANG === 'en' ? 'Invalid location QR code.' : '无效的库位二维码。', 'error');
       }
     });
   });
@@ -5676,11 +5767,11 @@ if (scanDestLocBtn) {
 if (confirmTransferBtn) {
   confirmTransferBtn.addEventListener('click', async () => {
     if (!currentTransferItem) return;
-    const destLoc = document.getElementById('transferDestLocInput').value.trim();
+    const destLoc = getTransferDestinationLocation();
     const qtyVal = parseInt(document.getElementById('transferQtyInput').value.trim(), 10);
 
     if (!destLoc) {
-      showToast(CURRENT_LANG === 'en' ? 'Please enter or scan destination location.' : '请输入或扫描目标库位。', 'error');
+      showToast(CURRENT_LANG === 'en' ? 'Please select a floor and enter valid row, shelf, and level numbers.' : '请选择楼层并输入有效的排、货架和层数。', 'error');
       return;
     }
     if (isNaN(qtyVal) || qtyVal <= 0) {
