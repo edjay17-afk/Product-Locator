@@ -280,11 +280,11 @@ const TRANSLATIONS = {
     cardShelf: "货架号",
     cardLevel: "层数",
     cardStockman: "负责理货员",
-    cardLocationQty: "库位数量",
-    cardTransferBtn: "移库",
-    cardAddStockBtn: "加库存",
-    cardEditBtn: "编辑",
-    cardDeleteLoc: "删除位置",
+    cardLocationQty: "库位库存",
+    cardTransferBtn: "转移库存",
+    cardAddStockBtn: "添加库存",
+    cardEditBtn: "编辑商品",
+    cardDeleteLoc: "删除库位",
     quickSearchBoard: "查询看板 QR",
     qrBoardTitle: "自助查询引导看板",
     qrBoardSub: "打印此看板并贴在仓库墙壁或通道门上。理货员或客户只需用手机扫描即可免登录自助查询商品货位。",
@@ -1061,6 +1061,7 @@ function renderProductLocationsUI(p, locs) {
   locationsList.innerHTML = '';
 
   finalLocs.forEach((item, index) => {
+    const cardTranslations = TRANSLATIONS[CURRENT_LANG] || TRANSLATIONS.en;
     const floor = item.floor;
     const row = item.row;
     const shelf = item.shelf;
@@ -1115,21 +1116,21 @@ function renderProductLocationsUI(p, locs) {
         </div>
       </div>
       <div class="grid4">
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardRow}</div><div class="cval">${hasLoc ? row : '–'}</div></div>
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardShelf}</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardLevel}</div><div class="cval">${hasLoc ? level : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardRow}</div><div class="cval">${hasLoc ? row : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardShelf}</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardLevel}</div><div class="cval">${hasLoc ? level : '–'}</div></div>
       </div>
       <div class="tagcard-bottom">
         <div class="tagcard-bottom-info">
           <div>Barcode: <strong style="font-weight: 600;">${escapeHtml(barcodeVal)}</strong></div>
-          <div style="opacity: 0.9; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
+          <div style="opacity: 0.9; font-size: 11px;">Location Qty: <strong>${qtyVal}</strong></div>
         </div>
         <div class="tagcard-bottom-actions">
-          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">${TRANSLATIONS[CURRENT_LANG].cardTransferBtn || 'Transfer'}</button>` : ''}
-          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">${TRANSLATIONS[CURRENT_LANG].cardAddStockBtn || 'Add Stock'}</button>
-          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">${TRANSLATIONS[CURRENT_LANG].cardEditBtn || 'Edit'}</button>
-          ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">${TRANSLATIONS[CURRENT_LANG].cardDeleteLoc || 'Delete'}</button>` : ''}
+          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer stock to another shelf">Transfer</button>` : ''}
+          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">Add Stock</button>
+          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit product details">Edit</button>
+          ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">Delete</button>` : ''}
         </div>
       </div>
     `;
