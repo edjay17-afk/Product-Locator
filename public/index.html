@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/vendor/qrcode.min.js"></script>
-<link rel="stylesheet" href="css/styles.css?v=3.2">
+<link rel="stylesheet" href="css/styles.css?v=3.8">
 </head>
 <body>
 <div id="mainAppWrapper" class="wrap">
@@ -628,10 +628,10 @@
     </div>
     <div class="loc-grid">
       <div class="field"><label for="inventoryQuickAdjustBucket">Balance to edit</label><select id="inventoryQuickAdjustBucket"><option value="ON_HAND">On hand</option><option value="RECEIVING">Receiving</option><option value="BULK">Bulk / carton</option><option value="SHELF">Shelf</option></select></div>
-      <div class="field field-required"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="0" step="1" inputmode="numeric" required></div>
+      <div class="field field-required"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="1" step="1" inputmode="numeric" required></div>
     </div>
-    <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock"></div>
-    <div id="inventoryQuickAdjustError" class="form-error"></div>
+    <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock" required></div>
+    <div id="inventoryQuickAdjustError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
     <div class="form-actions"><button id="inventoryQuickAdjustCancel" type="button" class="btn-cancel">Cancel</button><button id="inventoryQuickAdjustSave" type="button" class="btn-save">Save Count</button></div>
   </div>
 </div>
@@ -659,9 +659,9 @@
         <label style="font-size: 12px;" data-i18n="addStockCurrent">Current Stock</label>
         <input id="addStockCurrentDisplay" type="text" readonly style="background: #f1f5f9; color: var(--ink); font-weight: 700; text-align: center; font-size: 16px;">
       </div>
-      <div class="field" style="margin: 0;">
+      <div class="field field-required" style="margin: 0;">
         <label style="font-size: 12px; color: #0284c7; font-weight: 700;" data-i18n="addStockNew">+ Add New Qty</label>
-        <input id="addStockNewInput" type="number" inputmode="numeric" placeholder="e.g. 5" style="border-color: #38bdf8; font-weight: 700; text-align: center; font-size: 16px; background: #f0f9ff;">
+        <input id="addStockNewInput" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 5" style="border-color: #38bdf8; font-weight: 700; text-align: center; font-size: 16px; background: #f0f9ff;" required>
       </div>
     </div>
 
@@ -670,10 +670,12 @@
       <span id="addStockMathPreview" style="font-weight: 700; color: #15803d;">10 (Existing) + 0 (New) = 10 Total Units</span>
     </div>
 
-    <div class="field" style="margin-bottom: 16px;">
+    <div class="field field-required" style="margin-bottom: 16px;">
       <label style="font-size: 12px;" data-i18n="stockmanLabel">Responsible Stockman</label>
-      <input id="addStockmanInput" type="text" placeholder="Stockman Name">
+      <input id="addStockmanInput" type="text" placeholder="Stockman Name" required>
     </div>
+
+    <div id="addStockFormError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
 
     <div class="form-actions" style="margin-top: 14px; display: flex; gap: 8px;">
       <button id="cancelAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 10px; flex: 1;" data-i18n="cancel">Cancel</button>
@@ -760,11 +762,11 @@
     <!-- 1. Scanner & Search Controls Row -->
     <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
       <!-- Product Search & Barcode Scan Row -->
-      <div style="position: relative;">
+      <div class="field-required" style="position: relative;">
         <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; font-family: 'Poppins', sans-serif;" data-i18n="rapidBarcodeLabel">1. Scan / Search Product</label>
         <div class="scanner-search-row">
           <div class="scanner-input-wrapper">
-            <input id="rapidProductSearchInput" type="text" autocomplete="off" placeholder="Search product name, code, barcode..." data-i18n-placeholder="rapidSearchPlaceholder" class="scanner-search-input">
+            <input id="rapidProductSearchInput" type="text" autocomplete="off" placeholder="Search product name, code, barcode..." data-i18n-placeholder="rapidSearchPlaceholder" class="scanner-search-input" required>
             <button id="rapidClearSearchBtn" type="button" class="scanner-clear-btn" title="Clear">&times;</button>
           </div>
           <button id="scanForRapidBarcodeBtn" type="button" class="scanner-scan-btn">
@@ -797,30 +799,30 @@
     <div class="field field-required">
       <label>Location &amp; quantity</label>
       <div class="loc-grid">
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
-          <select id="rfFloor">
+          <select id="rfFloor" required>
             <option value="1" data-i18n="floor1">1st Floor</option>
             <option value="2" data-i18n="floor2">2nd Floor</option>
             <option value="3" data-i18n="floor3">3rd Floor</option>
           </select>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
-          <input id="rfRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+          <input id="rfRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
-          <input id="rfShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+          <input id="rfShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
-          <input id="rfLevel" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off">
+          <input id="rfLevel" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off" required>
         </div>
       </div>
-      <div style="margin-top:10px;">
+      <div class="location-field-required" style="margin-top:10px;">
         <div class="hint" style="margin-bottom:4px;" data-i18n="rapidQtyLabel">Quantity</div>
-        <input id="rfQty" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off">
+        <input id="rfQty" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" required>
       </div>
     </div>
 
@@ -849,7 +851,7 @@
       </div>
     </div>
 
-    <div id="rapidFormError" class="form-error" style="margin-bottom:16px;" data-i18n="formError">Please fill in all fields.</div>
+    <div id="rapidFormError" class="form-error inline-card-error" style="margin-bottom:16px;" role="alert" aria-live="polite">Please fill in all required fields.</div>
 
     <div class="form-actions" style="margin-bottom: 16px;">
       <button id="closeRapidBtn" class="btn-cancel" type="button" data-i18n="cancel" style="height: 44px;">Cancel</button>
@@ -1331,6 +1333,6 @@
   <div class="scan-hint">Hold the item barcode steady inside the frame.</div>
 </div>
 
-<script src="js/app.js?v=7.5"></script>
+<script src="js/app.js?v=8.9"></script>
 </body>
 </html>

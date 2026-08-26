@@ -971,7 +971,8 @@ function renderProductLocationsUI(p, locs) {
   // the card anyway is what made it look like it was "loading" twice.
   const renderSig =
     (p.barcode || p.b || '') + '#' + (p.stock_no || p.stock_code || p.s || '') + '#' +
-    (p.product_name || p.name || p.n || '') + '#' +
+    (p.product_name || p.name || p.n || '') + '#' + (p.category || p.c || '') + '#' +
+    (p.department || p.subcategory || p.sc || '') + '#' + (p.last_modified_by || p.modifiedBy || '') + '#' +
     (currentUser ? currentUser.username : 'guest') + '#' + CURRENT_LANG + '#' +
     expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || ''].join('|')).join(';');
   if (renderSig === lastLocsRenderSig) return;
@@ -1036,6 +1037,7 @@ function renderProductLocationsUI(p, locs) {
         stock_no: item.stock_no || p.stock_no || item.stock_code || p.stock_code || p.s || '',
         product_name: item.product_name || p.product_name || item.name || p.name || p.n || 'Unnamed item',
         category: item.category || p.category || p.c || '—',
+        department: item.department || p.department || item.subcategory || p.subcategory || p.sc || '—',
         subcategory: item.department || p.department || item.subcategory || p.subcategory || p.sc || '',
         floor,
         row,
@@ -1048,7 +1050,10 @@ function renderProductLocationsUI(p, locs) {
         location_storage: item.location_storage || item.storage_location || p.location_storage || p.storage_location || locText || '',
         storage_location: item.storage_location || item.location_storage || p.storage_location || p.location_storage || locText || '',
         status: item.status || (hasLoc ? 'MAPPED' : 'UNMAPPED'),
-        last_modified_by: (item.last_modified_by && item.last_modified_by !== 'System Import') ? item.last_modified_by : '',
+        last_modified_by: ((item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) &&
+          (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) !== 'System Import')
+          ? (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy)
+          : '—',
         custom: item.custom || p.custom
       });
     }
@@ -1073,6 +1078,9 @@ function renderProductLocationsUI(p, locs) {
     const st = statusInfo(item.status);
     const qtyVal = item.qty;
     const barcodeVal = item.barcode || p.barcode || p.b || '—';
+    const categoryVal = item.category || p.category || p.c || '—';
+    const departmentVal = item.department || item.subcategory || p.department || p.subcategory || p.sc || '—';
+    const stockmanVal = item.last_modified_by || p.last_modified_by || p.modifiedBy || '—';
 
     const isCartonLocation = Boolean(
       item.is_carton ||
@@ -1093,29 +1101,24 @@ function renderProductLocationsUI(p, locs) {
 
     const statusBadgeHtml = `<span class="badge ${st.cls}" style="font-size:10px; font-weight:700; padding:2.5px 7px; border-radius:6px; line-height:normal; display:inline-flex; align-items:center; letter-spacing:0.02em; white-space:nowrap; flex-shrink:0;">${st.label}</span>`;
 
-    const deptBadgeHtml = item.department 
-      ? `<span class="dept-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2.5px 8px; border-radius:20px; font-size:10.5px; font-weight:700; font-family:var(--display); white-space:nowrap; flex-shrink:0;">${escapeHtml(item.department)}</span>` 
-      : '';
-
     const cardEl = document.createElement('div');
     cardEl.className = 'tagcard';
     cardEl.style.marginBottom = '16px';
-    cardEl.style.cursor = 'pointer';
-    cardEl.onclick = () => openAddQtyForLocation(index);
 
     cardEl.innerHTML = `
-      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
         <div style="flex:1; min-width:0; padding-right:4px;">
           <p class="pname" style="margin:0 0 4px 0; font-size:16px; font-weight:700; line-height:1.25;">${escapeHtml(item.product_name)}</p>
-          <div class="pmeta">
-            <span>${escapeHtml(item.category)}</span>
-          </div>
         </div>
-        <div class="tagcard-badges-group" style="display:flex; align-items:center; gap:5px; flex-shrink:0; flex-wrap:nowrap;">
+        <div class="tagcard-badges-group" style="display:flex; align-items:center; gap:5px; flex-shrink:0; flex-wrap:wrap;">
           ${cartonBadgeHtml}
           ${statusBadgeHtml}
-          ${deptBadgeHtml}
         </div>
+      </div>
+      <div class="result-card-metadata">
+        <div><span>Category</span><strong>${escapeHtml(categoryVal)}</strong></div>
+        <div><span>Department</span><strong>${escapeHtml(departmentVal)}</strong></div>
+        <div class="result-card-stockman"><span>Responsible Stockman</span><strong>${escapeHtml(stockmanVal)}</strong></div>
       </div>
       <div class="grid4">
         <div class="cell"><div class="clabel">${cardTranslations.cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
@@ -1125,8 +1128,8 @@ function renderProductLocationsUI(p, locs) {
       </div>
       <div class="tagcard-bottom">
         <div class="tagcard-bottom-info">
-          <div>Barcode: <strong style="font-weight: 600;">${escapeHtml(barcodeVal)}</strong></div>
-          <div style="opacity: 0.9; font-size: 11px;">Location Qty: <strong>${qtyVal}</strong></div>
+          <div class="result-card-barcode">Barcode: <strong>${escapeHtml(barcodeVal)}</strong></div>
+          <div class="location-qty-highlight"><span>Location Qty</span><strong>${qtyVal}</strong></div>
         </div>
         <div class="tagcard-bottom-actions">
           ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer stock to another shelf">Transfer</button>` : ''}
@@ -1371,8 +1374,9 @@ function openInventoryQuickAdjust(bucket) {
   document.getElementById('inventoryQuickAdjustProductName').textContent = name;
   document.getElementById('inventoryQuickAdjustMeta').textContent = `Barcode: ${barcode} | Stock No: ${stock}`;
   inventoryQuickAdjustBucket.value = bucket;
-  inventoryQuickAdjustQty.value = inventorySummaryValue(bucket);
+  inventoryQuickAdjustQty.value = String(inventorySummaryValue(bucket));
   inventoryQuickAdjustReason.value = 'Physical count correction';
+  inventoryQuickAdjustError.textContent = '';
   inventoryQuickAdjustError.classList.remove('show');
   inventoryQuickAdjustOverlay.classList.add('show');
   setTimeout(() => inventoryQuickAdjustQty.focus(), 80);
@@ -1427,15 +1431,20 @@ if (inventorySummaryCard) {
 if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
 if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click', async () => {
   const product = currentInventorySummaryProduct;
-  const targetQty = Number.parseInt(inventoryQuickAdjustQty.value, 10);
+  const qtyRaw = inventoryQuickAdjustQty.value.trim();
+  const targetQty = Number(qtyRaw);
   const reason = inventoryQuickAdjustReason.value.trim();
-  if (!product || !Number.isInteger(targetQty) || targetQty < 0) {
-    inventoryQuickAdjustError.textContent = 'Enter a whole number that is zero or greater.';
+  if (!product || !qtyRaw || !Number.isInteger(targetQty) || targetQty < 1) {
+    inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
+      ? 'New Quantity is required. Enter a whole number of at least 1.'
+      : '新数量为必填项。请输入至少为 1 的整数。';
     inventoryQuickAdjustError.classList.add('show');
     return;
   }
   if (!reason) {
-    inventoryQuickAdjustError.textContent = 'Enter a reason for the count correction.';
+    inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
+      ? 'Reason is required. Enter a reason for the count correction.'
+      : '原因为必填项。请输入盘点更正原因。';
     inventoryQuickAdjustError.classList.add('show');
     return;
   }
@@ -1476,6 +1485,13 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
   } finally {
     inventoryQuickAdjustSave.disabled = false;
   }
+});
+
+[inventoryQuickAdjustQty, inventoryQuickAdjustReason].forEach(field => {
+  field?.addEventListener('input', () => {
+    inventoryQuickAdjustError.textContent = '';
+    inventoryQuickAdjustError.classList.remove('show');
+  });
 });
 
 if (inventoryDirectDeliveryBtn) inventoryDirectDeliveryBtn.addEventListener('click', openInventoryDirectDelivery);
@@ -1814,23 +1830,15 @@ async function promptOnlyWhenSearchIsMissing(query) {
   }
 }
 
-// Final scan / Enter resolution: a product with no mapped location jumps
-// straight into the Add Product modal (pre-filled) so it can be mapped;
-// a product that already has a location shows the location card as usual.
+// Final scan / Enter resolution displays the result card. Editing remains an
+// explicit action from the card's Edit button.
 function renderOrPromptLocation(p, code) {
   if (!p) return;
   const allLocs = getLocationsForProduct(p);
   const mappedLoc = allLocs.find(l => (l.floor && String(l.floor).trim() !== '') || (l.row && String(l.row).trim() !== '') || (l.shelf && String(l.shelf).trim() !== '') || (l.loc && String(l.loc).trim() !== ''));
   const itemToDisplay = mappedLoc || p;
-  const hasLoc = productHasAnyLocation(itemToDisplay);
-
   renderProduct(itemToDisplay);
-  if (!hasLoc) {
-    activeProduct = itemToDisplay;
-    openEditForm();
-  } else {
-    closeEditForm();
-  }
+  closeEditForm();
 }
 
 async function doSearch(q, isFinal = false) {
@@ -2076,7 +2084,6 @@ function renderMatches(matches) {
       const row = itemToDisplay.batch !== undefined && itemToDisplay.batch !== null ? String(itemToDisplay.batch).trim() : (itemToDisplay.row !== undefined && itemToDisplay.row !== null ? String(itemToDisplay.row).trim() : (itemToDisplay.row || '').trim());
       const shelf = itemToDisplay.shelf !== undefined && itemToDisplay.shelf !== null ? String(itemToDisplay.shelf).trim() : '';
       const level = itemToDisplay.level !== undefined && itemToDisplay.level !== null ? String(itemToDisplay.level).trim() : '';
-      const hasLoc = productHasAnyLocation(itemToDisplay);
       const loc = (floor !== '' && row !== '' && shelf !== '') ? `${floor}-${row}-${shelf}-${level || '00'}` : (itemToDisplay.loc || '—');
 
       rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
@@ -2088,12 +2095,7 @@ function renderMatches(matches) {
         if (clearBtn) clearBtn.style.display = 'none';
         hideResults();
 
-        if (!hasLoc) {
-          activeProduct = itemToDisplay;
-          openEditForm();
-        } else {
-          closeEditForm();
-        }
+        closeEditForm();
       };
       rl.appendChild(rowEl);
     });
@@ -3871,6 +3873,7 @@ window.openAddQtyForLocation = function(index) {
   document.getElementById('addStockCurrentDisplay').value = currentQty;
   document.getElementById('addStockNewInput').value = '';
   document.getElementById('addStockmanInput').value = currentUser ? currentUser.full_name : (item.last_modified_by || '');
+  clearAddStockFormError();
 
   updateAddStockMathPreview(currentQty, 0);
 
@@ -3907,12 +3910,36 @@ function updateAddStockMathPreview(existingQty, newAddQty) {
   }
 }
 
+function showAddStockFormError(message) {
+  const error = document.getElementById('addStockFormError');
+  if (!error) return;
+  error.textContent = message;
+  error.classList.add('show');
+}
+
+function clearAddStockFormError() {
+  const error = document.getElementById('addStockFormError');
+  if (!error) return;
+  error.textContent = '';
+  error.classList.remove('show');
+}
+
 async function saveAddStockToLocation() {
   const id = document.getElementById('addStockId').value;
   const existingQty = parseInt(document.getElementById('addStockExistingQty').value, 10) || 0;
   const addQtyRaw = document.getElementById('addStockNewInput').value.trim();
-  const addQty = parseInt(addQtyRaw, 10) || 0;
+  const addQty = Number(addQtyRaw);
   const stockman = document.getElementById('addStockmanInput').value.trim();
+
+  if (!addQtyRaw || !Number.isInteger(addQty) || addQty < 1) {
+    showAddStockFormError(CURRENT_LANG === 'en' ? 'Add New Qty is required. Enter a whole quantity of at least 1.' : '新增数量为必填项。请输入至少为 1 的整数。');
+    return;
+  }
+  if (!stockman) {
+    showAddStockFormError(CURRENT_LANG === 'en' ? 'Responsible Stockman is required.' : '负责理货员为必填项。');
+    return;
+  }
+  clearAddStockFormError();
 
   const finalQty = existingQty + addQty;
   if (finalQty < 0) {
@@ -4003,6 +4030,7 @@ if (confirmAddStockBtnEl) confirmAddStockBtnEl.addEventListener('click', saveAdd
 const addStockNewInputEl = document.getElementById('addStockNewInput');
 if (addStockNewInputEl) {
   addStockNewInputEl.addEventListener('input', e => {
+    clearAddStockFormError();
     const existing = parseInt(document.getElementById('addStockExistingQty').value, 10) || 0;
     const val = parseInt(e.target.value, 10) || 0;
     updateAddStockMathPreview(existing, val);
@@ -4014,6 +4042,8 @@ if (addStockNewInputEl) {
     }
   });
 }
+
+document.getElementById('addStockmanInput')?.addEventListener('input', clearAddStockFormError);
 
 const openFullEditFromAddStockBtnEl = document.getElementById('openFullEditFromAddStockBtn');
 if (openFullEditFromAddStockBtnEl) {
@@ -4148,6 +4178,7 @@ function openAddQtyFromLocationModal(item, parsedLoc) {
   document.getElementById('addStockCurrentDisplay').value = currentQty;
   document.getElementById('addStockNewInput').value = '';
   document.getElementById('addStockmanInput').value = currentUser ? currentUser.full_name : (item.last_modified_by || '');
+  clearAddStockFormError();
 
   updateAddStockMathPreview(currentQty, 0);
 
@@ -4670,6 +4701,10 @@ function setRapidLocationFields(location) {
   if (rfRow) rfRow.value = location.row || '';
   if (rfShelf) rfShelf.value = location.shelf || '';
   if (rfLevel) rfLevel.value = location.level || '0';
+  if (rapidFormError) {
+    rapidFormError.textContent = '';
+    rapidFormError.classList.remove('show');
+  }
 }
 
 function updateRapidLocationFromFields() {
@@ -4694,6 +4729,13 @@ function updateRapidLocationFromFields() {
   if (input) input.addEventListener('change', updateRapidLocationFromFields);
 });
 
+[rfFloor, rfRow, rfShelf, rfLevel, rfQty].forEach(input => {
+  input?.addEventListener('input', () => {
+    rapidFormError.textContent = '';
+    rapidFormError.classList.remove('show');
+  });
+});
+
 function openRapidLogger() {
   currentRapidBarcode = '';
   currentRapidLocation = '';
@@ -4710,11 +4752,12 @@ function openRapidLogger() {
   if (rfRow) rfRow.value = '';
   if (rfShelf) rfShelf.value = '';
   if (rfLevel) rfLevel.value = '0';
-  if (rfQty) rfQty.value = '0';
+  if (rfQty) rfQty.value = '';
   
   rapidBarcodeBadge.style.display = 'none';
   rapidLocationBadge.style.display = 'none';
   rapidNewProductFields.style.display = 'none';
+  rapidFormError.textContent = '';
   rapidFormError.classList.remove('show');
   rapidOverlay.classList.add('show');
 }
@@ -5281,6 +5324,27 @@ function promptConcurrentScan(existingRow, newQty) {
 }
 
 async function saveRapidEntry() {
+  const floorRaw = rfFloor ? rfFloor.value.trim() : '';
+  const rowRaw = rfRow ? rfRow.value.trim() : '';
+  const shelfRaw = rfShelf ? rfShelf.value.trim() : '';
+  const levelRaw = rfLevel ? rfLevel.value.trim() : '';
+  const qtyRaw = rfQty ? rfQty.value.trim() : '';
+  const quantity = Number(qtyRaw);
+
+  if (!floorRaw || !rowRaw || !shelfRaw || levelRaw === '' || !qtyRaw) {
+    rapidFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Floor, Row number, Shelf number, Level, and Quantity are required.'
+      : '楼层、排号、货架号、层数和数量均为必填项。';
+    rapidFormError.classList.add('show');
+    return;
+  }
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    rapidFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Quantity must be a whole number of at least 1.'
+      : '数量必须是至少为 1 的整数。';
+    rapidFormError.classList.add('show');
+    return;
+  }
   if (!currentRapidBarcode) {
     rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please scan a product barcode first.' : '请先扫描商品条码。';
     rapidFormError.classList.add('show');
@@ -5331,7 +5395,7 @@ async function saveRapidEntry() {
     return;
   }
 
-  const validQty = rfQty ? (parseInt(rfQty.value, 10) || 0) : 0;
+  const validQty = quantity;
   let rapidLedgerQty = validQty;
 
   const btn = document.getElementById('saveRapidBtn') || document.getElementById('rfSubmitBtn');
