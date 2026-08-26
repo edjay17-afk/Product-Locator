@@ -58,6 +58,7 @@ const TRANSLATIONS = {
     qtyLabel: "How many are on hand?",
     stockmanLabel: "Responsible Stockman",
     formError: "Please fill in Product Name, Row, Shelf, and On Hand Quantity.",
+    editFormErrorRequired: "Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, On Hand Quantity, and Responsible Stockman.",
     detailsTitle: "Product Details & Location",
     detailsSub: "View details or update shelf position for this item in the database.",
     barcode: "Barcode",
@@ -231,6 +232,7 @@ const TRANSLATIONS = {
     qtyLabel: "现有库存数量",
     stockmanLabel: "负责理货员",
     formError: "请填写商品名称、通道号、货架号和现有库存数。",
+    editFormErrorRequired: "请填写商品名称、货号、楼层、排号、货架号、层数、现有库存数量和负责理货员。",
     detailsTitle: "商品详情与库位",
     detailsSub: "在数据库中查看详情或更新商品货架位置。",
     barcode: "条形码",
@@ -3216,11 +3218,12 @@ async function saveEditProduct() {
   const floor = document.getElementById('efFloor').value;
   const row = pad2(document.getElementById('efRow').value);
   const shelf = pad2(document.getElementById('efShelf').value);
-  const level = pad2(document.getElementById('efLevel').value) || '0';
+  const levelRaw = document.getElementById('efLevel').value.trim();
+  const level = pad2(levelRaw);
   const qtyRaw = document.getElementById('efQty').value.trim();
   const stockmanRaw = document.getElementById('efStockman').value.trim();
 
-  if (!name || !row || !shelf || qtyRaw === '') {
+  if (!name || !stock_no || !floor || !row || !shelf || levelRaw === '' || qtyRaw === '' || !stockmanRaw) {
     editFormError.classList.add('show');
     return;
   }

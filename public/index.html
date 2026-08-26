@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/vendor/qrcode.min.js"></script>
-<link rel="stylesheet" href="css/styles.css?v=3.0">
+<link rel="stylesheet" href="css/styles.css?v=3.2">
 </head>
 <body>
 <div id="mainAppWrapper" class="wrap">
@@ -519,25 +519,25 @@
         </button>
       </div>
       <div class="loc-grid">
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
-          <select id="efFloor">
+          <select id="efFloor" required>
             <option value="1" data-i18n="floor1">1st Floor</option>
             <option value="2" data-i18n="floor2">2nd Floor</option>
             <option value="3" data-i18n="floor3">3rd Floor</option>
           </select>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
-          <input id="efRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+          <input id="efRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
-          <input id="efShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+          <input id="efShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
-          <input id="efLevel" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+          <input id="efLevel" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
       </div>
       <div id="editLocSuggestions" style="margin-top: 10px; display: none;">
@@ -547,17 +547,17 @@
       </div>
     </div>
 
-    <div class="field">
+    <div class="field field-required">
       <label data-i18n="qtyLabel">How many are on hand?</label>
-      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
     </div>
 
-    <div class="field">
+    <div class="field field-required">
       <label data-i18n="stockmanLabel">Responsible Stockman</label>
-      <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz">
+      <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz" required>
     </div>
 
-    <div id="editFormError" class="form-error" data-i18n="formError">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
+    <div id="editFormError" class="form-error" data-i18n="editFormErrorRequired">Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, On Hand Quantity, and Responsible Stockman.</div>
 
     <div class="form-actions">
       <button id="cancelEditBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
@@ -628,7 +628,7 @@
     </div>
     <div class="loc-grid">
       <div class="field"><label for="inventoryQuickAdjustBucket">Balance to edit</label><select id="inventoryQuickAdjustBucket"><option value="ON_HAND">On hand</option><option value="RECEIVING">Receiving</option><option value="BULK">Bulk / carton</option><option value="SHELF">Shelf</option></select></div>
-      <div class="field"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field field-required"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="0" step="1" inputmode="numeric" required></div>
     </div>
     <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock"></div>
     <div id="inventoryQuickAdjustError" class="form-error"></div>
@@ -1037,35 +1037,35 @@
       </div>
       <div class="hint">Choose each part of the shelf location. Scanning a location QR will fill these fields automatically.</div>
       <div class="transfer-location-grid">
-        <label class="transfer-location-field">
+        <label class="transfer-location-field is-required">
           <span>Floor</span>
-          <select id="transferDestFloor" aria-label="Destination floor">
+          <select id="transferDestFloor" aria-label="Destination floor" required>
             <option value="">Select</option>
             <option value="1">Floor 1</option>
             <option value="2">Floor 2</option>
             <option value="3">Floor 3</option>
           </select>
         </label>
-        <label class="transfer-location-field">
+        <label class="transfer-location-field is-required">
           <span>Row number</span>
-          <input id="transferDestRow" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="05" aria-label="Destination row number">
+          <input id="transferDestRow" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="05" aria-label="Destination row number" required>
         </label>
-        <label class="transfer-location-field">
+        <label class="transfer-location-field is-required">
           <span>Shelf number</span>
-          <input id="transferDestShelf" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="02" aria-label="Destination shelf number">
+          <input id="transferDestShelf" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="02" aria-label="Destination shelf number" required>
         </label>
-        <label class="transfer-location-field">
+        <label class="transfer-location-field is-required">
           <span>Level</span>
-          <input id="transferDestLevel" type="number" min="0" max="99" step="1" inputmode="numeric" placeholder="01" aria-label="Destination level number">
+          <input id="transferDestLevel" type="number" min="0" max="99" step="1" inputmode="numeric" placeholder="01" aria-label="Destination level number" required>
         </label>
       </div>
       <div class="transfer-location-preview">Destination code: <strong id="transferDestPreview">—</strong></div>
     </div>
 
     <!-- Quantity to Transfer -->
-    <div class="field">
+    <div class="field field-required">
       <label>Quantity to Transfer</label>
-      <input id="transferQtyInput" type="number" min="1" placeholder="Enter quantity" autocomplete="off">
+      <input id="transferQtyInput" type="number" min="1" step="1" placeholder="Enter quantity" autocomplete="off" required>
     </div>
 
     <div class="form-actions" style="margin-top: 18px;">
@@ -1331,6 +1331,6 @@
   <div class="scan-hint">Hold the item barcode steady inside the frame.</div>
 </div>
 
-<script src="js/app.js?v=7.4"></script>
+<script src="js/app.js?v=7.5"></script>
 </body>
 </html>

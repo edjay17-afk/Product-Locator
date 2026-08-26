@@ -464,6 +464,11 @@ h1 {
   color: var(--bad);
 }
 
+.location-field-required > .hint::after {
+  content: " *";
+  color: var(--bad);
+}
+
 .loc-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -980,6 +985,11 @@ h1 {
   color: #475569;
   font-size: 11px;
   font-weight: 700;
+}
+
+.transfer-location-field.is-required > span::after {
+  content: " *";
+  color: var(--bad);
 }
 
 .transfer-location-field input,
