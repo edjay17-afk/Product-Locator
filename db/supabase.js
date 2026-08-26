@@ -19,12 +19,12 @@ const SEARCH_CACHE_TTL_MS = 15000;
 const STATS_CACHE_TTL_MS = 30000;
 const searchCache = new Map();
 let statsCache = { data: null, time: 0 };
-const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,status,custom';
+const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,system_on_hand_updated_at,status,custom';
 const SEARCH_INDEX_TTL_MS = 300000;
 let searchIndexCache = { data: null, time: 0 };
 let searchIndexPromise = null;
 // Only the columns the app actually uses — keeps the Supabase transfer small.
-const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,status,custom,last_modified_by,created_at';
+const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
 function invalidateAllProductsCache() {
   allProductsCache.time = 0;
   searchIndexCache.time = 0;
@@ -56,6 +56,8 @@ let memoryUsers = [
   { id: 4, username: 'checker2', password: hashPassword('password123'), full_name: 'Alex Reyes', role: 'checker' },
   { id: 5, username: 'admin', password: hashPassword('adminpassword'), full_name: 'Warehouse Supervisor', role: 'admin' }
 ];
+let memoryAdminNotifications = [];
+let nextAdminNotificationId = 1;
 
 function normalizeProduct(p) {
   if (!p) return p;
@@ -66,6 +68,7 @@ function normalizeProduct(p) {
   const storage_location = p.location_storage !== undefined && p.location_storage !== null ? String(p.location_storage) : (p.storage_location !== undefined && p.storage_location !== null ? String(p.storage_location) : (p.loc_full !== undefined && p.loc_full !== null ? String(p.loc_full) : (p.locFull || '')));
   const is_carton = Boolean(p.is_carton || p.loc_type === 'CARTON' || (storage_location && (storage_location.includes('Carton') || storage_location.includes('Big Item'))));
   const loc_type = is_carton ? 'CARTON' : (p.loc_type || 'SHELF');
+  const system_on_hand_updated_at = p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || null;
   return {
     ...p,
     product_name,
@@ -80,7 +83,8 @@ function normalizeProduct(p) {
     storage_location: storage_location,
     loc_full: storage_location,
     is_carton,
-    loc_type
+    loc_type,
+    system_on_hand_updated_at
   };
 }
 
@@ -236,6 +240,74 @@ module.exports = {
     user.role = role;
     const { password, ...safeUser } = user;
     return safeUser;
+  },
+  createAdminNotification: async (notification) => {
+    const row = {
+      action: String(notification.action || 'ACTIVITY'),
+      title: String(notification.title || 'Warehouse activity'),
+      detail: String(notification.detail || ''),
+      product_name: String(notification.product_name || ''),
+      sku_key: String(notification.sku_key || ''),
+      location: String(notification.location || ''),
+      qty: Number.isFinite(Number(notification.qty)) ? Number(notification.qty) : 0,
+      actor_name: String(notification.actor_name || 'Warehouse staff')
+    };
+    if (isConnectedToSupabase && supabase) {
+      const { data, error } = await supabase.from('admin_notifications').insert([row]).select('*').single();
+      if (!error && data) return data;
+      // Notifications must never be lost merely because Supabase is briefly
+      // unavailable or the new table is awaiting its first schema install.
+      if (error) console.warn('Admin notification database write unavailable:', error.message);
+    }
+    const saved = { id: nextAdminNotificationId++, ...row, created_at: new Date().toISOString() };
+    memoryAdminNotifications.unshift(saved);
+    memoryAdminNotifications = memoryAdminNotifications.slice(0, 500);
+    return saved;
+  },
+  getAdminNotifications: async (limit = 120) => {
+    const safeLimit = Math.max(1, Math.min(500, Number.parseInt(limit, 10) || 120));
+    if (isConnectedToSupabase && supabase) {
+      const { data, error } = await supabase.from('admin_notifications').select('*').order('created_at', { ascending: false }).limit(safeLimit);
+      if (!error) return data || [];
+      if (error) console.warn('Admin notification database read unavailable:', error.message);
+    }
+    return memoryAdminNotifications.slice(0, safeLimit);
+  },
+
+  getSystemStockUpdates: async ({ search = '', page = 1, limit = 100 } = {}) => {
+    const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+    const safeLimit = Math.max(25, Math.min(200, Number.parseInt(limit, 10) || 100));
+    const tokens = String(search || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let products = await module.exports.getAllProducts();
+    if (tokens.length) {
+      products = products.filter(product => {
+        const text = `${product.product_name || product.name || ''} ${product.barcode || ''} ${product.stock_no || product.stock_code || ''}`.toLowerCase();
+        return tokens.every(token => text.includes(token));
+      });
+    }
+    products.sort((a, b) => {
+      const aTime = a.system_on_hand_updated_at ? new Date(a.system_on_hand_updated_at).getTime() : 0;
+      const bTime = b.system_on_hand_updated_at ? new Date(b.system_on_hand_updated_at).getTime() : 0;
+      return bTime - aTime || String(a.product_name || '').localeCompare(String(b.product_name || ''));
+    });
+    const total = products.length;
+    const start = (safePage - 1) * safeLimit;
+    return { total, page: safePage, limit: safeLimit, products: products.slice(start, start + safeLimit) };
+  },
+
+  getSystemStockHealth: async () => {
+    const products = await module.exports.getAllProducts();
+    const now = Date.now();
+    const health = { total: products.length, fresh: 0, delayed: 0, stale: 0, missing: 0 };
+    for (const product of products) {
+      const updatedAt = product.system_on_hand_updated_at;
+      const timestamp = updatedAt ? new Date(updatedAt).getTime() : NaN;
+      if (!Number.isFinite(timestamp)) health.missing += 1;
+      else if (now - timestamp > 72 * 60 * 60 * 1000) health.stale += 1;
+      else if (now - timestamp > 24 * 60 * 60 * 1000) health.delayed += 1;
+      else health.fresh += 1;
+    }
+    return health;
   },
 
   // Products API
@@ -603,6 +675,7 @@ module.exports = {
       loc: data.loc || '',
       location_storage: data.location_storage || data.storage_location || data.loc_full || '',
       qty: parseInt(data.qty || 0, 10),
+      system_on_hand_updated_at: data.system_on_hand_updated_at || data.systemOnHandUpdatedAt || null,
       status: data.status || 'MAPPED',
       custom: true,
       last_modified_by: data.last_modified_by || data.modifiedBy || 'Unassigned Stockman'
@@ -646,6 +719,9 @@ module.exports = {
       updatePayload.location_storage = data.location_storage || data.storage_location || data.loc_full;
     }
     if (data.qty !== undefined) updatePayload.qty = parseInt(data.qty, 10);
+    if (data.system_on_hand_updated_at !== undefined || data.systemOnHandUpdatedAt !== undefined) {
+      updatePayload.system_on_hand_updated_at = data.system_on_hand_updated_at || data.systemOnHandUpdatedAt || null;
+    }
     if (data.status !== undefined) updatePayload.status = data.status;
     if (data.custom !== undefined) updatePayload.custom = Boolean(data.custom);
     updatePayload.last_modified_by = data.last_modified_by || data.modifiedBy || 'Stockman';
@@ -805,14 +881,17 @@ module.exports = {
       const key = (barcode || stock_no).toLowerCase();
       if (seen.has(key)) continue; // duplicated inside the uploaded file itself
       seen.add(key);
-      clean.push({
+      const cleanItem = {
         barcode,
         stock_no,
         product_name: name,
         category: data.category || 'Uncategorized',
         department: data.department || '',
         barcode_2: (data.barcode_2 || '').toString().trim()
-      });
+      };
+      const systemUpdatedAt = data.system_on_hand_updated_at || data.systemOnHandUpdatedAt;
+      if (systemUpdatedAt) cleanItem.system_on_hand_updated_at = systemUpdatedAt;
+      clean.push(cleanItem);
     }
 
     // Page through the existing id + key columns once to split updates from inserts.

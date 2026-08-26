@@ -210,6 +210,16 @@ app.post('/api/products/batch', requireAuth, requireRole('admin', 'superadmin'),
       return res.status(400).json({ success: false, error: result.error, message: result.message });
     }
     const count = typeof result === 'object' ? (result.count || 0) : result;
+    if (count > 0) {
+      await notifySuperadmin(
+        'PRODUCT_ADDED',
+        count === 1 ? 'New product added to system' : 'New products added to system',
+        `${Number(count).toLocaleString()} product${count === 1 ? ' was' : 's were'} added through batch import.`,
+        null,
+        req.user.full_name || req.user.username,
+        { qty: count }
+      );
+    }
     res.json({ success: true, count });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -288,6 +298,7 @@ app.post('/api/upload-excel', requireAuth, requireRole('admin', 'superadmin'), u
       const idxName = colOf('product', 'product_name', 'name');
       const idxDept = colOf('department');
       const idxCat = colOf('category');
+      const idxSystemUpdatedAt = colOf('system on hand updated at', 'system stock updated at', 'on hand updated at', 'external updated at');
       // An explicit extra barcode column (the internal Nelsoft barcode) feeds barcode_2.
       const idxBarcode2 = colOf('barcode_2', 'barcode2', 'barcode');
 
@@ -300,19 +311,31 @@ app.post('/api/upload-excel', requireAuth, requireRole('admin', 'superadmin'), u
         if (!name || name === 'Unnamed Item') continue;
 
         const fromFile = idxBarcode2 >= 0 ? String(r[idxBarcode2] || '').trim() : '';
+        const sourceTimestamp = idxSystemUpdatedAt >= 0 ? String(r[idxSystemUpdatedAt] || '').trim() : '';
         masterItems.push({
           barcode,
           stock_no: stock,
           product_name: name,
           category: cleanHtml(String(idxCat >= 0 && r[idxCat] !== undefined ? r[idxCat] : '').trim()),
           department: cleanHtml(String(idxDept >= 0 && r[idxDept] !== undefined ? r[idxDept] : '').trim()),
-          barcode_2: fromFile || barcode2Map.get(barcode) || ''
+          barcode_2: fromFile || barcode2Map.get(barcode) || '',
+          system_on_hand_updated_at: sourceTimestamp || null
         });
       }
 
       const result = await db.upsertMasterProducts(masterItems);
       if (result && result.error) {
         return res.status(400).json({ success: false, error: result.error, message: result.message });
+      }
+      if (result.inserted > 0) {
+        await notifySuperadmin(
+          'PRODUCT_ADDED',
+          result.inserted === 1 ? 'New product added to system' : 'New products added to system',
+          `${Number(result.inserted).toLocaleString()} new product${result.inserted === 1 ? ' was' : 's were'} added through master-list import.`,
+          null,
+          req.user.full_name || req.user.username,
+          { qty: result.inserted }
+        );
       }
       return res.json({
         success: true,
@@ -401,9 +424,10 @@ app.get('/api/products', async (req, res) => {
       return res.json({ success: true, count: stats.total, products: [] });
     }
     const products = await db.searchProducts(query, limit);
-    // Search results are public and safe to reuse briefly at the Netlify CDN;
-    // this also prevents repeated keystrokes from recreating a cold function.
-    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=30');
+    // A location just saved must be searchable immediately. The browser uses
+    // its in-memory index for normal typing, while this database fallback must
+    // never return an older CDN-cached search result.
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, count: products.length, products });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -433,6 +457,7 @@ app.get('/api/products/all', async (req, res) => {
       if (p.loc) item.loc = p.loc;
       if (p.location_storage || p.storage_location) item.locFull = p.location_storage || p.storage_location;
       if (p.qty) item.qty = p.qty;
+      if (p.system_on_hand_updated_at) item.systemOnHandUpdatedAt = p.system_on_hand_updated_at;
       if (p.status) item.status = p.status;
       if (p.custom) item.custom = true;
       if (p.last_modified_by) item.last_modified_by = p.last_modified_by;
@@ -485,6 +510,20 @@ app.get('/api/products/by-location', async (req, res) => {
 const inventoryStaff = requireRole('stockman', 'carton_handler', 'admin', 'superadmin');
 const inventorySupervisor = requireRole('admin', 'superadmin');
 
+async function notifySuperadmin(action, title, detail, product, actor, extra = {}) {
+  try {
+    const item = product || {};
+    const location = extra.location || item.loc || (item.floor ? `${item.floor}-${item.batch || item.row || ''}-${item.shelf || ''}-${item.level || '0'}` : '');
+    await db.createAdminNotification({
+      action, title, detail,
+      product_name: item.product_name || item.name || extra.product_name || '',
+      sku_key: item.barcode || item.stock_no || extra.sku_key || '',
+      location, qty: extra.qty || 0,
+      actor_name: actor || item.last_modified_by || 'Warehouse staff'
+    });
+  } catch (err) { console.warn('Notification record failed:', err.message); }
+}
+
 async function applyCatalogOnHandDelta(sku, delta, actor) {
   if (!delta) return null;
   const product = await db.getProductByBarcodeOrStock(sku);
@@ -512,7 +551,8 @@ app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
     const summary = {
       ...ledgerSummary,
       onHand,
-      available: Math.max(0, onHand - Number(ledgerSummary.reserved || 0))
+      available: Math.max(0, onHand - Number(ledgerSummary.reserved || 0)),
+      systemOnHandUpdatedAt: product?.system_on_hand_updated_at || null
     };
     // Inventory cards are edited in-place. A cached response here can show a
     // value from before a successful save, so always return a fresh balance.
@@ -537,15 +577,19 @@ app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, as
     const storageType = String(req.body?.storage_type || req.body?.storageType || '').trim().toUpperCase();
     if (storageType === 'ON_HAND') {
       const targetQty = Number.parseInt(req.body?.target_qty ?? req.body?.targetQty, 10);
+      const reason = String(req.body?.reason || '').trim();
       if (!Number.isInteger(targetQty) || targetQty < 0) {
         return res.status(400).json({ success: false, error: 'On-hand quantity must be a non-negative whole number.' });
       }
+      if (!reason) return res.status(400).json({ success: false, error: 'A reason is required for an on-hand correction.' });
       const product = await db.getProductByBarcodeOrStock(req.params.sku);
       if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
+      const previousQty = Number.parseInt(product.qty, 10) || 0;
       const updatedProduct = await db.updateProduct(product.id, {
         qty: targetQty,
         last_modified_by: req.user.full_name || req.user.username
       });
+      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed from ${previousQty.toLocaleString()} to ${targetQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, req.user.full_name || req.user.username, { qty: targetQty });
       return res.json({
         success: true,
         adjustment: { skuKey: req.params.sku, storageType, targetQty, source: 'CATALOG_ON_HAND' },
@@ -557,6 +601,7 @@ app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, as
     // the current on-hand total. A physical bucket change therefore changes
     // that total by the same amount.
     const product = await applyCatalogOnHandDelta(req.params.sku, Number(result?.delta || 0), req.user.full_name || req.user.username);
+    await notifySuperadmin('QUANTITY_MODIFIED', 'Quantity changed', `${storageType} changed from ${Number(result?.previousQty || 0).toLocaleString()} to ${Number(result?.targetQty || 0).toLocaleString()}. Reason: ${String(req.body?.reason || '').trim()}`, product, req.user.full_name || req.user.username, { qty: Number(result?.targetQty || 0) });
     res.json({ success: true, adjustment: result, product });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -569,6 +614,7 @@ app.post('/api/inventory/:sku/direct-delivery', requireAuth, inventoryStaff, asy
   try {
     const result = await inventory.directDispatch({ ...(req.body || {}), sku_key: req.params.sku }, req.user.full_name || req.user.username);
     const product = await applyCatalogOnHandDelta(req.params.sku, -Number(result?.dispatched || 0), req.user.full_name || req.user.username);
+    await notifySuperadmin('DIRECT_DELIVERY', 'Quantity delivered directly', `${Number(result?.dispatched || 0).toLocaleString()} unit(s) delivered from Receiving. Reference: ${result?.deliveryReference || req.body?.delivery_reference || ''}`, product, req.user.full_name || req.user.username, { qty: Number(result?.dispatched || 0), location: 'RECEIVING' });
     res.json({ success: true, delivery: result, product });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -587,6 +633,8 @@ app.get('/api/inventory/warehouse-summary', requireAuth, async (req, res) => {
 app.post('/api/inventory/receipts', requireAuth, inventoryStaff, async (req, res) => {
   try {
     const result = await inventory.receive(req.body || {}, req.user.full_name || req.user.username);
+    const reference = String(req.body?.source_reference || req.body?.reference || req.body?.lot_code || '').trim();
+    await notifySuperadmin('RECEIVING', 'Stock received', `${Number(req.body?.qty || 0).toLocaleString()} unit(s) added to Receiving.${reference ? ` Reference: ${reference}` : ''}`, req.body, req.user.full_name || req.user.username, { qty: Number(req.body?.qty || 0), location: req.body?.location_code || 'RECEIVING' });
     res.status(201).json({ success: true, receipt: result });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -596,6 +644,7 @@ app.post('/api/inventory/receipts', requireAuth, inventoryStaff, async (req, res
 app.post('/api/inventory/movements', requireAuth, inventoryStaff, async (req, res) => {
   try {
     const result = await inventory.move(req.body || {}, req.user.full_name || req.user.username);
+    await notifySuperadmin('LOCATION_TRANSFER', 'Stock transferred', `${Number(req.body?.qty || 0).toLocaleString()} unit(s) moved to ${req.body?.to_location || 'a new location'}.`, req.body, req.user.full_name || req.user.username, { qty: Number(req.body?.qty || 0), location: req.body?.to_location });
     res.json({ success: true, movement: result });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -605,6 +654,8 @@ app.post('/api/inventory/movements', requireAuth, inventoryStaff, async (req, re
 app.post('/api/inventory/putaway', requireAuth, inventoryStaff, async (req, res) => {
   try {
     const result = await inventory.putaway(req.body || {}, req.user.full_name || req.user.username);
+    const isBigItem = String(req.body?.package_type || '').toUpperCase() === 'CARTON';
+    await notifySuperadmin(isBigItem ? 'BIG_ITEMS_ADDED' : 'LOCATION_TRANSFER', isBigItem ? 'Big items added' : 'Stock put away', `${Number(req.body?.qty || 0).toLocaleString()} unit(s) placed at ${req.body?.to_location || 'a location'}.`, req.body, req.user.full_name || req.user.username, { qty: Number(req.body?.qty || 0), location: req.body?.to_location });
     res.json({ success: true, movement: result });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -640,11 +691,35 @@ app.post('/api/inventory/adjustments/:id/reject', requireAuth, requireRole('supe
 
 app.get('/api/admin/inventory/operations', requireAuth, requireRole('superadmin'), async (req, res) => {
   try {
-    const [operations, users, stats] = await Promise.all([
-      inventory.adminOperations(req.query.limit), db.getUsers(), db.getStats()
+    const [operations, users, stats, stockHealth, reconciliation] = await Promise.all([
+      inventory.adminOperations(req.query.limit), db.getUsers(), db.getStats(), db.getSystemStockHealth(), inventory.reconciliationExceptions(50)
     ]);
     res.set('Cache-Control', 'no-store, max-age=0');
-    res.json({ success: true, operations, users, stats });
+    res.json({ success: true, operations, users, stats, stockHealth, reconciliation });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/notifications', requireAuth, requireRole('superadmin'), async (req, res) => {
+  try {
+    const notifications = await db.getAdminNotifications(req.query.limit);
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.json({ success: true, notifications });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/system-stock-updates', requireAuth, requireRole('superadmin'), async (req, res) => {
+  try {
+    const result = await db.getSystemStockUpdates({
+      search: req.query.search || '',
+      page: req.query.page || 1,
+      limit: req.query.limit || 100
+    });
+    res.set('Cache-Control', 'no-store, max-age=0');
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -671,6 +746,7 @@ app.post('/api/products/transfer', async (req, res) => {
     if (result && result.error) {
       return res.status(400).json({ success: false, error: result.error });
     }
+    await notifySuperadmin('LOCATION_TRANSFER', 'Location transferred', `${Number(transferQty).toLocaleString()} unit(s) transferred to ${destLocation}.`, result?.product || {}, modifiedBy || 'Warehouse staff', { qty: Number(transferQty), location: destLocation });
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -711,6 +787,14 @@ app.post('/api/products', requireAuth, async (req, res) => {
 
     const stock_code = req.body.stock_code || req.body.stock_no || req.body.barcode || '';
     const subcategory = req.body.subcategory || req.body.department || '';
+    let existingProduct = null;
+    if (stock_code) {
+      try {
+        existingProduct = await db.getProductByBarcodeOrStock(stock_code);
+      } catch (lookupError) {
+        console.warn('Could not check existing product before creation:', lookupError.message);
+      }
+    }
 
     const pad2 = (v) => {
       const s = (v || '').toString().trim();
@@ -738,6 +822,11 @@ app.post('/api/products', requireAuth, async (req, res) => {
       loc,
       loc_full
     });
+    if (existingProduct) {
+      await notifySuperadmin('LOCATION_ADDED', 'Product location added', `Location ${loc} was added.`, newProduct, req.user.full_name || req.user.username, { location: loc, qty: Number(newProduct.qty || 0) });
+    } else {
+      await notifySuperadmin('PRODUCT_ADDED', 'New product added to system', `"${newProduct.product_name || newProduct.name || name}" was added at location ${loc}.`, newProduct, req.user.full_name || req.user.username, { location: loc, qty: Number(newProduct.qty || 0) });
+    }
 
     res.status(201).json({ success: true, product: newProduct });
   } catch (err) {
@@ -751,10 +840,16 @@ app.put('/api/products/:id', async (req, res) => {
     if (req.body.qty !== undefined && (!Number.isInteger(Number(req.body.qty)) || Number(req.body.qty) < 0 || Number(req.body.qty) > 1000000000)) {
       return res.status(400).json({ success: false, error: 'Quantity must be a non-negative whole number.' });
     }
+    const previous = await db.getProductById(req.params.id);
     const updated = await db.updateProduct(req.params.id, req.body);
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+    const oldLocation = previous ? (previous.loc || `${previous.floor || ''}-${previous.batch || previous.row || ''}-${previous.shelf || ''}-${previous.level || '0'}`) : '';
+    const newLocation = updated.loc || `${updated.floor || ''}-${updated.batch || updated.row || ''}-${updated.shelf || ''}-${updated.level || '0'}`;
+    const locationChanged = oldLocation !== newLocation;
+    const quantityChanged = previous && Number(previous.qty || 0) !== Number(updated.qty || 0);
+    await notifySuperadmin(locationChanged ? 'LOCATION_MODIFIED' : (quantityChanged ? 'QUANTITY_MODIFIED' : 'PRODUCT_MODIFIED'), locationChanged ? 'Product location changed' : (quantityChanged ? 'Product quantity modified' : 'Product details modified'), locationChanged ? `Location changed to ${newLocation}.` : (quantityChanged ? `Quantity changed from ${Number(previous.qty || 0).toLocaleString()} to ${Number(updated.qty || 0).toLocaleString()}.` : 'Product details were updated.'), updated, req.body.last_modified_by || 'Warehouse staff', { location: newLocation, qty: Number(updated.qty || 0) });
     res.json({ success: true, product: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -764,10 +859,12 @@ app.put('/api/products/:id', async (req, res) => {
 // Reset location (Remove floor, row, shelf, level -> mark as UNMAPPED)
 app.post('/api/products/:id/reset-location', async (req, res) => {
   try {
+    const previous = await db.getProductById(req.params.id);
     const resetProduct = await db.resetProductLocation(req.params.id);
     if (!resetProduct) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+    await notifySuperadmin('LOCATION_DELETED', 'Product location removed', 'The product location was removed and marked as unmapped.', previous || resetProduct, req.user?.full_name || req.user?.username || 'Warehouse staff');
     res.json({ success: true, product: resetProduct, message: 'Location reset successfully!' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -787,10 +884,12 @@ app.post('/api/products/reset-all', async (req, res) => {
 // Delete product / location row
 app.delete('/api/products/:id', async (req, res) => {
   try {
+    const previous = await db.getProductById(req.params.id);
     const deleted = await db.deleteProduct(req.params.id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+    await notifySuperadmin('LOCATION_DELETED', 'Product location deleted', 'A product location entry was deleted.', previous || {}, req.user?.full_name || req.user?.username || 'Warehouse staff');
     res.json({ success: true, message: 'Product location deleted successfully' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

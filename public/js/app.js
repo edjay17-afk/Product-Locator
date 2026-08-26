@@ -427,6 +427,8 @@ function updateUserUI() {
         try { savedSuperadminView = localStorage.getItem('wh_superadmin_view') || 'master'; } catch (err) { /* storage is optional */ }
         if (savedSuperadminView === 'operations') {
           void renderSuperadminOperations();
+        } else if (savedSuperadminView === 'system-stock') {
+          void renderSuperadminSystemStock();
         } else if (savedSuperadminView === 'notifications') {
           renderSuperadminNotifications();
         } else {
@@ -469,6 +471,52 @@ function updateUserUI() {
     if (auditBtn) auditBtn.style.display = 'none';
   }
 }
+
+const INVENTORY_SYNC_QUEUE_KEY = 'wh_inventory_sync_queue';
+
+function updateInventorySyncStatus(message, state = '') {
+  const status = document.getElementById('inventorySyncStatus');
+  if (!status) return;
+  status.textContent = message;
+  status.classList.toggle('is-pending', state === 'pending');
+  status.classList.toggle('is-offline', state === 'offline');
+}
+
+function isNetworkFailure(error) {
+  return !navigator.onLine || /failed to fetch|network|timeout|load failed/i.test(String(error?.message || error || ''));
+}
+
+function queuedInventoryActions() {
+  try { return JSON.parse(localStorage.getItem(INVENTORY_SYNC_QUEUE_KEY) || '[]'); } catch (err) { return []; }
+}
+
+function queueInventoryAction(url, body, label) {
+  const pending = queuedInventoryActions();
+  pending.push({ id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, url, body, label, createdAt: new Date().toISOString() });
+  localStorage.setItem(INVENTORY_SYNC_QUEUE_KEY, JSON.stringify(pending.slice(-50)));
+  updateInventorySyncStatus(`${pending.length} saved action${pending.length === 1 ? '' : 's'} waiting to sync`, 'pending');
+}
+
+async function flushInventorySyncQueue() {
+  const pending = queuedInventoryActions();
+  if (!pending.length) { updateInventorySyncStatus('Ready to sync'); return; }
+  if (!navigator.onLine) { updateInventorySyncStatus(`${pending.length} saved action${pending.length === 1 ? '' : 's'} waiting for connection`, 'offline'); return; }
+  const remaining = [];
+  for (const action of pending) {
+    try {
+      const response = await authFetch(action.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(action.body) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Could not sync saved action.');
+    } catch (err) { remaining.push(action); }
+  }
+  localStorage.setItem(INVENTORY_SYNC_QUEUE_KEY, JSON.stringify(remaining));
+  updateInventorySyncStatus(remaining.length ? `${remaining.length} saved action${remaining.length === 1 ? '' : 's'} waiting to sync` : 'All saved actions synced', remaining.length ? 'pending' : '');
+  if (!remaining.length) showToast('Saved inventory actions synced.');
+}
+
+window.addEventListener('online', () => { void flushInventorySyncQueue(); });
+window.addEventListener('offline', () => updateInventorySyncStatus('Offline — saved actions will sync later', 'offline'));
+void flushInventorySyncQueue();
 
 function updateLanguageUI() {
   const lang = CURRENT_LANG;
@@ -521,6 +569,7 @@ let activeProduct = null;
 
 let searchIndexWarmupPromise = null;
 let searchIndexDbPromise = null;
+let searchIndexPersistTimer = null;
 
 function getSearchIndexDb() {
   if (searchIndexDbPromise) return searchIndexDbPromise;
@@ -556,6 +605,23 @@ async function writeCachedSearchIndex(products) {
   } catch (err) {
     console.warn('Could not persist search index cache:', err);
   }
+}
+
+// Keep the local-first search cache current after a location is saved. This
+// makes the next search (including after a page refresh) use the new location
+// without waiting for a full catalog download.
+function persistSearchIndexSoon() {
+  clearTimeout(searchIndexPersistTimer);
+  searchIndexPersistTimer = setTimeout(() => {
+    const snapshot = PRODUCTS.map(product => {
+      const clean = {};
+      Object.entries(product).forEach(([key, value]) => {
+        if (!key.startsWith('_')) clean[key] = value;
+      });
+      return clean;
+    });
+    void writeCachedSearchIndex(snapshot);
+  }, 120);
 }
 
 function applySearchIndex(products) {
@@ -1231,7 +1297,7 @@ function productInventoryFallback(product) {
   const productQty = Number.parseInt(product?.qty, 10);
   const displayedQty = Number.parseInt((document.getElementById('pQty')?.textContent || '').replace(/,/g, ''), 10);
   const qty = Math.max(0, Number.isInteger(productQty) ? productQty : (Number.isInteger(displayedQty) ? displayedQty : 0));
-  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0 };
+  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0, systemOnHandUpdatedAt: product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt || null };
 }
 
 function bestAvailableInventorySummary(product, cachedSummary) {
@@ -1253,6 +1319,11 @@ function renderInventorySummary(summary, statusText) {
   set('inventoryReceiving', summary.receiving);
   set('inventoryBulk', summary.bulk);
   set('inventoryShelf', summary.shelf);
+  const systemUpdatedAt = document.getElementById('inventorySystemUpdatedAt');
+  if (systemUpdatedAt) {
+    const date = summary.systemOnHandUpdatedAt ? new Date(summary.systemOnHandUpdatedAt) : null;
+    systemUpdatedAt.textContent = date && !Number.isNaN(date.getTime()) ? date.toLocaleString() : 'Not received from external system yet';
+  }
   const status = document.getElementById('inventorySummaryStatus');
   if (status) status.textContent = statusText;
 }
@@ -1452,8 +1523,21 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
     invalidateInventorySummaryCache(key);
     loadInventorySummary(currentInventorySummaryProduct || product);
   } catch (err) {
-    inventoryQuickAdjustError.textContent = err.message;
-    inventoryQuickAdjustError.classList.add('show');
+    if (isNetworkFailure(err)) {
+      const bucket = inventoryQuickAdjustBucket.value;
+      queueInventoryAction(`/api/inventory/${encodeURIComponent(key)}/quick-adjustment`, {
+        barcode: product.barcode || product.b,
+        stock_no: product.stock_no || product.stock_code || product.s,
+        product_name: product.product_name || product.name || product.n,
+        storage_type: bucket, target_qty: targetQty, reason
+      }, 'inventory correction');
+      updateInventoryCardImmediately(bucket, targetQty);
+      inventoryQuickAdjustOverlay.classList.remove('show');
+      showToast('Saved on this device. It will sync automatically when connected.');
+    } else {
+      inventoryQuickAdjustError.textContent = err.message;
+      inventoryQuickAdjustError.classList.add('show');
+    }
   } finally {
     inventoryQuickAdjustSave.disabled = false;
   }
@@ -1496,8 +1580,16 @@ if (inventoryDirectDeliverySave) inventoryDirectDeliverySave.addEventListener('c
     invalidateInventorySummaryCache(key);
     loadInventorySummary(currentInventorySummaryProduct || product);
   } catch (err) {
-    inventoryDirectDeliveryError.textContent = err.message;
-    inventoryDirectDeliveryError.classList.add('show');
+    if (isNetworkFailure(err)) {
+      queueInventoryAction(`/api/inventory/${encodeURIComponent(key)}/direct-delivery`, { qty, delivery_reference: reference }, 'direct delivery');
+      updateInventoryCardImmediately('RECEIVING', Math.max(0, receiving - qty));
+      updateInventoryCardImmediately('ON_HAND', Math.max(0, inventorySummaryValue('ON_HAND') - qty));
+      inventoryDirectDeliveryOverlay.classList.remove('show');
+      showToast('Delivery saved on this device. It will sync automatically when connected.');
+    } else {
+      inventoryDirectDeliveryError.textContent = err.message;
+      inventoryDirectDeliveryError.classList.add('show');
+    }
   } finally {
     inventoryDirectDeliverySave.disabled = false;
   }
@@ -2878,6 +2970,7 @@ async function saveNewProduct() {
     if (res.success && res.product) {
       PRODUCTS.push(res.product);
       rebuildIndex();
+      persistSearchIndexSoon();
       closeAddForm();
       renderProduct(res.product);
       showToast(`Saved to Database! "${name}" is now at Floor ${floor}, Row ${row}, Shelf ${shelf}.`);
@@ -3094,7 +3187,8 @@ if (inventoryReceiveSave) inventoryReceiveSave.addEventListener('click', async (
         qty,
         package_type: document.getElementById('inventoryReceivePackage').value,
         location_code: document.getElementById('inventoryReceiveLocation').value.trim() || 'RECEIVING',
-        lot_code: document.getElementById('inventoryReceiveLot').value.trim()
+        lot_code: document.getElementById('inventoryReceiveLot').value.trim(),
+        source_reference: document.getElementById('inventoryReceiveLot').value.trim()
       })
     });
     const data = await response.json();
@@ -3104,8 +3198,23 @@ if (inventoryReceiveSave) inventoryReceiveSave.addEventListener('click', async (
     invalidateInventorySummaryCache(product.barcode || product.b || product.stock_no || product.stock_code || product.s);
     loadInventorySummary(product);
   } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.classList.add('show');
+    if (isNetworkFailure(err)) {
+      queueInventoryAction('/api/inventory/receipts', {
+        barcode: product.barcode || product.b,
+        stock_no: product.stock_no || product.stock_code || product.s,
+        product_name: product.product_name || product.name || product.n,
+        qty,
+        package_type: document.getElementById('inventoryReceivePackage').value,
+        location_code: document.getElementById('inventoryReceiveLocation').value.trim() || 'RECEIVING',
+        lot_code: document.getElementById('inventoryReceiveLot').value.trim(),
+        source_reference: document.getElementById('inventoryReceiveLot').value.trim()
+      }, 'stock receipt');
+      inventoryReceiveOverlay.classList.remove('show');
+      showToast('Receipt saved on this device. It will sync automatically when connected.');
+    } else {
+      errorEl.textContent = err.message;
+      errorEl.classList.add('show');
+    }
   } finally {
     inventoryReceiveSave.disabled = false;
   }
@@ -3296,6 +3405,7 @@ async function saveEditProduct() {
     else PRODUCTS.push(optimisticProduct);
     activeProduct = optimisticProduct;
     rebuildIndex();
+    persistSearchIndexSoon();
     closeEditForm();
     renderProduct(optimisticProduct);
     showToast(`Saving "${name}"...`, 'info');
@@ -3318,6 +3428,7 @@ async function saveEditProduct() {
         const currentIsEdited = activeProduct && String(activeProduct.id) === String(id);
         if (currentIsEdited) activeProduct = res.product;
         rebuildIndex();
+        persistSearchIndexSoon();
         if (currentIsEdited) renderProduct(res.product);
         if (typeof renderPortalDataTable === 'function') {
           void renderPortalDataTable({ refreshStats: true });
@@ -3950,6 +4061,7 @@ async function saveAddStockToLocation() {
         const localIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
         if (localIndex >= 0 && res.product) PRODUCTS[localIndex] = { ...PRODUCTS[localIndex], ...res.product };
         rebuildIndex();
+        persistSearchIndexSoon();
         const targetItem = PRODUCTS.find(p => String(p.id) === String(id)) || res.product;
         if (targetItem) renderProduct(targetItem);
       } else {
@@ -4382,6 +4494,7 @@ async function handleLocationQRScan(code) {
       if (localIndex >= 0) PRODUCTS[localIndex] = { ...PRODUCTS[localIndex], ...res.product };
       else if (res.product) PRODUCTS.push(res.product);
       rebuildIndex();
+      persistSearchIndexSoon();
       updateCategoryDatalist();
       renderProduct(res.product || activeProduct);
     } else {
@@ -5422,6 +5535,7 @@ async function saveRapidEntry() {
         }
 
         rebuildIndex();
+        persistSearchIndexSoon();
         updateCategoryDatalist();
 
         if (superAdminPortalView && superAdminPortalView.style.display !== 'none') {
@@ -5571,6 +5685,7 @@ window.quickAdjustQty = async function(id, delta) {
       const localIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
       if (localIndex >= 0) PRODUCTS[localIndex] = { ...PRODUCTS[localIndex], ...(res.product || { qty: newQty }) };
       rebuildIndex();
+      persistSearchIndexSoon();
     } else {
       showToast(CURRENT_LANG === 'en' ? 'Failed to update quantity' : '更新库存失败', 'error');
     }
@@ -6336,6 +6451,7 @@ if (cartonSaveLocationBtn) {
         }
 
         rebuildIndex();
+        persistSearchIndexSoon();
         renderProduct(savedProd);
         if (typeof renderPortalDataTable === 'function') {
           renderPortalDataTable({ refreshStats: true });
@@ -6621,6 +6737,58 @@ function recordPortalNotification(product) {
   if (document.getElementById('saNotificationsPanel')?.style.display !== 'none') renderSuperadminNotifications();
 }
 
+function toPortalServerNotification(item, read = false) {
+  return {
+    key: `server:${item.id}`,
+    time: new Date(item.created_at || Date.now()).getTime(),
+    read,
+    title: item.title || 'Warehouse activity',
+    detail: item.detail || '',
+    action: item.action || 'ACTIVITY',
+    product: item.product_name || '',
+    location: item.location || '',
+    actor: item.actor_name || 'Warehouse staff'
+  };
+}
+
+function addLivePortalNotification(item) {
+  if (!item || item.id === undefined || item.id === null) return;
+  const key = `server:${item.id}`;
+  const previous = portalNotifications.find(notification => notification.key === key);
+  if (previous) return;
+
+  const notification = toPortalServerNotification(item);
+  // A product update can create a temporary local location alert at the same
+  // moment as the durable notification. Keep the durable shared record only.
+  portalNotifications = portalNotifications.filter(existing => {
+    if (String(existing.key || '').startsWith('server:')) return true;
+    const sameProduct = String(existing.product || '') === String(notification.product || '');
+    const sameLocation = String(existing.location || '') === String(notification.location || '');
+    return !(sameProduct && sameLocation && Math.abs(Number(existing.time || 0) - notification.time) < 5000);
+  });
+  portalNotifications.unshift(notification);
+  portalNotifications = portalNotifications.sort((a, b) => Number(b.time || 0) - Number(a.time || 0)).slice(0, 120);
+  savePortalNotifications();
+  updatePortalNotificationBadge();
+  if (document.getElementById('saNotificationsPanel')?.style.display !== 'none') renderSuperadminNotifications();
+}
+
+async function syncPortalNotifications() {
+  if (!currentUser || (currentUser.role !== 'superadmin' && currentUser.username !== 'superadmin')) return;
+  try {
+    const response = await authFetch('/api/admin/notifications?limit=120', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.success || !Array.isArray(data.notifications)) return;
+    const readByKey = new Map(portalNotifications.map(item => [item.key, item.read]));
+    const serverItems = data.notifications.map(item => toPortalServerNotification(item, readByKey.get(`server:${item.id}`) || false));
+    const localItems = portalNotifications.filter(item => !String(item.key).startsWith('server:'));
+    portalNotifications = [...serverItems, ...localItems].sort((a, b) => Number(b.time || 0) - Number(a.time || 0)).slice(0, 120);
+    savePortalNotifications();
+    updatePortalNotificationBadge();
+    if (document.getElementById('saNotificationsPanel')?.style.display !== 'none') renderSuperadminNotifications();
+  } catch (err) { console.warn('Notification sync failed:', err.message); }
+}
+
 function portalProductIsMapped(product) {
   return (product && String(product.status || '').toUpperCase() === 'MAPPED') || Boolean(product && (product.floor || product.row || product.shelf));
 }
@@ -6683,6 +6851,9 @@ function schedulePortalTableRefresh() {
         clearTimeout(portalLiveOperationsTimer);
         portalLiveOperationsTimer = setTimeout(() => void renderSuperadminOperations(), 260);
       }
+      if (document.getElementById('saSystemStockPanel')?.style.display !== 'none') {
+        void renderSuperadminSystemStock();
+      }
     }
   }, 180);
 }
@@ -6723,6 +6894,7 @@ function handleProductRealtimeEvent(payload) {
   if (existingIdx >= 0) PRODUCTS[existingIdx] = { ...PRODUCTS[existingIdx], ...item };
   else PRODUCTS.push(item);
   rebuildIndex();
+  persistSearchIndexSoon();
 
   if (activeProduct && ((activeProduct.barcode && activeProduct.barcode === item.barcode) || (activeProduct.barcode_2 && activeProduct.barcode_2 === item.barcode_2) || (activeProduct.stock_no && activeProduct.stock_no === item.stock_no))) {
     renderProduct(item);
@@ -6734,13 +6906,20 @@ function handleProductRealtimeEvent(payload) {
   }
 }
 
+function handleAdminNotificationRealtimeEvent(payload) {
+  if (!currentUser || (currentUser.role !== 'superadmin' && currentUser.username !== 'superadmin')) return;
+  if (payload?.eventType !== 'INSERT') return;
+  addLivePortalNotification(payload.new);
+}
+
 async function startProductRealtime() {
   if (browserProductRealtimeChannel) return;
   const client = await getBrowserSupabaseClient();
   if (!client) return;
   try {
-    browserProductRealtimeChannel = client.channel('products_realtime_sync')
+    browserProductRealtimeChannel = client.channel('superadmin_live_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, handleProductRealtimeEvent)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_notifications' }, handleAdminNotificationRealtimeEvent)
       .subscribe(status => setPortalLiveStatus(status === 'SUBSCRIBED' ? 'live' : 'fallback'));
   } catch (err) {
     browserProductRealtimeChannel = null;
@@ -6766,6 +6945,7 @@ async function pollPortalLiveTable() {
   portalLivePollingBusy = true;
   try {
     await renderPortalDataTable({ live: true, refreshStats: true });
+    await syncPortalNotifications();
     if (document.getElementById('saOperationsPanel')?.style.display !== 'none') {
       await renderSuperadminOperations();
     }
@@ -6777,10 +6957,13 @@ async function pollPortalLiveTable() {
 function startPortalLiveUpdates() {
   stopPortalLiveUpdates();
   loadPortalNotifications();
+  void syncPortalNotifications();
   void startProductRealtime();
   setPortalLiveStatus('fallback');
   void pollPortalLiveTable();
-  portalLivePollingTimer = setInterval(() => { void pollPortalLiveTable(); }, 2000);
+  // Realtime above is the normal immediate path. This is only a recovery path
+  // for a dropped browser connection or a database that has not enabled Realtime.
+  portalLivePollingTimer = setInterval(() => { void pollPortalLiveTable(); }, 1000);
 }
 
 async function fetchPortalKPIs(force = false) {
@@ -7098,26 +7281,70 @@ function formatOperationTime(value) {
 function setSuperadminView(view) {
   const isOperations = view === 'operations';
   const isNotifications = view === 'notifications';
+  const isSystemStock = view === 'system-stock';
   try { localStorage.setItem('wh_superadmin_view', view); } catch (err) { /* storage is optional */ }
   const operations = document.getElementById('saOperationsPanel');
   const notifications = document.getElementById('saNotificationsPanel');
+  const systemStock = document.getElementById('saSystemStockPanel');
   const kpis = document.getElementById('portalMasterKpis');
   const table = document.getElementById('portalMasterTable');
   const main = document.querySelector('.portal-main');
   if (operations) operations.style.display = isOperations ? 'flex' : 'none';
   if (notifications) notifications.style.display = isNotifications ? 'flex' : 'none';
-  if (kpis) kpis.style.display = isOperations || isNotifications ? 'none' : 'grid';
-  if (table) table.style.display = isOperations || isNotifications ? 'none' : 'block';
+  if (systemStock) systemStock.style.display = isSystemStock ? 'flex' : 'none';
+  if (kpis) kpis.style.display = isOperations || isNotifications || isSystemStock ? 'none' : 'grid';
+  if (table) table.style.display = isOperations || isNotifications || isSystemStock ? 'none' : 'block';
   if (main) {
-    main.classList.toggle('operations-active', isOperations || isNotifications);
+    main.classList.toggle('operations-active', isOperations || isNotifications || isSystemStock);
     main.classList.toggle('notifications-active', isNotifications);
   }
   document.querySelectorAll('.portal-nav-item').forEach(button => button.classList.remove('active'));
-  document.getElementById(isOperations ? 'saNavOperationsBtn' : (isNotifications ? 'saNavNotificationsBtn' : 'saNavMasterBtn'))?.classList.add('active');
+  document.getElementById(isOperations ? 'saNavOperationsBtn' : (isNotifications ? 'saNavNotificationsBtn' : (isSystemStock ? 'saNavSystemStockBtn' : 'saNavMasterBtn')))?.classList.add('active');
   const title = document.querySelector('.portal-header-title');
   const subtitle = document.querySelector('.portal-header-sub');
-  if (title) title.textContent = isOperations ? 'Warehouse Operations' : (isNotifications ? 'Notifications' : 'Master Inventory');
-  if (subtitle) subtitle.textContent = isOperations ? 'Live exceptions, count approvals, stock activity, and staff access.' : (isNotifications ? 'Live updates from warehouse product-location activity.' : 'Live warehouse catalog, storage coordinates, mapping health, and SKU stock tracking');
+  if (title) title.textContent = isOperations ? 'Warehouse Operations' : (isNotifications ? 'Notifications' : (isSystemStock ? 'System Stock Updates' : 'Master Inventory'));
+  if (subtitle) subtitle.textContent = isOperations ? 'Live exceptions, count approvals, stock activity, and staff access.' : (isNotifications ? 'Live updates from warehouse product-location activity.' : (isSystemStock ? 'Latest external system on-hand timestamps by product.' : 'Live warehouse catalog, storage coordinates, mapping health, and SKU stock tracking'));
+}
+
+const systemStockViewState = { page: 1, query: '' };
+
+function stockFreshness(updatedAt) {
+  const timestamp = updatedAt ? new Date(updatedAt).getTime() : NaN;
+  if (!Number.isFinite(timestamp)) return { label: 'Not received', state: 'missing' };
+  const age = Date.now() - timestamp;
+  if (age > 72 * 60 * 60 * 1000) return { label: 'More than 72 hours old', state: 'stale' };
+  if (age > 24 * 60 * 60 * 1000) return { label: 'More than 24 hours old', state: 'delayed' };
+  return { label: 'Fresh (within 24 hours)', state: 'fresh' };
+}
+
+async function renderSuperadminSystemStock(page = systemStockViewState.page) {
+  systemStockViewState.page = Math.max(1, Number(page) || 1);
+  setSuperadminView('system-stock');
+  const rows = document.getElementById('saSystemStockRows');
+  const pagination = document.getElementById('saSystemStockPagination');
+  if (!rows || !pagination) return;
+  rows.innerHTML = '<tr><td colspan="4">Loading system stock timestamps…</td></tr>';
+  try {
+    const params = new URLSearchParams({ page: String(systemStockViewState.page), limit: '100' });
+    if (systemStockViewState.query) params.set('search', systemStockViewState.query);
+    const response = await authFetch(`/api/admin/system-stock-updates?${params.toString()}`, { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.error || 'Could not load system stock timestamps.');
+    const products = Array.isArray(data.products) ? data.products : [];
+    rows.innerHTML = products.length ? products.map(product => {
+      const updated = product.system_on_hand_updated_at ? new Date(product.system_on_hand_updated_at) : null;
+      const updatedText = updated && !Number.isNaN(updated.getTime()) ? updated.toLocaleString() : 'Not received yet';
+      const freshness = stockFreshness(product.system_on_hand_updated_at);
+      const productName = product.product_name || product.name || 'Unnamed product';
+      const code = [product.barcode, product.stock_no || product.stock_code].filter(Boolean).join(' · ') || '—';
+      return `<tr><td><strong>${escapeHtml(productName)}</strong></td><td>${escapeHtml(code)}</td><td>${Number(product.qty || 0).toLocaleString()}</td><td>${escapeHtml(updatedText)}<span class="sa-stock-age ${freshness.state}">${freshness.label}</span></td></tr>`;
+    }).join('') : '<tr><td colspan="4">No products match this search.</td></tr>';
+    const totalPages = Math.max(1, Math.ceil(Number(data.total || 0) / Number(data.limit || 100)));
+    pagination.innerHTML = `<span>${Number(data.total || 0).toLocaleString()} products</span><div><button type="button" class="portal-btn-secondary" data-system-stock-page="${systemStockViewState.page - 1}" ${systemStockViewState.page <= 1 ? 'disabled' : ''}>Previous</button><span>Page ${systemStockViewState.page} of ${totalPages}</span><button type="button" class="portal-btn-secondary" data-system-stock-page="${systemStockViewState.page + 1}" ${systemStockViewState.page >= totalPages ? 'disabled' : ''}>Next</button></div>`;
+  } catch (err) {
+    rows.innerHTML = `<tr><td colspan="4">${escapeHtml(err.message || 'Could not load system stock timestamps.')}</td></tr>`;
+    pagination.innerHTML = '';
+  }
 }
 
 function renderSuperadminNotifications() {
@@ -7127,8 +7354,35 @@ function renderSuperadminNotifications() {
   updatePortalNotificationBadge();
   const list = document.getElementById('saNotificationsList');
   if (!list) return;
-  list.innerHTML = portalNotifications.length ? portalNotifications.map(item => `<article class="sa-notification-item"><div class="sa-notification-icon">📍</div><div class="sa-notification-content"><strong>Location saved: ${escapeHtml(item.product)}</strong><p>${escapeHtml(item.location || 'Location updated')} · ${escapeHtml(item.actor || 'Warehouse staff')}</p><div class="sa-notification-time">${formatOperationTime(item.time)}</div></div></article>`).join('') : '<div class="sa-notifications-empty">No location notifications yet. New saved locations will appear here automatically.</div>';
+  const filter = document.getElementById('saNotificationFilter')?.value || 'ALL';
+  const matchingActions = {
+    PRODUCT: ['PRODUCT_ADDED'],
+    LOCATION: ['LOCATION_ADDED', 'LOCATION_DELETED', 'LOCATION_MODIFIED', 'LOCATION_TRANSFER'],
+    QUANTITY: ['QUANTITY_MODIFIED'],
+    RECEIVING: ['RECEIVING'],
+    BIG_ITEMS: ['BIG_ITEMS_ADDED'],
+    DELIVERY: ['DIRECT_DELIVERY']
+  };
+  const visible = filter === 'ALL' ? portalNotifications : portalNotifications.filter(item => (matchingActions[filter] || []).includes(item.action));
+  list.innerHTML = visible.length ? visible.map(item => `<article class="sa-notification-item"><div class="sa-notification-icon">${item.action === 'PRODUCT_ADDED' ? '➕' : item.action === 'DIRECT_DELIVERY' ? '🚚' : item.action === 'RECEIVING' ? '📥' : item.action === 'QUANTITY_MODIFIED' ? '🔢' : item.action === 'LOCATION_DELETED' ? '🗑️' : item.action === 'BIG_ITEMS_ADDED' ? '📦' : '📍'}</div><div class="sa-notification-content"><strong>${escapeHtml(item.title || `Location saved: ${item.product}`)}</strong><p>${escapeHtml(item.detail || item.location || 'Location updated')} · ${escapeHtml(item.actor || 'Warehouse staff')}</p><div class="sa-notification-time">${formatOperationTime(item.time)}</div></div></article>`).join('') : '<div class="sa-notifications-empty">No notifications match this filter.</div>';
 }
+
+document.getElementById('saNotificationFilter')?.addEventListener('change', renderSuperadminNotifications);
+
+let systemStockSearchTimer = null;
+document.getElementById('saSystemStockSearch')?.addEventListener('input', event => {
+  clearTimeout(systemStockSearchTimer);
+  systemStockSearchTimer = setTimeout(() => {
+    systemStockViewState.query = event.target.value.trim();
+    void renderSuperadminSystemStock(1);
+  }, 180);
+});
+
+document.getElementById('saSystemStockPagination')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-system-stock-page]');
+  if (!button || button.disabled) return;
+  void renderSuperadminSystemStock(Number(button.dataset.systemStockPage));
+});
 
 async function renderSuperadminOperations() {
   setSuperadminView('operations');
@@ -7136,6 +7390,8 @@ async function renderSuperadminOperations() {
   const pendingEl = document.getElementById('saPendingAdjustments');
   const movementsEl = document.getElementById('saRecentMovements');
   const usersEl = document.getElementById('saOperationsUsers');
+  const dailyEl = document.getElementById('saDailySummary');
+  const reconciliationEl = document.getElementById('saReconciliationList');
   try {
     const response = await authFetch('/api/admin/inventory/operations?limit=100', { cache: 'no-store' });
     const data = await response.json();
@@ -7143,8 +7399,13 @@ async function renderSuperadminOperations() {
     const operations = data.operations || {};
     const pending = operations.pendingAdjustments || [];
     const receiving = operations.receivingAlerts || [];
+    const health = data.stockHealth || {};
+    const reconciliation = data.reconciliation || [];
     const unmapped = Number(data.stats?.unmappedCount || 0);
-    if (exceptionsEl) exceptionsEl.innerHTML = `<div class="sa-exception alert"><b>${pending.length.toLocaleString()}</b><span>Physical counts awaiting approval</span></div><div class="sa-exception warn"><b>${receiving.length.toLocaleString()}</b><span>Receipts older than 24 hours to check</span></div><div class="sa-exception info"><b>${unmapped.toLocaleString()}</b><span>Products still needing a shelf location</span></div>`;
+    if (exceptionsEl) exceptionsEl.innerHTML = `<div class="sa-exception alert"><b>${pending.length.toLocaleString()}</b><span>Physical counts awaiting approval</span></div><div class="sa-exception warn"><b>${Number(health.stale || 0).toLocaleString()}</b><span>System stock updates older than 72 hours</span></div><div class="sa-exception warn"><b>${Number(health.delayed || 0).toLocaleString()}</b><span>System stock updates older than 24 hours</span></div><div class="sa-exception info"><b>${reconciliation.length.toLocaleString()}</b><span>Physical stock above system on-hand</span></div><div class="sa-exception info"><b>${unmapped.toLocaleString()}</b><span>Products still needing a shelf location</span></div>`;
+    const daily = operations.daily || {};
+    if (dailyEl) dailyEl.innerHTML = `<div class="sa-daily-summary"><div><b>${Number(daily.total || 0).toLocaleString()}</b><span>Activities today</span></div><div><b>${Number(daily.received || 0).toLocaleString()}</b><span>Units received</span></div><div><b>${Number(daily.delivered || 0).toLocaleString()}</b><span>Units delivered</span></div><div><b>${Number(daily.adjustments || 0).toLocaleString()}</b><span>Count corrections</span></div></div>`;
+    if (reconciliationEl) reconciliationEl.innerHTML = reconciliation.length ? reconciliation.slice(0, 8).map(item => `<div class="sa-operation-row"><div class="sa-operation-main"><strong>${escapeHtml(item.product_name || item.sku_key || 'Product')} · +${Number(item.excess_qty || 0).toLocaleString()} units</strong><div class="sa-operation-meta">System: ${Number(item.catalog_qty || 0).toLocaleString()} · Physical: ${Number(item.physical_qty || 0).toLocaleString()}</div></div></div>`).join('') : '<div class="sa-list-empty">No physical stock is above the current system on-hand.</div>';
     document.getElementById('saPendingCountBadge').textContent = pending.length.toLocaleString();
     if (pendingEl) pendingEl.innerHTML = pending.length ? pending.map(item => `<div class="sa-operation-row"><div class="sa-operation-main"><strong>${escapeHtml(item.sku_key || 'Product')} · ${Number(item.system_qty || 0)} → ${Number(item.counted_qty || 0)}</strong><div class="sa-operation-meta">${escapeHtml(item.reason || 'Physical count')} · ${escapeHtml(item.submitted_by || 'Staff')} · ${formatOperationTime(item.created_at)}</div></div><button class="sa-small-btn" data-adjustment-action="approve" data-adjustment-id="${item.id}">Approve</button><button class="sa-small-btn danger" data-adjustment-action="reject" data-adjustment-id="${item.id}">Reject</button></div>`).join('') : '<div class="sa-list-empty">No count approvals waiting.</div>';
     const movements = operations.movements || [];
@@ -7266,6 +7527,14 @@ if (saNavMasterBtn) {
   });
 }
 
+const saNavSystemStockBtn = document.getElementById('saNavSystemStockBtn');
+if (saNavSystemStockBtn) {
+  saNavSystemStockBtn.addEventListener('click', event => {
+    event.preventDefault();
+    void renderSuperadminSystemStock(1);
+  });
+}
+
 const saNavOperationsBtn = document.getElementById('saNavOperationsBtn');
 if (saNavOperationsBtn) {
   saNavOperationsBtn.addEventListener('click', event => {
@@ -7317,17 +7586,6 @@ if (saNavAddProductBtn) {
   });
 }
 
-const saNavAuditBtn = document.getElementById('saNavAuditBtn');
-if (saNavAuditBtn) {
-  saNavAuditBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    openScanner((scannedText) => {
-      const parsed = parseLocationQR(scannedText);
-      const locCode = parsed ? `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}` : scannedText.trim();
-      auditShelfLocation(locCode);
-    });
-  });
-}
 
 window.openPortalEditProduct = function(productId) {
   let p = (window.portalProductsMap && window.portalProductsMap[productId]);
