@@ -5797,6 +5797,19 @@ const transferDestinationFields = {
   shelf: document.getElementById('transferDestShelf'),
   level: document.getElementById('transferDestLevel')
 };
+const transferFormError = document.getElementById('transferFormError');
+
+function showTransferFormError(message) {
+  if (!transferFormError) return;
+  transferFormError.textContent = message;
+  transferFormError.classList.add('show');
+}
+
+function clearTransferFormError() {
+  if (!transferFormError) return;
+  transferFormError.textContent = '';
+  transferFormError.classList.remove('show');
+}
 
 function formatTransferLocationPart(value, minimum) {
   const raw = String(value ?? '').trim();
@@ -5831,8 +5844,14 @@ function setTransferDestinationFields(location) {
 }
 
 Object.values(transferDestinationFields).forEach(field => {
-  field?.addEventListener('input', updateTransferDestinationPreview);
-  field?.addEventListener('change', updateTransferDestinationPreview);
+  field?.addEventListener('input', () => {
+    updateTransferDestinationPreview();
+    clearTransferFormError();
+  });
+  field?.addEventListener('change', () => {
+    updateTransferDestinationPreview();
+    clearTransferFormError();
+  });
 });
 
 window.openTransferModalForProductIndex = function(index) {
@@ -5841,6 +5860,7 @@ window.openTransferModalForProductIndex = function(index) {
   if (!item) return;
 
   currentTransferItem = item;
+  clearTransferFormError();
   document.getElementById('transferProductName').textContent = item.product_name || 'Unnamed Product';
   document.getElementById('transferProductMeta').textContent = `Barcode: ${item.barcode || '—'} | Stock No: ${item.stock_no || '—'}`;
   document.getElementById('transferSourceLoc').textContent = item.loc || `${item.floor}-${item.row}-${item.shelf}-${item.level}`;
@@ -5871,6 +5891,9 @@ const closeTransferModalBtn = document.getElementById('closeTransferModal');
 const cancelTransferBtn = document.getElementById('cancelTransferBtn');
 const confirmTransferBtn = document.getElementById('confirmTransferBtn');
 const scanDestLocBtn = document.getElementById('scanDestLocBtn');
+const transferQtyInput = document.getElementById('transferQtyInput');
+
+transferQtyInput?.addEventListener('input', clearTransferFormError);
 
 if (closeTransferModalBtn) closeTransferModalBtn.addEventListener('click', window.closeTransferModal);
 if (cancelTransferBtn) cancelTransferBtn.addEventListener('click', window.closeTransferModal);
@@ -5881,6 +5904,7 @@ if (scanDestLocBtn) {
       const parsed = parseLocationQR(scannedText);
       if (parsed) {
         setTransferDestinationFields(parsed);
+        clearTransferFormError();
         showToast(`Scanned destination: ${getTransferDestinationLocation()}`);
       } else {
         showToast(CURRENT_LANG === 'en' ? 'Invalid location QR code.' : '无效的库位二维码。', 'error');
@@ -5891,25 +5915,38 @@ if (scanDestLocBtn) {
 
 if (confirmTransferBtn) {
   confirmTransferBtn.addEventListener('click', async () => {
-    if (!currentTransferItem) return;
+    if (!currentTransferItem) {
+      showTransferFormError(CURRENT_LANG === 'en' ? 'Please select a product to transfer.' : '请选择要转移的商品。');
+      return;
+    }
     const destLoc = getTransferDestinationLocation();
     const qtyVal = parseInt(document.getElementById('transferQtyInput').value.trim(), 10);
 
     if (!destLoc) {
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? 'Floor, Row number, Shelf number, and Level are required. Enter valid values.'
+        : '楼层、排号、货架号和层数均为必填项。请输入有效值。');
       showToast(CURRENT_LANG === 'en' ? 'Please select a floor and enter valid row, shelf, and level numbers.' : '请选择楼层并输入有效的排、货架和层数。', 'error');
       return;
     }
     if (isNaN(qtyVal) || qtyVal <= 0) {
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? 'Quantity is required. Enter a valid quantity of at least 1.'
+        : '数量为必填项。请输入至少为 1 的有效数量。');
       showToast(CURRENT_LANG === 'en' ? 'Please enter a valid transfer quantity.' : '请输入有效的转移数量。', 'error');
       return;
     }
     if (qtyVal > (parseInt(currentTransferItem.qty, 10) || 0)) {
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? 'Transfer quantity cannot exceed the available stock.'
+        : '转移数量不能超过可用库存。');
       showToast(CURRENT_LANG === 'en' ? 'Transfer quantity exceeds available stock.' : '转移数量超过现有库存。', 'error');
       return;
     }
 
     showToast(CURRENT_LANG === 'en' ? 'Transferring stock...' : '正在转移库存...');
 
+    clearTransferFormError();
     try {
       const res = await fetch('/api/products/transfer', {
         method: 'POST',
