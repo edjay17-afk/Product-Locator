@@ -121,7 +121,10 @@ async function receive(input, actor) {
   if (result) return result;
   requireInventorySchema('recording inventory');
   await ensureMemory();
-  const lot = { id: `lot-${memory.nextLot++}`, sku_key: key, barcode: args.p_barcode, stock_no: args.p_stock_no, product_name: args.p_product_name, lot_code: args.p_lot_code || `LOT-${Date.now()}`, package_type: args.p_package_type, received_qty: qty, received_at: new Date().toISOString(), created_by: args.p_actor_name };
+  if (args.p_source_reference && memory.lots.some(lot => lot.sku_key === key && lot.source_reference === args.p_source_reference)) {
+    throw new Error('This receiving reference has already been recorded for this product.');
+  }
+  const lot = { id: `lot-${memory.nextLot++}`, sku_key: key, barcode: args.p_barcode, stock_no: args.p_stock_no, product_name: args.p_product_name, lot_code: args.p_lot_code || `LOT-${Date.now()}`, package_type: args.p_package_type, received_qty: qty, source_reference: args.p_source_reference, received_at: new Date().toISOString(), created_by: args.p_actor_name };
   const balance = { id: memory.nextBalance++, sku_key: key, lot_id: lot.id, location_code: args.p_location_code, location_type: locationType(args.p_location_code, args.p_package_type), qty_on_hand: qty, qty_reserved: 0 };
   memory.lots.push(lot); memory.balances.push(balance);
   memory.movements.push({ id: memory.nextMovement++, sku_key: key, lot_id: lot.id, to_location_code: args.p_location_code, qty, movement_type: 'RECEIVE', actor_name: args.p_actor_name, created_at: new Date().toISOString() });
@@ -268,6 +271,9 @@ async function directDispatch(input, actor) {
   if (result) return result;
   requireInventorySchema('recording a direct delivery');
   await ensureMemory();
+  if (memory.movements.some(m => m.sku_key === key && m.reference_type === 'DIRECT_DELIVERY' && m.reference_id === reference)) {
+    throw new Error('This delivery reference has already been recorded for this product.');
+  }
   let remaining = qty;
   const receiving = memory.balances
     .filter(b => b.sku_key === key && b.location_type === 'RECEIVING')
@@ -374,9 +380,11 @@ async function adminOperations(limit = 100) {
     if (!movementsResult.error && !adjustmentsResult.error) {
       const movements = movementsResult.data || [];
       const adjustments = adjustmentsResult.data || [];
+      const daily = await rpc('inventory_daily_activity_summary', {}) || dailyActivity(movements);
       return {
         movements,
         adjustments,
+        daily,
         pendingAdjustments: adjustments.filter(item => item.status === 'PENDING'),
         directDeliveries: movements.filter(item => item.reference_type === 'DIRECT_DELIVERY'),
         receivingAlerts: movements.filter(item => item.movement_type === 'RECEIVE' && Date.now() - new Date(item.created_at).getTime() > 24 * 60 * 60 * 1000)
@@ -391,10 +399,37 @@ async function adminOperations(limit = 100) {
   return {
     movements,
     adjustments,
+    daily: dailyActivity(movements),
     pendingAdjustments: adjustments.filter(item => item.status === 'PENDING'),
     directDeliveries: movements.filter(item => item.reference_type === 'DIRECT_DELIVERY'),
     receivingAlerts: movements.filter(item => item.movement_type === 'RECEIVE' && Date.now() - new Date(item.created_at).getTime() > 24 * 60 * 60 * 1000)
   };
+}
+
+function dailyActivity(movements) {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const today = movements.filter(item => {
+    const time = new Date(item.created_at).getTime();
+    return Number.isFinite(time) && time >= startOfDay.getTime();
+  });
+  return {
+    total: today.length,
+    received: today.filter(item => item.movement_type === 'RECEIVE').reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+    delivered: today.filter(item => item.reference_type === 'DIRECT_DELIVERY' || item.movement_type === 'DISPATCH').reduce((sum, item) => sum + (Number(item.qty) || 0), 0),
+    adjustments: today.filter(item => item.movement_type === 'ADJUSTMENT').length
+  };
+}
+
+async function reconciliationExceptions(limit = 50) {
+  const safeLimit = Math.max(1, Math.min(200, Number.parseInt(limit, 10) || 50));
+  const client = db.getSupabaseClient();
+  if (client) {
+    const { data, error } = await client.rpc('inventory_reconciliation_exceptions', { p_limit: safeLimit });
+    if (!error) return data || [];
+    if (!/does not exist|not found|schema cache/i.test(error.message || '')) throw new Error(error.message);
+  }
+  return [];
 }
 
 async function migrateLegacy(actor) {
@@ -405,4 +440,4 @@ async function migrateLegacy(actor) {
   return { lotsCreated: memory.lots.length, balancesCreated: memory.balances.length, mode: 'memory' };
 }
 
-module.exports = { skuKey, receive, move, putaway, reserveOrder, orderAction, summary, quickAdjust, directDispatch, warehouseSummary, history, requestAdjustment, approveAdjustment, rejectAdjustment, adminOperations, migrateLegacy };
+module.exports = { skuKey, receive, move, putaway, reserveOrder, orderAction, summary, quickAdjust, directDispatch, warehouseSummary, history, requestAdjustment, approveAdjustment, rejectAdjustment, adminOperations, reconciliationExceptions, migrateLegacy };

@@ -173,9 +173,9 @@
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             <span data-i18n="saNavAddProduct">Add New Product</span>
           </button>
-          <button id="saNavAuditBtn" type="button" class="portal-nav-item">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg>
-            <span data-i18n="saNavAudit">Audit Shelf QR</span>
+          <button id="saNavSystemStockBtn" type="button" class="portal-nav-item">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h5M8 16h3"/></svg>
+            <span>System Stock Updates</span>
           </button>
           <button id="saNavOperationsBtn" type="button" class="portal-nav-item">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
@@ -300,14 +300,24 @@
         <div class="sa-operations-heading"><div><h2>Warehouse Operations</h2><p>Review issues, approve physical counts, check activity, and manage staff access.</p></div></div>
         <div id="saOperationsExceptions" class="sa-exception-grid"></div>
         <div class="sa-operations-grid">
+          <section class="sa-operations-card"><h3>Today’s warehouse summary</h3><div id="saDailySummary" class="sa-list-empty">Loading…</div></section>
+          <section class="sa-operations-card"><h3>Stock reconciliation</h3><div id="saReconciliationList" class="sa-list-empty">Loading…</div></section>
           <section class="sa-operations-card"><h3>Count approvals <span id="saPendingCountBadge" class="sa-count-badge">0</span></h3><div id="saPendingAdjustments" class="sa-list-empty">Loading…</div></section>
           <section class="sa-operations-card"><h3>Recent stock activity</h3><div id="saRecentMovements" class="sa-list-empty">Loading…</div></section>
         </div>
         <section class="sa-operations-card"><h3>Staff permissions</h3><p class="sa-card-note">Choose each staff member’s access level. Only Superadmin can change roles.</p><div id="saOperationsUsers" class="sa-list-empty">Loading…</div></section>
       </section>
       <section id="saNotificationsPanel" class="sa-notifications" style="display:none;">
-        <div class="sa-notifications-heading"><div><h2>Notifications</h2><p>Live record of product locations saved by warehouse staff.</p></div><button id="saClearNotificationsBtn" type="button" class="portal-btn-secondary">Clear all</button></div>
+        <div class="sa-notifications-heading"><div><h2>Notifications</h2><p>Live record of warehouse activity.</p></div><div class="sa-notification-actions"><select id="saNotificationFilter" class="sa-notification-filter" aria-label="Filter notifications"><option value="ALL">All activity</option><option value="PRODUCT">New products</option><option value="LOCATION">Locations</option><option value="QUANTITY">Quantity</option><option value="RECEIVING">Receiving</option><option value="BIG_ITEMS">Big Items</option><option value="DELIVERY">Deliveries</option></select><button id="saClearNotificationsBtn" type="button" class="portal-btn-secondary">Clear all</button></div></div>
         <div id="saNotificationsList" class="sa-notifications-list"></div>
+      </section>
+      <section id="saSystemStockPanel" class="sa-system-stock" style="display:none;">
+        <div class="sa-notifications-heading"><div><h2>System Stock Updates</h2><p>External system on-hand timestamps for each catalog product.</p></div></div>
+        <div class="portal-table-panel sa-system-stock-table">
+          <div class="portal-toolbar"><div class="portal-search-box"><svg class="portal-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="saSystemStockSearch" type="text" placeholder="Search product, barcode, or stock no..." autocomplete="off"></div></div>
+          <div class="portal-table-wrapper"><table class="portal-table"><thead><tr><th>Product</th><th>Barcode / Stock No.</th><th>Current On Hand</th><th>System Stock Updated At</th></tr></thead><tbody id="saSystemStockRows"><tr><td colspan="4">Loading…</td></tr></tbody></table></div>
+          <div id="saSystemStockPagination" class="portal-pagination"></div>
+        </div>
       </section>
 
       <div id="portalMasterTable" class="portal-table-panel">
