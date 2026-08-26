@@ -4353,7 +4353,7 @@ async function deleteLocationForProduct(item, parsedLoc) {
   }
 }
 
-// Wire up the close button for the locProductsModal and delete button in addStockModal
+// Wire up the close button for the location products modal
 document.addEventListener('DOMContentLoaded', () => {
   const closeLocProductsModalBtn = document.getElementById('closeLocProductsModal');
   if (closeLocProductsModalBtn) {
@@ -4362,17 +4362,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const deleteLocFromAddStockBtn = document.getElementById('deleteLocFromAddStockBtn');
-  if (deleteLocFromAddStockBtn) {
-    deleteLocFromAddStockBtn.addEventListener('click', () => {
-      const item = window.currentLocModalProduct || activeProduct;
-      if (item) {
-        deleteLocationForProduct(item, window.currentLocModalParsed);
-      } else {
-        showToast('No location selected to delete.', 'error');
-      }
-    });
-  }
 });
 
 async function handleLocationQRScan(code) {
@@ -4479,6 +4468,58 @@ window.openEditFormForProductIndex = function(index) {
   updateEditLocationSuggestions();
 };
 
+function confirmResultCardLocationDelete(productName, locDisplay) {
+  const overlay = document.getElementById('deleteLocationConfirmOverlay');
+  const title = document.getElementById('deleteLocationConfirmTitle');
+  const message = document.getElementById('deleteLocationConfirmMessage');
+  const details = document.getElementById('deleteLocationConfirmDetails');
+  const note = overlay?.querySelector('.delete-confirm-note');
+  const cancelBtn = document.getElementById('cancelDeleteLocationBtn');
+  const deleteBtn = document.getElementById('confirmDeleteLocationBtn');
+
+  if (!overlay || !title || !message || !details || !note || !cancelBtn || !deleteBtn) {
+    return Promise.resolve(false);
+  }
+
+  const isEn = CURRENT_LANG === 'en';
+  title.textContent = isEn ? 'Remove this location?' : '删除此库位？';
+  message.textContent = isEn
+    ? `You are about to remove the shelf location for “${productName}”.`
+    : `您即将删除“${productName}”的货架位置。`;
+  details.textContent = locDisplay;
+  note.textContent = isEn
+    ? 'The product will remain in the catalog. Only this shelf location will be removed.'
+    : '商品仍会保留在目录中，只会删除此货架位置。';
+  cancelBtn.textContent = isEn ? 'Cancel' : '取消';
+  deleteBtn.textContent = isEn ? 'Delete Location' : '删除库位';
+  overlay.classList.add('show');
+
+  return new Promise(resolve => {
+    const finish = confirmed => {
+      overlay.classList.remove('show');
+      cancelBtn.removeEventListener('click', cancel);
+      deleteBtn.removeEventListener('click', confirmDelete);
+      overlay.removeEventListener('click', clickOutside);
+      document.removeEventListener('keydown', keyHandler);
+      resolve(confirmed);
+    };
+    const cancel = () => finish(false);
+    const confirmDelete = () => finish(true);
+    const clickOutside = event => {
+      if (event.target === overlay) cancel();
+    };
+    const keyHandler = event => {
+      if (event.key === 'Escape') cancel();
+    };
+
+    cancelBtn.addEventListener('click', cancel);
+    deleteBtn.addEventListener('click', confirmDelete);
+    overlay.addEventListener('click', clickOutside);
+    document.addEventListener('keydown', keyHandler);
+    setTimeout(() => cancelBtn.focus(), 0);
+  });
+}
+
 window.deleteProductLocation = async function(index) {
   if (!window.currentLocs || !window.currentLocs[index]) return;
   const item = window.currentLocs[index];
@@ -4496,7 +4537,7 @@ window.deleteProductLocation = async function(index) {
     ? `Delete shelf location (${locDisplay}) for "${prodName}"?\n\nNOTE: The product itself will NOT be deleted and will remain in the catalog.`
     : `确认删除商品 "${prodName}" 的货架位置 (${locDisplay})？\n\n提示：此操作仅清除货位，商品仍将保留在库存目录中。`;
 
-  if (!confirm(confirmMsg)) return;
+  if (!await confirmResultCardLocationDelete(prodName, locDisplay)) return;
 
   // Resolve target product ID accurately
   let targetId = item.id;
@@ -5988,6 +6029,19 @@ const cartonAddNewBtn = document.getElementById('cartonAddNewBtn');
 const cartonManualLocBtn = document.getElementById('cartonManualLocBtn');
 const cartonManualBox = document.getElementById('cartonManualBox');
 const cartonSaveManualBtn = document.getElementById('cartonSaveManualBtn');
+const cartonFormError = document.getElementById('cartonFormError');
+
+function showCartonFormError(message) {
+  if (!cartonFormError) return;
+  cartonFormError.textContent = message;
+  cartonFormError.classList.add('show');
+}
+
+function clearCartonFormError() {
+  if (!cartonFormError) return;
+  cartonFormError.textContent = '';
+  cartonFormError.classList.remove('show');
+}
 
 let matchedCartonProduct = null;
 let cartonSearchRequestId = 0;
@@ -6001,6 +6055,7 @@ if (cartonPutawayBtn) {
     if (cartonMatchBox) cartonMatchBox.style.display = 'none';
     if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
     if (cartonManualBox) cartonManualBox.style.display = 'none';
+    clearCartonFormError();
     matchedCartonProduct = null;
     if (cartonOverlay) {
       cartonOverlay.classList.add('show');
@@ -6352,20 +6407,37 @@ if (cartonSaveLocationBtn) {
     }
 
     if (!p) {
-      showToast('Please search, select, or scan a valid product first.', 'error');
+      showCartonFormError(CURRENT_LANG === 'en'
+        ? 'Please search, select, or scan a valid product first.'
+        : '请先搜索、选择或扫描有效商品。');
       return;
     }
 
-    const floor = document.getElementById('cartonManualFloor')?.value || '1';
-    const row = pad2(document.getElementById('cartonManualRow')?.value || '');
-    const shelf = pad2(document.getElementById('cartonManualShelf')?.value || '');
-    const level = pad2(document.getElementById('cartonManualLevel')?.value || '00');
-    const putawayQty = parseInt(document.getElementById('cartonQtyInput')?.value, 10) || 0;
+    const floorRaw = document.getElementById('cartonManualFloor')?.value.trim() || '';
+    const rowRaw = document.getElementById('cartonManualRow')?.value.trim() || '';
+    const shelfRaw = document.getElementById('cartonManualShelf')?.value.trim() || '';
+    const levelRaw = document.getElementById('cartonManualLevel')?.value.trim() || '';
+    const qtyRaw = document.getElementById('cartonQtyInput')?.value.trim() || '';
+    const putawayQty = Number(qtyRaw);
 
-    if (!row || !shelf) {
-      showToast('Please enter or scan Row and Shelf numbers.', 'error');
+    if (!floorRaw || !rowRaw || !shelfRaw || !levelRaw || !qtyRaw) {
+      showCartonFormError(CURRENT_LANG === 'en'
+        ? 'Floor, Row, Shelf, Level, and Quantity are required.'
+        : '楼层、排号、货架号、层数和数量均为必填项。');
       return;
     }
+    if (!Number.isInteger(putawayQty) || putawayQty < 1) {
+      showCartonFormError(CURRENT_LANG === 'en'
+        ? 'Quantity must be a whole number of at least 1.'
+        : '数量必须是至少为 1 的整数。');
+      return;
+    }
+    clearCartonFormError();
+
+    const floor = floorRaw;
+    const row = pad2(rowRaw);
+    const shelf = pad2(shelfRaw);
+    const level = pad2(levelRaw);
 
     const loc = `${floor}-${row}-${shelf}-${level}`;
     const floorLabel = floor === '1' ? 'First Floor' : (floor === '2' ? 'Second Floor' : 'Third Floor');
@@ -6526,6 +6598,13 @@ if (cartonSaveLocationBtn) {
     }
   });
 }
+
+['cartonManualFloor', 'cartonManualRow', 'cartonManualShelf', 'cartonManualLevel', 'cartonQtyInput'].forEach(id => {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.addEventListener('input', clearCartonFormError);
+  input.addEventListener('change', clearCartonFormError);
+});
 
 if (cartonAddNewBtn) {
   cartonAddNewBtn.addEventListener('click', () => {
