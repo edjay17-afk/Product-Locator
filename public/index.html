@@ -91,16 +91,16 @@
   </div>
   <span id="pQty" hidden></span>
   <div id="inventorySummaryCard" class="inventory-summary-card" style="display:none;">
-    <div class="inventory-summary-heading"><span>Inventory control</span></div>
+    <div class="inventory-summary-heading"><span data-i18n="inventoryControl">Inventory control</span></div>
     <div class="inventory-summary-grid">
-      <div class="inventory-summary-cell is-editable" data-inventory-edit="ON_HAND" role="button" tabindex="0" title="Click to correct on-hand quantity"><span>On hand</span><strong id="inventoryOnHand">—</strong></div>
-      <div class="inventory-summary-cell is-derived" data-inventory-derived="AVAILABLE" role="button" tabindex="0" title="Available is calculated from on hand minus reservations"><span>Available</span><strong id="inventoryAvailable">—</strong><em>Calculated</em></div>
-      <div class="inventory-summary-cell is-derived" data-inventory-derived="RESERVED" role="button" tabindex="0" title="Reserved quantity comes from orders"><span>Reserved</span><strong id="inventoryReserved">—</strong><em>Calculated</em></div>
-      <div class="inventory-summary-cell is-editable" data-inventory-edit="RECEIVING" role="button" tabindex="0" title="Click to correct receiving quantity"><span>Receiving</span><strong id="inventoryReceiving">—</strong></div>
-      <div class="inventory-summary-cell is-editable" data-inventory-edit="BULK" role="button" tabindex="0" title="Click to correct bulk quantity"><span>Bulk / carton</span><strong id="inventoryBulk">—</strong></div>
-      <div class="inventory-summary-cell is-editable" data-inventory-edit="SHELF" role="button" tabindex="0" title="Click to correct shelf quantity"><span>Shelf</span><strong id="inventoryShelf">—</strong></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="ON_HAND" role="button" tabindex="0" title="Click to correct on-hand quantity"><span data-i18n="onHand">On hand</span><strong id="inventoryOnHand">—</strong></div>
+      <div class="inventory-summary-cell is-derived" data-inventory-derived="AVAILABLE" role="button" tabindex="0" title="Available is calculated from on hand minus reservations"><span data-i18n="inventoryAvailable">Available</span><strong id="inventoryAvailable">—</strong><em data-i18n="inventoryCalculated">Calculated</em></div>
+      <div class="inventory-summary-cell is-derived" data-inventory-derived="RESERVED" role="button" tabindex="0" title="Reserved quantity comes from orders"><span data-i18n="inventoryReserved">Reserved</span><strong id="inventoryReserved">—</strong><em data-i18n="inventoryCalculated">Calculated</em></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="RECEIVING" role="button" tabindex="0" title="Click to correct receiving quantity"><span data-i18n="inventoryReceiving">Receiving</span><strong id="inventoryReceiving">—</strong></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="BULK" role="button" tabindex="0" title="Click to correct bulk quantity"><span data-i18n="inventoryBulkCarton">Bulk / carton</span><strong id="inventoryBulk">—</strong></div>
+      <div class="inventory-summary-cell is-editable" data-inventory-edit="SHELF" role="button" tabindex="0" title="Click to correct shelf quantity"><span data-i18n="inventoryShelf">Shelf</span><strong id="inventoryShelf">—</strong></div>
     </div>
-    <button id="inventoryDirectDeliveryBtn" class="inventory-direct-delivery" type="button">Direct Delivery</button>
+    <button id="inventoryDirectDeliveryBtn" class="inventory-direct-delivery" type="button" data-i18n="inventoryDirectDelivery">Direct Delivery</button>
   </div>
   <div class="card-actions" id="cardActions" style="display:none;">
     <button id="editProductBtn" class="card-action-btn" type="button">
@@ -529,25 +529,25 @@
         </button>
       </div>
       <div class="loc-grid">
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
-          <select id="efFloor">
+          <select id="efFloor" required>
             <option value="1" data-i18n="floor1">1st Floor</option>
             <option value="2" data-i18n="floor2">2nd Floor</option>
             <option value="3" data-i18n="floor3">3rd Floor</option>
           </select>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
-          <input id="efRow" type="text" inputmode="numeric" autocomplete="off">
+          <input id="efRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
-          <input id="efShelf" type="text" inputmode="numeric" autocomplete="off">
+          <input id="efShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
-        <div>
+        <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
-          <input id="efLevel" type="text" inputmode="numeric" autocomplete="off">
+          <input id="efLevel" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
       </div>
       <div id="editLocSuggestions" style="margin-top: 10px; display: none;">
@@ -557,17 +557,17 @@
       </div>
     </div>
 
-    <div class="field">
-      <label data-i18n="qtyLabel">Legacy location quantity (read-only)</label>
-      <input id="efQty" type="number" inputmode="numeric" autocomplete="off" readonly title="Use Receive Stock or an approved adjustment to change quantity">
+    <div class="field field-required">
+      <label data-i18n="qtyLabel">How many are on hand?</label>
+      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
     </div>
 
-    <div class="field">
+    <div class="field field-required">
       <label data-i18n="stockmanLabel">Responsible Stockman</label>
-      <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz">
+      <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz" required>
     </div>
 
-    <div id="editFormError" class="form-error" data-i18n="formError">Please fill in Product Name, Stock Code, Row, Shelf, and On Hand Quantity.</div>
+    <div id="editFormError" class="form-error" data-i18n="editFormErrorRequired">Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, On Hand Quantity, and Responsible Stockman.</div>
 
     <div class="form-actions">
       <button id="cancelEditBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
@@ -638,10 +638,10 @@
     </div>
     <div class="loc-grid">
       <div class="field"><label for="inventoryQuickAdjustBucket">Balance to edit</label><select id="inventoryQuickAdjustBucket"><option value="ON_HAND">On hand</option><option value="RECEIVING">Receiving</option><option value="BULK">Bulk / carton</option><option value="SHELF">Shelf</option></select></div>
-      <div class="field"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="0" step="1" inputmode="numeric"></div>
+      <div class="field field-required"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="1" step="1" inputmode="numeric" required></div>
     </div>
-    <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock"></div>
-    <div id="inventoryQuickAdjustError" class="form-error"></div>
+    <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock" required></div>
+    <div id="inventoryQuickAdjustError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
     <div class="form-actions"><button id="inventoryQuickAdjustCancel" type="button" class="btn-cancel">Cancel</button><button id="inventoryQuickAdjustSave" type="button" class="btn-save">Save Count</button></div>
   </div>
 </div>
@@ -669,9 +669,9 @@
         <label style="font-size: 12px;" data-i18n="addStockCurrent">Current Stock</label>
         <input id="addStockCurrentDisplay" type="text" readonly style="background: #f1f5f9; color: var(--ink); font-weight: 700; text-align: center; font-size: 16px;">
       </div>
-      <div class="field" style="margin: 0;">
+      <div class="field field-required" style="margin: 0;">
         <label style="font-size: 12px; color: #0284c7; font-weight: 700;" data-i18n="addStockNew">+ Add New Qty</label>
-        <input id="addStockNewInput" type="number" inputmode="numeric" placeholder="e.g. 5" style="border-color: #38bdf8; font-weight: 700; text-align: center; font-size: 16px; background: #f0f9ff;">
+        <input id="addStockNewInput" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 5" style="border-color: #38bdf8; font-weight: 700; text-align: center; font-size: 16px; background: #f0f9ff;" required>
       </div>
     </div>
 
@@ -680,14 +680,15 @@
       <span id="addStockMathPreview" style="font-weight: 700; color: #15803d;">10 (Existing) + 0 (New) = 10 Total Units</span>
     </div>
 
-    <div class="field" style="margin-bottom: 16px;">
+    <div class="field field-required" style="margin-bottom: 16px;">
       <label style="font-size: 12px;" data-i18n="stockmanLabel">Responsible Stockman</label>
-      <input id="addStockmanInput" type="text" placeholder="Stockman Name">
+      <input id="addStockmanInput" type="text" placeholder="Stockman Name" required>
     </div>
+
+    <div id="addStockFormError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
 
     <div class="form-actions" style="margin-top: 14px; display: flex; gap: 8px;">
       <button id="cancelAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 10px; flex: 1;" data-i18n="cancel">Cancel</button>
-      <button id="deleteLocFromAddStockBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 10px; flex: 1; background: #fef2f2; color: #dc2626; border-color: #fecaca; font-weight: 700;">🗑️ Delete</button>
       <button id="confirmAddStockBtn" type="button" class="btn-save" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 12px; flex: 1.3;"><span id="confirmAddStockBtnText">Save Quantity</span></button>
     </div>
 
@@ -770,11 +771,11 @@
     <!-- 1. Scanner & Search Controls Row -->
     <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
       <!-- Product Search & Barcode Scan Row -->
-      <div style="position: relative;">
+      <div class="field-required" style="position: relative;">
         <label style="font-size: 12px; font-weight: 700; color: var(--ink); margin-bottom: 6px; display: block; font-family: 'Poppins', sans-serif;" data-i18n="rapidBarcodeLabel">1. Scan / Search Product</label>
         <div class="scanner-search-row">
           <div class="scanner-input-wrapper">
-            <input id="rapidProductSearchInput" type="text" autocomplete="off" placeholder="Search product name, code, barcode..." data-i18n-placeholder="rapidSearchPlaceholder" class="scanner-search-input">
+            <input id="rapidProductSearchInput" type="text" autocomplete="off" placeholder="Search product name, code, barcode..." data-i18n-placeholder="rapidSearchPlaceholder" class="scanner-search-input" required>
             <button id="rapidClearSearchBtn" type="button" class="scanner-clear-btn" title="Clear">&times;</button>
           </div>
           <button id="scanForRapidBarcodeBtn" type="button" class="scanner-scan-btn">
@@ -804,6 +805,36 @@
       </div>
     </div>
 
+    <div class="field field-required">
+      <label>Location &amp; quantity</label>
+      <div class="loc-grid">
+        <div class="location-field-required">
+          <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
+          <select id="rfFloor" required>
+            <option value="1" data-i18n="floor1">1st Floor</option>
+            <option value="2" data-i18n="floor2">2nd Floor</option>
+            <option value="3" data-i18n="floor3">3rd Floor</option>
+          </select>
+        </div>
+        <div class="location-field-required">
+          <div class="hint" style="margin-bottom:4px;" data-i18n="rowLabel">Row number</div>
+          <input id="rfRow" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
+        </div>
+        <div class="location-field-required">
+          <div class="hint" style="margin-bottom:4px;" data-i18n="shelfLabel">Shelf number</div>
+          <input id="rfShelf" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
+        </div>
+        <div class="location-field-required">
+          <div class="hint" style="margin-bottom:4px;" data-i18n="levelLabel">Level</div>
+          <input id="rfLevel" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off" required>
+        </div>
+      </div>
+      <div class="location-field-required" style="margin-top:10px;">
+        <div class="hint" style="margin-bottom:4px;" data-i18n="rapidQtyLabel">Quantity</div>
+        <input id="rfQty" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" required>
+      </div>
+    </div>
+
     <!-- 2. Dynamic New Product Fields Group (Hidden by default) -->
     <div id="rapidNewProductFields" style="display: none; border: 1px dashed var(--line); padding: 14px; border-radius: 8px; margin-bottom: 20px; background: #faf5ff;">
       <div style="font-family: 'Poppins', sans-serif; font-size: 11px; font-weight: 700; color: #7c3aed; margin-bottom: 12px;" data-i18n="newProductFieldsTitle">🆕 NEW PRODUCT DETAILS</div>
@@ -829,7 +860,7 @@
       </div>
     </div>
 
-    <div id="rapidFormError" class="form-error" style="margin-bottom:16px;" data-i18n="formError">Please fill in all fields.</div>
+    <div id="rapidFormError" class="form-error inline-card-error" style="margin-bottom:16px;" role="alert" aria-live="polite">Please fill in all required fields.</div>
 
     <div class="form-actions" style="margin-bottom: 16px;">
       <button id="closeRapidBtn" class="btn-cancel" type="button" data-i18n="cancel" style="height: 44px;">Cancel</button>
@@ -1009,21 +1040,46 @@
       </div>
     </div>
 
-    <!-- Destination Location Input -->
+    <!-- Guided destination location inputs -->
     <div class="field">
-      <label>Target Destination Location</label>
-      <div class="hint">Scan destination QR code or type coordinates (e.g. 1-05-02-01)</div>
-      <div class="field-scan-row">
-        <input id="transferDestLocInput" type="text" placeholder="e.g. 1-05-02-01" autocomplete="off" style="font-family: monospace; font-size: 15px;">
-        <button id="scanDestLocBtn" type="button" style="background: #7c3aed; padding: 0 14px;">Scan QR</button>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:6px;">
+        <label style="margin:0;">Target Destination Location</label>
+        <button id="scanDestLocBtn" type="button" style="background:#7c3aed; color:#ffffff; padding:7px 12px; min-height:34px; border-radius:8px;">Scan QR</button>
       </div>
+      <div class="hint">Choose each part of the shelf location. Scanning a location QR will fill these fields automatically.</div>
+      <div class="transfer-location-grid">
+        <label class="transfer-location-field is-required">
+          <span>Floor</span>
+          <select id="transferDestFloor" aria-label="Destination floor" required>
+            <option value="">Select</option>
+            <option value="1">Floor 1</option>
+            <option value="2">Floor 2</option>
+            <option value="3">Floor 3</option>
+          </select>
+        </label>
+        <label class="transfer-location-field is-required">
+          <span>Row number</span>
+          <input id="transferDestRow" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="05" aria-label="Destination row number" required>
+        </label>
+        <label class="transfer-location-field is-required">
+          <span>Shelf number</span>
+          <input id="transferDestShelf" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="02" aria-label="Destination shelf number" required>
+        </label>
+        <label class="transfer-location-field is-required">
+          <span>Level</span>
+          <input id="transferDestLevel" type="number" min="0" max="99" step="1" inputmode="numeric" placeholder="01" aria-label="Destination level number" required>
+        </label>
+      </div>
+      <div class="transfer-location-preview">Destination code: <strong id="transferDestPreview">—</strong></div>
     </div>
 
     <!-- Quantity to Transfer -->
-    <div class="field">
+    <div class="field field-required">
       <label>Quantity to Transfer</label>
-      <input id="transferQtyInput" type="number" min="1" placeholder="Enter quantity" autocomplete="off">
+      <input id="transferQtyInput" type="number" min="1" step="1" placeholder="Enter quantity" autocomplete="off" required>
     </div>
+
+    <div id="transferFormError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
 
     <div class="form-actions" style="margin-top: 18px;">
       <button id="cancelTransferBtn" type="button" class="btn-cancel" style="height: 40px; min-height: 40px; font-size: 13px; border-radius: 9px; padding: 0 14px; flex: 1;">Cancel</button>
@@ -1083,34 +1139,36 @@
           <button id="cartonScanLocBtn" data-i18n="cartonScanQR" type="button" class="carton-scan-btn">&#128247; Scan QR</button>
         </div>
         <div class="carton-loc-grid">
-          <div class="carton-loc-field">
+          <div class="carton-loc-field field-required">
             <label>Floor</label>
-            <select id="cartonManualFloor">
+            <select id="cartonManualFloor" required>
               <option value="1">1F</option>
               <option value="2">2F</option>
               <option value="3">3F</option>
             </select>
           </div>
-          <div class="carton-loc-field">
+          <div class="carton-loc-field field-required">
             <label>Row</label>
-            <input id="cartonManualRow" type="text" placeholder="01">
+            <input id="cartonManualRow" type="text" placeholder="01" required>
           </div>
-          <div class="carton-loc-field">
+          <div class="carton-loc-field field-required">
             <label>Shelf</label>
-            <input id="cartonManualShelf" type="text" placeholder="01">
+            <input id="cartonManualShelf" type="text" placeholder="01" required>
           </div>
-          <div class="carton-loc-field">
+          <div class="carton-loc-field field-required">
             <label>Level</label>
-            <input id="cartonManualLevel" type="text" placeholder="00" value="00">
+            <input id="cartonManualLevel" type="text" placeholder="00" value="00" required>
           </div>
         </div>
       </div>
 
       <!-- Step 3: Quantity -->
-      <div class="carton-section">
+      <div class="carton-section field-required">
         <label data-i18n="cartonStep3" class="carton-step-label">Step 3: Quantity</label>
-        <input id="cartonQtyInput" type="number" min="0" placeholder="Number of units (e.g. 24)" class="carton-input">
+        <input id="cartonQtyInput" type="number" min="1" step="1" placeholder="Number of units (e.g. 24)" class="carton-input" required>
       </div>
+
+      <div id="cartonFormError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
 
       <!-- Save -->
       <button id="cartonSaveLocationBtn" data-i18n="cartonSaveBtn" type="button" class="carton-save-btn">
@@ -1258,6 +1316,21 @@
 
     <div class="form-actions">
       <button id="cancelRouteBtn" type="button" class="btn-cancel" style="height:38px; min-height:38px; font-size:13px; border-radius:9px;">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE LOCATION CONFIRMATION -->
+<div id="deleteLocationConfirmOverlay" class="modal-overlay delete-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="deleteLocationConfirmTitle" aria-describedby="deleteLocationConfirmMessage">
+  <div class="delete-confirm-card">
+    <div class="delete-confirm-icon" aria-hidden="true">!</div>
+    <h2 id="deleteLocationConfirmTitle">Remove this location?</h2>
+    <p id="deleteLocationConfirmMessage"></p>
+    <div id="deleteLocationConfirmDetails" class="delete-confirm-details"></div>
+    <div class="delete-confirm-note">The product will remain in the catalog. Only this shelf location will be removed.</div>
+    <div class="delete-confirm-actions">
+      <button id="cancelDeleteLocationBtn" type="button" class="delete-confirm-cancel">Cancel</button>
+      <button id="confirmDeleteLocationBtn" type="button" class="delete-confirm-delete">Delete Location</button>
     </div>
   </div>
 </div>

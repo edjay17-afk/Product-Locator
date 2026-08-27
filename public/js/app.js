@@ -58,10 +58,19 @@ const TRANSLATIONS = {
     qtyLabel: "How many are on hand?",
     stockmanLabel: "Responsible Stockman",
     formError: "Please fill in Product Name, Row, Shelf, and On Hand Quantity.",
+    editFormErrorRequired: "Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, On Hand Quantity, and Responsible Stockman.",
     detailsTitle: "Product Details & Location",
     detailsSub: "View details or update shelf position for this item in the database.",
     barcode: "Barcode",
     onHand: "On hand",
+    inventoryControl: "Inventory control",
+    inventoryAvailable: "Available",
+    inventoryReserved: "Reserved",
+    inventoryReceiving: "Receiving",
+    inventoryBulkCarton: "Bulk / carton",
+    inventoryShelf: "Shelf",
+    inventoryCalculated: "Calculated",
+    inventoryDirectDelivery: "Direct Delivery",
     editLocDetails: "Edit Location / Details",
     scanNewLoc: "Scan QR for New Location",
     rapidTitle: "Rapid Location Logger",
@@ -69,7 +78,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. Scan / Search Product",
     rapidSearchPlaceholder: "Search product name, code, barcode...",
     rapidLocLabel: "2. Scan Location QR",
-    rapidQtyLabel: "3. Quantity On Hand",
+    rapidQtyLabel: "Quantity",
     rapidSubmit: "Add & Next",
     rapidSuccessLog: "Last Registered Items (This Session)",
     rapidLocError: "Invalid location format. Expected format like '1-02-01-03'.",
@@ -223,10 +232,19 @@ const TRANSLATIONS = {
     qtyLabel: "现有库存数量",
     stockmanLabel: "负责理货员",
     formError: "请填写商品名称、通道号、货架号和现有库存数。",
+    editFormErrorRequired: "请填写商品名称、货号、楼层、排号、货架号、层数、现有库存数量和负责理货员。",
     detailsTitle: "商品详情与库位",
     detailsSub: "在数据库中查看详情或更新商品货架位置。",
     barcode: "条形码",
     onHand: "现有库存",
+    inventoryControl: "库存控制",
+    inventoryAvailable: "可用库存",
+    inventoryReserved: "已预留",
+    inventoryReceiving: "收货区",
+    inventoryBulkCarton: "散装 / 整箱",
+    inventoryShelf: "货架",
+    inventoryCalculated: "系统计算",
+    inventoryDirectDelivery: "直接配送",
     editLocDetails: "编辑库位 / 详情",
     scanNewLoc: "扫描二维码添加新位置",
     rapidTitle: "快速位置登记",
@@ -234,7 +252,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. 搜索或扫描商品",
     rapidSearchPlaceholder: "搜索商品名称、货号或条形码...",
     rapidLocLabel: "2. 扫描库位二维码",
-    rapidQtyLabel: "3. 现有库存数量",
+    rapidQtyLabel: "数量",
     rapidSubmit: "添加 & 下一个",
     rapidSuccessLog: "本次登记记录（最近5条）",
     rapidLocError: "库位格式错误。应为 '楼层-排号-货架号-层数' 格式（如 1-02-01-03）。",
@@ -264,11 +282,11 @@ const TRANSLATIONS = {
     cardShelf: "货架号",
     cardLevel: "层数",
     cardStockman: "负责理货员",
-    cardLocationQty: "库位数量",
-    cardTransferBtn: "移库",
-    cardAddStockBtn: "加库存",
-    cardEditBtn: "编辑",
-    cardDeleteLoc: "删除位置",
+    cardLocationQty: "库位库存",
+    cardTransferBtn: "转移库存",
+    cardAddStockBtn: "添加库存",
+    cardEditBtn: "编辑商品",
+    cardDeleteLoc: "删除库位",
     quickSearchBoard: "查询看板 QR",
     qrBoardTitle: "自助查询引导看板",
     qrBoardSub: "打印此看板并贴在仓库墙壁或通道门上。理货员或客户只需用手机扫描即可免登录自助查询商品货位。",
@@ -1019,7 +1037,8 @@ function renderProductLocationsUI(p, locs) {
   // the card anyway is what made it look like it was "loading" twice.
   const renderSig =
     (p.barcode || p.b || '') + '#' + (p.stock_no || p.stock_code || p.s || '') + '#' +
-    (p.product_name || p.name || p.n || '') + '#' +
+    (p.product_name || p.name || p.n || '') + '#' + (p.category || p.c || '') + '#' +
+    (p.department || p.subcategory || p.sc || '') + '#' + (p.last_modified_by || p.modifiedBy || '') + '#' +
     (currentUser ? currentUser.username : 'guest') + '#' + CURRENT_LANG + '#' +
     expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || ''].join('|')).join(';');
   if (renderSig === lastLocsRenderSig) return;
@@ -1084,6 +1103,7 @@ function renderProductLocationsUI(p, locs) {
         stock_no: item.stock_no || p.stock_no || item.stock_code || p.stock_code || p.s || '',
         product_name: item.product_name || p.product_name || item.name || p.name || p.n || 'Unnamed item',
         category: item.category || p.category || p.c || '—',
+        department: item.department || p.department || item.subcategory || p.subcategory || p.sc || '—',
         subcategory: item.department || p.department || item.subcategory || p.subcategory || p.sc || '',
         floor,
         row,
@@ -1096,7 +1116,10 @@ function renderProductLocationsUI(p, locs) {
         location_storage: item.location_storage || item.storage_location || p.location_storage || p.storage_location || locText || '',
         storage_location: item.storage_location || item.location_storage || p.storage_location || p.location_storage || locText || '',
         status: item.status || (hasLoc ? 'MAPPED' : 'UNMAPPED'),
-        last_modified_by: (item.last_modified_by && item.last_modified_by !== 'System Import') ? item.last_modified_by : '',
+        last_modified_by: ((item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) &&
+          (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) !== 'System Import')
+          ? (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy)
+          : '—',
         custom: item.custom || p.custom
       });
     }
@@ -1111,6 +1134,7 @@ function renderProductLocationsUI(p, locs) {
   locationsList.innerHTML = '';
 
   finalLocs.forEach((item, index) => {
+    const cardTranslations = TRANSLATIONS[CURRENT_LANG] || TRANSLATIONS.en;
     const floor = item.floor;
     const row = item.row;
     const shelf = item.shelf;
@@ -1120,6 +1144,9 @@ function renderProductLocationsUI(p, locs) {
     const st = statusInfo(item.status);
     const qtyVal = item.qty;
     const barcodeVal = item.barcode || p.barcode || p.b || '—';
+    const categoryVal = item.category || p.category || p.c || '—';
+    const departmentVal = item.department || item.subcategory || p.department || p.subcategory || p.sc || '—';
+    const stockmanVal = item.last_modified_by || p.last_modified_by || p.modifiedBy || '—';
 
     const isCartonLocation = Boolean(
       item.is_carton ||
@@ -1140,46 +1167,41 @@ function renderProductLocationsUI(p, locs) {
 
     const statusBadgeHtml = `<span class="badge ${st.cls}" style="font-size:10px; font-weight:700; padding:2.5px 7px; border-radius:6px; line-height:normal; display:inline-flex; align-items:center; letter-spacing:0.02em; white-space:nowrap; flex-shrink:0;">${st.label}</span>`;
 
-    const deptBadgeHtml = item.department 
-      ? `<span class="dept-badge" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2.5px 8px; border-radius:20px; font-size:10.5px; font-weight:700; font-family:var(--display); white-space:nowrap; flex-shrink:0;">${escapeHtml(item.department)}</span>` 
-      : '';
-
     const cardEl = document.createElement('div');
     cardEl.className = 'tagcard';
     cardEl.style.marginBottom = '16px';
-    cardEl.style.cursor = 'pointer';
-    cardEl.onclick = () => openAddQtyForLocation(index);
 
     cardEl.innerHTML = `
-      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+      <div class="tagcard-top" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
         <div style="flex:1; min-width:0; padding-right:4px;">
           <p class="pname" style="margin:0 0 4px 0; font-size:16px; font-weight:700; line-height:1.25;">${escapeHtml(item.product_name)}</p>
-          <div class="pmeta">
-            <span>${escapeHtml(item.category)}</span>
-          </div>
         </div>
-        <div class="tagcard-badges-group" style="display:flex; align-items:center; gap:5px; flex-shrink:0; flex-wrap:nowrap;">
+        <div class="tagcard-badges-group" style="display:flex; align-items:center; gap:5px; flex-shrink:0; flex-wrap:wrap;">
           ${cartonBadgeHtml}
           ${statusBadgeHtml}
-          ${deptBadgeHtml}
         </div>
       </div>
+      <div class="result-card-metadata">
+        <div><span>Category</span><strong>${escapeHtml(categoryVal)}</strong></div>
+        <div><span>Department</span><strong>${escapeHtml(departmentVal)}</strong></div>
+        <div class="result-card-stockman"><span>Responsible Stockman</span><strong>${escapeHtml(stockmanVal)}</strong></div>
+      </div>
       <div class="grid4">
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardRow}</div><div class="cval">${hasLoc ? row : '–'}</div></div>
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardShelf}</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
-        <div class="cell"><div class="clabel">${TRANSLATIONS[CURRENT_LANG].cardLevel}</div><div class="cval">${hasLoc ? level : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardRow}</div><div class="cval">${hasLoc ? row : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardShelf}</div><div class="cval">${hasLoc ? shelf : '–'}</div></div>
+        <div class="cell"><div class="clabel">${cardTranslations.cardLevel}</div><div class="cval">${hasLoc ? level : '–'}</div></div>
       </div>
       <div class="tagcard-bottom">
         <div class="tagcard-bottom-info">
-          <div>Barcode: <strong style="font-weight: 600;">${escapeHtml(barcodeVal)}</strong></div>
-          <div style="opacity: 0.9; font-size: 11px;">${TRANSLATIONS[CURRENT_LANG].cardLocationQty}: <strong>${qtyVal}</strong></div>
+          <div class="result-card-barcode">Barcode: <strong>${escapeHtml(barcodeVal)}</strong></div>
+          <div class="location-qty-highlight"><span>Location Qty</span><strong>${qtyVal}</strong></div>
         </div>
         <div class="tagcard-bottom-actions">
-          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer Stock to Another Shelf">${TRANSLATIONS[CURRENT_LANG].cardTransferBtn || 'Transfer'}</button>` : ''}
-          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">${TRANSLATIONS[CURRENT_LANG].cardAddStockBtn || 'Add Stock'}</button>
-          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit Details">${TRANSLATIONS[CURRENT_LANG].cardEditBtn || 'Edit'}</button>
-          ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">${TRANSLATIONS[CURRENT_LANG].cardDeleteLoc || 'Delete'}</button>` : ''}
+          ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer stock to another shelf">Transfer</button>` : ''}
+          <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">Add Stock</button>
+          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit product details">Edit</button>
+          ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">Delete</button>` : ''}
         </div>
       </div>
     `;
@@ -1423,8 +1445,9 @@ function openInventoryQuickAdjust(bucket) {
   document.getElementById('inventoryQuickAdjustProductName').textContent = name;
   document.getElementById('inventoryQuickAdjustMeta').textContent = `Barcode: ${barcode} | Stock No: ${stock}`;
   inventoryQuickAdjustBucket.value = bucket;
-  inventoryQuickAdjustQty.value = inventorySummaryValue(bucket);
+  inventoryQuickAdjustQty.value = String(inventorySummaryValue(bucket));
   inventoryQuickAdjustReason.value = 'Physical count correction';
+  inventoryQuickAdjustError.textContent = '';
   inventoryQuickAdjustError.classList.remove('show');
   inventoryQuickAdjustOverlay.classList.add('show');
   setTimeout(() => inventoryQuickAdjustQty.focus(), 80);
@@ -1479,15 +1502,20 @@ if (inventorySummaryCard) {
 if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
 if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click', async () => {
   const product = currentInventorySummaryProduct;
-  const targetQty = Number.parseInt(inventoryQuickAdjustQty.value, 10);
+  const qtyRaw = inventoryQuickAdjustQty.value.trim();
+  const targetQty = Number(qtyRaw);
   const reason = inventoryQuickAdjustReason.value.trim();
-  if (!product || !Number.isInteger(targetQty) || targetQty < 0) {
-    inventoryQuickAdjustError.textContent = 'Enter a whole number that is zero or greater.';
+  if (!product || !qtyRaw || !Number.isInteger(targetQty) || targetQty < 1) {
+    inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
+      ? 'New Quantity is required. Enter a whole number of at least 1.'
+      : '新数量为必填项。请输入至少为 1 的整数。';
     inventoryQuickAdjustError.classList.add('show');
     return;
   }
   if (!reason) {
-    inventoryQuickAdjustError.textContent = 'Enter a reason for the count correction.';
+    inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
+      ? 'Reason is required. Enter a reason for the count correction.'
+      : '原因为必填项。请输入盘点更正原因。';
     inventoryQuickAdjustError.classList.add('show');
     return;
   }
@@ -1541,6 +1569,13 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
   } finally {
     inventoryQuickAdjustSave.disabled = false;
   }
+});
+
+[inventoryQuickAdjustQty, inventoryQuickAdjustReason].forEach(field => {
+  field?.addEventListener('input', () => {
+    inventoryQuickAdjustError.textContent = '';
+    inventoryQuickAdjustError.classList.remove('show');
+  });
 });
 
 if (inventoryDirectDeliveryBtn) inventoryDirectDeliveryBtn.addEventListener('click', openInventoryDirectDelivery);
@@ -1887,23 +1922,15 @@ async function promptOnlyWhenSearchIsMissing(query) {
   }
 }
 
-// Final scan / Enter resolution: a product with no mapped location jumps
-// straight into the Add Product modal (pre-filled) so it can be mapped;
-// a product that already has a location shows the location card as usual.
+// Final scan / Enter resolution displays the result card. Editing remains an
+// explicit action from the card's Edit button.
 function renderOrPromptLocation(p, code) {
   if (!p) return;
   const allLocs = getLocationsForProduct(p);
   const mappedLoc = allLocs.find(l => (l.floor && String(l.floor).trim() !== '') || (l.row && String(l.row).trim() !== '') || (l.shelf && String(l.shelf).trim() !== '') || (l.loc && String(l.loc).trim() !== ''));
   const itemToDisplay = mappedLoc || p;
-  const hasLoc = productHasAnyLocation(itemToDisplay);
-
   renderProduct(itemToDisplay);
-  if (!hasLoc) {
-    activeProduct = itemToDisplay;
-    openEditForm();
-  } else {
-    closeEditForm();
-  }
+  closeEditForm();
 }
 
 async function doSearch(q, isFinal = false) {
@@ -2149,7 +2176,6 @@ function renderMatches(matches) {
       const row = itemToDisplay.batch !== undefined && itemToDisplay.batch !== null ? String(itemToDisplay.batch).trim() : (itemToDisplay.row !== undefined && itemToDisplay.row !== null ? String(itemToDisplay.row).trim() : (itemToDisplay.row || '').trim());
       const shelf = itemToDisplay.shelf !== undefined && itemToDisplay.shelf !== null ? String(itemToDisplay.shelf).trim() : '';
       const level = itemToDisplay.level !== undefined && itemToDisplay.level !== null ? String(itemToDisplay.level).trim() : '';
-      const hasLoc = productHasAnyLocation(itemToDisplay);
       const loc = (floor !== '' && row !== '' && shelf !== '') ? `${floor}-${row}-${shelf}-${level || '00'}` : (itemToDisplay.loc || '—');
 
       rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
@@ -2161,12 +2187,7 @@ function renderMatches(matches) {
         if (clearBtn) clearBtn.style.display = 'none';
         hideResults();
 
-        if (!hasLoc) {
-          activeProduct = itemToDisplay;
-          openEditForm();
-        } else {
-          closeEditForm();
-        }
+        closeEditForm();
       };
       rl.appendChild(rowEl);
     });
@@ -2629,6 +2650,8 @@ function onScanSuccess(code) {
     findInventoryReceiveProduct(code);
   } else if (scanTarget === 'rapid_location_qr') {
     currentRapidLocation = code.trim();
+    const parsedRapidLocation = parseLocationQR(currentRapidLocation);
+    if (parsedRapidLocation) setRapidLocationFields(parsedRapidLocation);
     rapidLocationBadgeVal.textContent = currentRapidLocation;
     rapidLocationBadge.style.display = 'block';
     checkRapidExistingLocationProduct();
@@ -3306,11 +3329,12 @@ async function saveEditProduct() {
   const floor = document.getElementById('efFloor').value;
   const row = pad2(document.getElementById('efRow').value);
   const shelf = pad2(document.getElementById('efShelf').value);
-  const level = pad2(document.getElementById('efLevel').value) || '0';
+  const levelRaw = document.getElementById('efLevel').value.trim();
+  const level = pad2(levelRaw);
   const qtyRaw = document.getElementById('efQty').value.trim();
   const stockmanRaw = document.getElementById('efStockman').value.trim();
 
-  if (!name || !row || !shelf || qtyRaw === '') {
+  if (!name || !stock_no || !floor || !row || !shelf || levelRaw === '' || qtyRaw === '' || !stockmanRaw) {
     editFormError.classList.add('show');
     return;
   }
@@ -3960,6 +3984,7 @@ window.openAddQtyForLocation = function(index) {
   document.getElementById('addStockCurrentDisplay').value = currentQty;
   document.getElementById('addStockNewInput').value = '';
   document.getElementById('addStockmanInput').value = currentUser ? currentUser.full_name : (item.last_modified_by || '');
+  clearAddStockFormError();
 
   updateAddStockMathPreview(currentQty, 0);
 
@@ -3996,12 +4021,36 @@ function updateAddStockMathPreview(existingQty, newAddQty) {
   }
 }
 
+function showAddStockFormError(message) {
+  const error = document.getElementById('addStockFormError');
+  if (!error) return;
+  error.textContent = message;
+  error.classList.add('show');
+}
+
+function clearAddStockFormError() {
+  const error = document.getElementById('addStockFormError');
+  if (!error) return;
+  error.textContent = '';
+  error.classList.remove('show');
+}
+
 async function saveAddStockToLocation() {
   const id = document.getElementById('addStockId').value;
   const existingQty = parseInt(document.getElementById('addStockExistingQty').value, 10) || 0;
   const addQtyRaw = document.getElementById('addStockNewInput').value.trim();
-  const addQty = parseInt(addQtyRaw, 10) || 0;
+  const addQty = Number(addQtyRaw);
   const stockman = document.getElementById('addStockmanInput').value.trim();
+
+  if (!addQtyRaw || !Number.isInteger(addQty) || addQty < 1) {
+    showAddStockFormError(CURRENT_LANG === 'en' ? 'Add New Qty is required. Enter a whole quantity of at least 1.' : '新增数量为必填项。请输入至少为 1 的整数。');
+    return;
+  }
+  if (!stockman) {
+    showAddStockFormError(CURRENT_LANG === 'en' ? 'Responsible Stockman is required.' : '负责理货员为必填项。');
+    return;
+  }
+  clearAddStockFormError();
 
   const finalQty = existingQty + addQty;
   if (finalQty < 0) {
@@ -4093,6 +4142,7 @@ if (confirmAddStockBtnEl) confirmAddStockBtnEl.addEventListener('click', saveAdd
 const addStockNewInputEl = document.getElementById('addStockNewInput');
 if (addStockNewInputEl) {
   addStockNewInputEl.addEventListener('input', e => {
+    clearAddStockFormError();
     const existing = parseInt(document.getElementById('addStockExistingQty').value, 10) || 0;
     const val = parseInt(e.target.value, 10) || 0;
     updateAddStockMathPreview(existing, val);
@@ -4104,6 +4154,8 @@ if (addStockNewInputEl) {
     }
   });
 }
+
+document.getElementById('addStockmanInput')?.addEventListener('input', clearAddStockFormError);
 
 const openFullEditFromAddStockBtnEl = document.getElementById('openFullEditFromAddStockBtn');
 if (openFullEditFromAddStockBtnEl) {
@@ -4238,6 +4290,7 @@ function openAddQtyFromLocationModal(item, parsedLoc) {
   document.getElementById('addStockCurrentDisplay').value = currentQty;
   document.getElementById('addStockNewInput').value = '';
   document.getElementById('addStockmanInput').value = currentUser ? currentUser.full_name : (item.last_modified_by || '');
+  clearAddStockFormError();
 
   updateAddStockMathPreview(currentQty, 0);
 
@@ -4412,7 +4465,7 @@ async function deleteLocationForProduct(item, parsedLoc) {
   }
 }
 
-// Wire up the close button for the locProductsModal and delete button in addStockModal
+// Wire up the close button for the location products modal
 document.addEventListener('DOMContentLoaded', () => {
   const closeLocProductsModalBtn = document.getElementById('closeLocProductsModal');
   if (closeLocProductsModalBtn) {
@@ -4421,17 +4474,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const deleteLocFromAddStockBtn = document.getElementById('deleteLocFromAddStockBtn');
-  if (deleteLocFromAddStockBtn) {
-    deleteLocFromAddStockBtn.addEventListener('click', () => {
-      const item = window.currentLocModalProduct || activeProduct;
-      if (item) {
-        deleteLocationForProduct(item, window.currentLocModalParsed);
-      } else {
-        showToast('No location selected to delete.', 'error');
-      }
-    });
-  }
 });
 
 async function handleLocationQRScan(code) {
@@ -4539,6 +4581,58 @@ window.openEditFormForProductIndex = function(index) {
   updateEditLocationSuggestions();
 };
 
+function confirmResultCardLocationDelete(productName, locDisplay) {
+  const overlay = document.getElementById('deleteLocationConfirmOverlay');
+  const title = document.getElementById('deleteLocationConfirmTitle');
+  const message = document.getElementById('deleteLocationConfirmMessage');
+  const details = document.getElementById('deleteLocationConfirmDetails');
+  const note = overlay?.querySelector('.delete-confirm-note');
+  const cancelBtn = document.getElementById('cancelDeleteLocationBtn');
+  const deleteBtn = document.getElementById('confirmDeleteLocationBtn');
+
+  if (!overlay || !title || !message || !details || !note || !cancelBtn || !deleteBtn) {
+    return Promise.resolve(false);
+  }
+
+  const isEn = CURRENT_LANG === 'en';
+  title.textContent = isEn ? 'Remove this location?' : '删除此库位？';
+  message.textContent = isEn
+    ? `You are about to remove the shelf location for “${productName}”.`
+    : `您即将删除“${productName}”的货架位置。`;
+  details.textContent = locDisplay;
+  note.textContent = isEn
+    ? 'The product will remain in the catalog. Only this shelf location will be removed.'
+    : '商品仍会保留在目录中，只会删除此货架位置。';
+  cancelBtn.textContent = isEn ? 'Cancel' : '取消';
+  deleteBtn.textContent = isEn ? 'Delete Location' : '删除库位';
+  overlay.classList.add('show');
+
+  return new Promise(resolve => {
+    const finish = confirmed => {
+      overlay.classList.remove('show');
+      cancelBtn.removeEventListener('click', cancel);
+      deleteBtn.removeEventListener('click', confirmDelete);
+      overlay.removeEventListener('click', clickOutside);
+      document.removeEventListener('keydown', keyHandler);
+      resolve(confirmed);
+    };
+    const cancel = () => finish(false);
+    const confirmDelete = () => finish(true);
+    const clickOutside = event => {
+      if (event.target === overlay) cancel();
+    };
+    const keyHandler = event => {
+      if (event.key === 'Escape') cancel();
+    };
+
+    cancelBtn.addEventListener('click', cancel);
+    deleteBtn.addEventListener('click', confirmDelete);
+    overlay.addEventListener('click', clickOutside);
+    document.addEventListener('keydown', keyHandler);
+    setTimeout(() => cancelBtn.focus(), 0);
+  });
+}
+
 window.deleteProductLocation = async function(index) {
   if (!window.currentLocs || !window.currentLocs[index]) return;
   const item = window.currentLocs[index];
@@ -4556,7 +4650,7 @@ window.deleteProductLocation = async function(index) {
     ? `Delete shelf location (${locDisplay}) for "${prodName}"?\n\nNOTE: The product itself will NOT be deleted and will remain in the catalog.`
     : `确认删除商品 "${prodName}" 的货架位置 (${locDisplay})？\n\n提示：此操作仅清除货位，商品仍将保留在库存目录中。`;
 
-  if (!confirm(confirmMsg)) return;
+  if (!await confirmResultCardLocationDelete(prodName, locDisplay)) return;
 
   // Resolve target product ID accurately
   let targetId = item.id;
@@ -4716,6 +4810,10 @@ const rfName = document.getElementById('rfName');
 const rfStock = document.getElementById('rfStock');
 const rfCategory = document.getElementById('rfCategory');
 const rfSubcategory = document.getElementById('rfSubcategory');
+const rfFloor = document.getElementById('rfFloor');
+const rfRow = document.getElementById('rfRow');
+const rfShelf = document.getElementById('rfShelf');
+const rfLevel = document.getElementById('rfLevel');
 const rfQty = document.getElementById('rfQty');
 const rapidFormError = document.getElementById('rapidFormError');
 const rapidLogList = document.getElementById('rapidLogList');
@@ -4752,6 +4850,46 @@ if (scanForRapidBarcodeBtnEl) scanForRapidBarcodeBtnEl.addEventListener('click',
 const scanForRapidLocBtnEl = document.getElementById('scanForRapidLocBtn');
 if (scanForRapidLocBtnEl) scanForRapidLocBtnEl.addEventListener('click', () => startScanner('rapid_location_qr'));
 
+function setRapidLocationFields(location) {
+  if (rfFloor) rfFloor.value = location.floor || '1';
+  if (rfRow) rfRow.value = location.row || '';
+  if (rfShelf) rfShelf.value = location.shelf || '';
+  if (rfLevel) rfLevel.value = location.level || '0';
+  if (rapidFormError) {
+    rapidFormError.textContent = '';
+    rapidFormError.classList.remove('show');
+  }
+}
+
+function updateRapidLocationFromFields() {
+  const row = rfRow ? rfRow.value.trim() : '';
+  const shelf = rfShelf ? rfShelf.value.trim() : '';
+  if (!row || !shelf) {
+    currentRapidLocation = '';
+    currentRapidExistingRow = null;
+    if (rapidLocationBadge) rapidLocationBadge.style.display = 'none';
+    return;
+  }
+
+  const floor = rfFloor ? rfFloor.value : '1';
+  const level = rfLevel && rfLevel.value.trim() !== '' ? rfLevel.value.trim() : '0';
+  currentRapidLocation = `${floor}-${pad2(row)}-${pad2(shelf)}-${pad2(level)}`;
+  rapidLocationBadgeVal.textContent = currentRapidLocation;
+  rapidLocationBadge.style.display = 'block';
+  checkRapidExistingLocationProduct();
+}
+
+[rfFloor, rfRow, rfShelf, rfLevel].forEach(input => {
+  if (input) input.addEventListener('change', updateRapidLocationFromFields);
+});
+
+[rfFloor, rfRow, rfShelf, rfLevel, rfQty].forEach(input => {
+  input?.addEventListener('input', () => {
+    rapidFormError.textContent = '';
+    rapidFormError.classList.remove('show');
+  });
+});
+
 function openRapidLogger() {
   currentRapidBarcode = '';
   currentRapidLocation = '';
@@ -4764,11 +4902,16 @@ function openRapidLogger() {
   rfStock.value = '';
   rfCategory.value = '';
   rfSubcategory.value = '';
-  if (rfQty) rfQty.value = '0';
+  if (rfFloor) rfFloor.value = '1';
+  if (rfRow) rfRow.value = '';
+  if (rfShelf) rfShelf.value = '';
+  if (rfLevel) rfLevel.value = '0';
+  if (rfQty) rfQty.value = '';
   
   rapidBarcodeBadge.style.display = 'none';
   rapidLocationBadge.style.display = 'none';
   rapidNewProductFields.style.display = 'none';
+  rapidFormError.textContent = '';
   rapidFormError.classList.remove('show');
   rapidOverlay.classList.add('show');
 }
@@ -5247,6 +5390,8 @@ function promptAddAnotherLocation(productObj, existingLocRows, newLocStr) {
       overlay.classList.remove('show');
       currentRapidLocation = locCode;
       currentRapidExistingRow = row;
+      const parsedLocation = parseLocationQR(locCode);
+      if (parsedLocation) setRapidLocationFields(parsedLocation);
       if (rfQty) rfQty.value = qtyVal;
 
       rapidLocationBadgeVal.innerHTML = `${locCode} <br><span style="color:#16a34a; font-size:11px; font-weight:600;">✅ Selected existing location: Qty ${qtyVal} (will update)</span>`;
@@ -5333,6 +5478,27 @@ function promptConcurrentScan(existingRow, newQty) {
 }
 
 async function saveRapidEntry() {
+  const floorRaw = rfFloor ? rfFloor.value.trim() : '';
+  const rowRaw = rfRow ? rfRow.value.trim() : '';
+  const shelfRaw = rfShelf ? rfShelf.value.trim() : '';
+  const levelRaw = rfLevel ? rfLevel.value.trim() : '';
+  const qtyRaw = rfQty ? rfQty.value.trim() : '';
+  const quantity = Number(qtyRaw);
+
+  if (!floorRaw || !rowRaw || !shelfRaw || levelRaw === '' || !qtyRaw) {
+    rapidFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Floor, Row number, Shelf number, Level, and Quantity are required.'
+      : '楼层、排号、货架号、层数和数量均为必填项。';
+    rapidFormError.classList.add('show');
+    return;
+  }
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    rapidFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Quantity must be a whole number of at least 1.'
+      : '数量必须是至少为 1 的整数。';
+    rapidFormError.classList.add('show');
+    return;
+  }
   if (!currentRapidBarcode) {
     rapidFormError.textContent = CURRENT_LANG === 'en' ? 'Please scan a product barcode first.' : '请先扫描商品条码。';
     rapidFormError.classList.add('show');
@@ -5383,7 +5549,7 @@ async function saveRapidEntry() {
     return;
   }
 
-  const validQty = rfQty ? (parseInt(rfQty.value, 10) || 0) : 0;
+  const validQty = quantity;
   let rapidLedgerQty = validQty;
 
   const btn = document.getElementById('saveRapidBtn') || document.getElementById('rfSubmitBtn');
@@ -5502,6 +5668,10 @@ async function saveRapidEntry() {
     rfStock.value = '';
     rfCategory.value = '';
     rfSubcategory.value = '';
+    if (rfFloor) rfFloor.value = '1';
+    if (rfRow) rfRow.value = '';
+    if (rfShelf) rfShelf.value = '';
+    if (rfLevel) rfLevel.value = '0';
     if (rfQty) rfQty.value = '0';
 
     if (rapidBarcodeBadge) rapidBarcodeBadge.style.display = 'none';
@@ -5736,20 +5906,87 @@ document.addEventListener('keydown', (e) => {
 // --- OPTION 1: WAREHOUSE SHELF AUDIT & 1-TAP STOCK TRANSFER ---
 let currentTransferItem = null;
 
+const transferDestinationFields = {
+  floor: document.getElementById('transferDestFloor'),
+  row: document.getElementById('transferDestRow'),
+  shelf: document.getElementById('transferDestShelf'),
+  level: document.getElementById('transferDestLevel')
+};
+const transferFormError = document.getElementById('transferFormError');
+
+function showTransferFormError(message) {
+  if (!transferFormError) return;
+  transferFormError.textContent = message;
+  transferFormError.classList.add('show');
+}
+
+function clearTransferFormError() {
+  if (!transferFormError) return;
+  transferFormError.textContent = '';
+  transferFormError.classList.remove('show');
+}
+
+function formatTransferLocationPart(value, minimum) {
+  const raw = String(value ?? '').trim();
+  if (!/^\d+$/.test(raw)) return '';
+  const number = Number.parseInt(raw, 10);
+  return Number.isInteger(number) && number >= minimum && number <= 99 ? String(number).padStart(2, '0') : '';
+}
+
+function getTransferDestinationLocation() {
+  const floor = String(transferDestinationFields.floor?.value || '').trim();
+  const row = formatTransferLocationPart(transferDestinationFields.row?.value, 1);
+  const shelf = formatTransferLocationPart(transferDestinationFields.shelf?.value, 1);
+  const level = formatTransferLocationPart(transferDestinationFields.level?.value, 0);
+  return ['1', '2', '3'].includes(floor) && row && shelf && level ? `${floor}-${row}-${shelf}-${level}` : '';
+}
+
+function updateTransferDestinationPreview() {
+  const preview = document.getElementById('transferDestPreview');
+  if (preview) preview.textContent = getTransferDestinationLocation() || '—';
+}
+
+function setTransferDestinationFields(location) {
+  if (!location) return;
+  if (transferDestinationFields.floor) transferDestinationFields.floor.value = String(location.floor || '').replace(/^0+/, '') || '0';
+  if (transferDestinationFields.row) transferDestinationFields.row.value = Number.parseInt(location.row, 10) || '';
+  if (transferDestinationFields.shelf) transferDestinationFields.shelf.value = Number.parseInt(location.shelf, 10) || '';
+  if (transferDestinationFields.level) {
+    const level = Number.parseInt(location.level, 10);
+    transferDestinationFields.level.value = Number.isInteger(level) && level >= 0 ? level : '';
+  }
+  updateTransferDestinationPreview();
+}
+
+Object.values(transferDestinationFields).forEach(field => {
+  field?.addEventListener('input', () => {
+    updateTransferDestinationPreview();
+    clearTransferFormError();
+  });
+  field?.addEventListener('change', () => {
+    updateTransferDestinationPreview();
+    clearTransferFormError();
+  });
+});
+
 window.openTransferModalForProductIndex = function(index) {
   const locs = window.currentLocs || [];
   const item = locs[index];
   if (!item) return;
 
   currentTransferItem = item;
+  clearTransferFormError();
   document.getElementById('transferProductName').textContent = item.product_name || 'Unnamed Product';
   document.getElementById('transferProductMeta').textContent = `Barcode: ${item.barcode || '—'} | Stock No: ${item.stock_no || '—'}`;
   document.getElementById('transferSourceLoc').textContent = item.loc || `${item.floor}-${item.row}-${item.shelf}-${item.level}`;
   document.getElementById('transferSourceMaxQty').textContent = item.qty || 0;
   
-  const destInput = document.getElementById('transferDestLocInput');
   const qtyInput = document.getElementById('transferQtyInput');
-  if (destInput) destInput.value = '';
+  Object.values(transferDestinationFields).forEach(field => { if (field) field.value = ''; });
+  if (transferDestinationFields.floor && ['1', '2', '3'].includes(String(item.floor || ''))) {
+    transferDestinationFields.floor.value = String(item.floor);
+  }
+  updateTransferDestinationPreview();
   if (qtyInput) {
     qtyInput.value = item.qty || 1;
     qtyInput.max = item.qty || 1;
@@ -5769,6 +6006,9 @@ const closeTransferModalBtn = document.getElementById('closeTransferModal');
 const cancelTransferBtn = document.getElementById('cancelTransferBtn');
 const confirmTransferBtn = document.getElementById('confirmTransferBtn');
 const scanDestLocBtn = document.getElementById('scanDestLocBtn');
+const transferQtyInput = document.getElementById('transferQtyInput');
+
+transferQtyInput?.addEventListener('input', clearTransferFormError);
 
 if (closeTransferModalBtn) closeTransferModalBtn.addEventListener('click', window.closeTransferModal);
 if (cancelTransferBtn) cancelTransferBtn.addEventListener('click', window.closeTransferModal);
@@ -5777,12 +6017,12 @@ if (scanDestLocBtn) {
   scanDestLocBtn.addEventListener('click', () => {
     openScanner((scannedText) => {
       const parsed = parseLocationQR(scannedText);
-      const destInput = document.getElementById('transferDestLocInput');
-      if (parsed && destInput) {
-        destInput.value = `${parsed.floor}-${parsed.row}-${parsed.shelf}-${parsed.level}`;
-        showToast(`Scanned destination: ${destInput.value}`);
-      } else if (destInput) {
-        destInput.value = scannedText.trim();
+      if (parsed) {
+        setTransferDestinationFields(parsed);
+        clearTransferFormError();
+        showToast(`Scanned destination: ${getTransferDestinationLocation()}`);
+      } else {
+        showToast(CURRENT_LANG === 'en' ? 'Invalid location QR code.' : '无效的库位二维码。', 'error');
       }
     });
   });
@@ -5790,25 +6030,38 @@ if (scanDestLocBtn) {
 
 if (confirmTransferBtn) {
   confirmTransferBtn.addEventListener('click', async () => {
-    if (!currentTransferItem) return;
-    const destLoc = document.getElementById('transferDestLocInput').value.trim();
+    if (!currentTransferItem) {
+      showTransferFormError(CURRENT_LANG === 'en' ? 'Please select a product to transfer.' : '请选择要转移的商品。');
+      return;
+    }
+    const destLoc = getTransferDestinationLocation();
     const qtyVal = parseInt(document.getElementById('transferQtyInput').value.trim(), 10);
 
     if (!destLoc) {
-      showToast(CURRENT_LANG === 'en' ? 'Please enter or scan destination location.' : '请输入或扫描目标库位。', 'error');
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? 'Floor, Row number, Shelf number, and Level are required. Enter valid values.'
+        : '楼层、排号、货架号和层数均为必填项。请输入有效值。');
+      showToast(CURRENT_LANG === 'en' ? 'Please select a floor and enter valid row, shelf, and level numbers.' : '请选择楼层并输入有效的排、货架和层数。', 'error');
       return;
     }
     if (isNaN(qtyVal) || qtyVal <= 0) {
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? 'Quantity is required. Enter a valid quantity of at least 1.'
+        : '数量为必填项。请输入至少为 1 的有效数量。');
       showToast(CURRENT_LANG === 'en' ? 'Please enter a valid transfer quantity.' : '请输入有效的转移数量。', 'error');
       return;
     }
     if (qtyVal > (parseInt(currentTransferItem.qty, 10) || 0)) {
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? 'Transfer quantity cannot exceed the available stock.'
+        : '转移数量不能超过可用库存。');
       showToast(CURRENT_LANG === 'en' ? 'Transfer quantity exceeds available stock.' : '转移数量超过现有库存。', 'error');
       return;
     }
 
     showToast(CURRENT_LANG === 'en' ? 'Transferring stock...' : '正在转移库存...');
 
+    clearTransferFormError();
     try {
       const res = await fetch('/api/products/transfer', {
         method: 'POST',
@@ -5928,6 +6181,19 @@ const cartonAddNewBtn = document.getElementById('cartonAddNewBtn');
 const cartonManualLocBtn = document.getElementById('cartonManualLocBtn');
 const cartonManualBox = document.getElementById('cartonManualBox');
 const cartonSaveManualBtn = document.getElementById('cartonSaveManualBtn');
+const cartonFormError = document.getElementById('cartonFormError');
+
+function showCartonFormError(message) {
+  if (!cartonFormError) return;
+  cartonFormError.textContent = message;
+  cartonFormError.classList.add('show');
+}
+
+function clearCartonFormError() {
+  if (!cartonFormError) return;
+  cartonFormError.textContent = '';
+  cartonFormError.classList.remove('show');
+}
 
 let matchedCartonProduct = null;
 let cartonSearchRequestId = 0;
@@ -5941,6 +6207,7 @@ if (cartonPutawayBtn) {
     if (cartonMatchBox) cartonMatchBox.style.display = 'none';
     if (cartonNoMatchBox) cartonNoMatchBox.style.display = 'none';
     if (cartonManualBox) cartonManualBox.style.display = 'none';
+    clearCartonFormError();
     matchedCartonProduct = null;
     if (cartonOverlay) {
       cartonOverlay.classList.add('show');
@@ -6292,20 +6559,37 @@ if (cartonSaveLocationBtn) {
     }
 
     if (!p) {
-      showToast('Please search, select, or scan a valid product first.', 'error');
+      showCartonFormError(CURRENT_LANG === 'en'
+        ? 'Please search, select, or scan a valid product first.'
+        : '请先搜索、选择或扫描有效商品。');
       return;
     }
 
-    const floor = document.getElementById('cartonManualFloor')?.value || '1';
-    const row = pad2(document.getElementById('cartonManualRow')?.value || '');
-    const shelf = pad2(document.getElementById('cartonManualShelf')?.value || '');
-    const level = pad2(document.getElementById('cartonManualLevel')?.value || '00');
-    const putawayQty = parseInt(document.getElementById('cartonQtyInput')?.value, 10) || 0;
+    const floorRaw = document.getElementById('cartonManualFloor')?.value.trim() || '';
+    const rowRaw = document.getElementById('cartonManualRow')?.value.trim() || '';
+    const shelfRaw = document.getElementById('cartonManualShelf')?.value.trim() || '';
+    const levelRaw = document.getElementById('cartonManualLevel')?.value.trim() || '';
+    const qtyRaw = document.getElementById('cartonQtyInput')?.value.trim() || '';
+    const putawayQty = Number(qtyRaw);
 
-    if (!row || !shelf) {
-      showToast('Please enter or scan Row and Shelf numbers.', 'error');
+    if (!floorRaw || !rowRaw || !shelfRaw || !levelRaw || !qtyRaw) {
+      showCartonFormError(CURRENT_LANG === 'en'
+        ? 'Floor, Row, Shelf, Level, and Quantity are required.'
+        : '楼层、排号、货架号、层数和数量均为必填项。');
       return;
     }
+    if (!Number.isInteger(putawayQty) || putawayQty < 1) {
+      showCartonFormError(CURRENT_LANG === 'en'
+        ? 'Quantity must be a whole number of at least 1.'
+        : '数量必须是至少为 1 的整数。');
+      return;
+    }
+    clearCartonFormError();
+
+    const floor = floorRaw;
+    const row = pad2(rowRaw);
+    const shelf = pad2(shelfRaw);
+    const level = pad2(levelRaw);
 
     const loc = `${floor}-${row}-${shelf}-${level}`;
     const floorLabel = floor === '1' ? 'First Floor' : (floor === '2' ? 'Second Floor' : 'Third Floor');
@@ -6467,6 +6751,13 @@ if (cartonSaveLocationBtn) {
     }
   });
 }
+
+['cartonManualFloor', 'cartonManualRow', 'cartonManualShelf', 'cartonManualLevel', 'cartonQtyInput'].forEach(id => {
+  const input = document.getElementById(id);
+  if (!input) return;
+  input.addEventListener('input', clearCartonFormError);
+  input.addEventListener('change', clearCartonFormError);
+});
 
 if (cartonAddNewBtn) {
   cartonAddNewBtn.addEventListener('click', () => {
