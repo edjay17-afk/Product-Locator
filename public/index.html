@@ -553,6 +553,10 @@
           <input id="efLevel" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
         </div>
       </div>
+      <div style="box-sizing:border-box;width:100%;margin:10px 0 0;padding:9px 11px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#475569;font-size:11px;line-height:1.4;display:flex;flex-direction:column;gap:4px" aria-live="polite">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><span>Last Location Modified By:</span><strong id="editLocationModifiedBy" style="color:#1e3a8a;text-align:right">&mdash;</strong></div>
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline"><span>Last Location Modified Date:</span><strong id="editLocationModifiedDate" style="color:#1e3a8a;text-align:right">&mdash;</strong></div>
+      </div>
       <div id="editLocSuggestions" style="margin-top: 10px; display: none;">
         <span class="hint" style="font-size: 11px;">📍 Location full?</span>
         <button type="button" class="loc-info-btn" onclick="showLocationFullInfo()">What to do?</button>
@@ -1070,6 +1074,15 @@
       </div>
     </div>
 
+    <div class="field field-required" style="margin-bottom:14px;">
+      <label for="transferResponsibleStockman">Responsible Stockman</label>
+      <select id="transferResponsibleStockman" required><option value="">Select Responsible Stockman</option></select>
+      <div style="margin-top:7px;padding:8px 10px;border:1px solid #dbeafe;border-radius:8px;background:#eff6ff;color:#475569;font-size:11px;line-height:1.4" aria-live="polite">
+        <div>Last Location Modified By: <strong id="transferLastLocationModifiedBy" style="color:#1e3a8a">&mdash;</strong></div>
+        <div>Last Location Modified Date: <strong id="transferLastLocationModifiedDate" style="color:#1e3a8a">&mdash;</strong></div>
+      </div>
+    </div>
+
     <!-- Guided destination location inputs -->
     <div class="field">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:6px;">
@@ -1391,6 +1404,6 @@
   <div class="scan-hint">Hold the item barcode steady inside the frame.</div>
 </div>
 
-<script src="js/app.js?v=8.8"></script>
+<script src="js/app.js?v=9.1"></script>
 </body>
 </html>

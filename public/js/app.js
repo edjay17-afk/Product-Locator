@@ -3438,23 +3438,28 @@ function renderEditQuantityAudit(product) {
   const modifiedDateLabel = document.getElementById('editQtyModifiedDateLabel');
   const modifiedByValue = document.getElementById('editQtyModifiedBy');
   const modifiedDateValue = document.getElementById('editQtyModifiedDate');
+  const locationByValue = document.getElementById('editLocationModifiedBy');
+  const locationDateValue = document.getElementById('editLocationModifiedDate');
   if (!auditInfo || !modifiedByLabel || !modifiedDateLabel || !modifiedByValue || !modifiedDateValue) return;
 
   const isEn = CURRENT_LANG === 'en';
   modifiedByLabel.textContent = isEn ? 'Last Quantity Modified By' : '最后修改数量的人员';
   modifiedDateLabel.textContent = isEn ? 'Last Modified Date' : '最后修改日期';
   modifiedByValue.textContent = product?.last_modified_by || product?.modifiedBy || (isEn ? 'Not recorded' : '未记录');
+  if (locationByValue) locationByValue.textContent = product?.location_last_modified_by || product?.last_modified_by || product?.modifiedBy || (isEn ? 'Not recorded' : '未记录');
 
   const modifiedAt = product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt;
   if (!modifiedAt) {
     modifiedDateValue.textContent = isEn ? 'Not recorded' : '未记录';
     auditInfo.style.display = 'block';
+    if (locationDateValue) locationDateValue.textContent = isEn ? 'Not recorded' : '未记录';
     return;
   }
   const parsedDate = new Date(modifiedAt);
   if (Number.isNaN(parsedDate.getTime())) {
     modifiedDateValue.textContent = isEn ? 'Not recorded' : '未记录';
     auditInfo.style.display = 'block';
+    if (locationDateValue) locationDateValue.textContent = isEn ? 'Not recorded' : '未记录';
     return;
   }
 
@@ -3463,6 +3468,9 @@ function renderEditQuantityAudit(product) {
     year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
   });
   modifiedDateValue.textContent = formattedDate;
+  if (locationDateValue) locationDateValue.textContent = product?.location_last_modified_at
+    ? new Date(product.location_last_modified_at).toLocaleString(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : formattedDate;
   auditInfo.style.display = 'block';
 }
 
@@ -6184,6 +6192,21 @@ window.openTransferModalForProductIndex = function(index) {
   document.getElementById('transferProductMeta').textContent = `Barcode: ${item.barcode || '—'} | Stock No: ${item.stock_no || '—'}`;
   document.getElementById('transferSourceLoc').textContent = item.loc || `${item.floor}-${item.row}-${item.shelf}-${item.level}`;
   document.getElementById('transferSourceMaxQty').textContent = item.qty || 0;
+  const transferStockman = document.getElementById('transferResponsibleStockman');
+  if (transferStockman) {
+    const displayName = currentUser?.full_name || currentUser?.username || '';
+    transferStockman.innerHTML = '<option value="">Select Responsible Stockman</option>';
+    if (displayName) transferStockman.add(new Option(displayName, displayName));
+    transferStockman.value = '';
+  }
+  const transferModifiedBy = document.getElementById('transferLastLocationModifiedBy');
+  if (transferModifiedBy) transferModifiedBy.textContent = item.last_modified_by || item.modifiedBy || 'Not recorded';
+  const transferModifiedDate = document.getElementById('transferLastLocationModifiedDate');
+  const transferRawDate = item.location_last_modified_at || item.system_on_hand_updated_at || item.systemOnHandUpdatedAt;
+  const transferDate = transferRawDate ? new Date(transferRawDate) : null;
+  if (transferModifiedDate) transferModifiedDate.textContent = transferDate && !Number.isNaN(transferDate.getTime())
+    ? transferDate.toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : 'Not recorded';
   
   const qtyInput = document.getElementById('transferQtyInput');
   Object.values(transferDestinationFields).forEach(field => { if (field) field.value = ''; });
@@ -6240,6 +6263,7 @@ if (confirmTransferBtn) {
     }
     const destLoc = getTransferDestinationLocation();
     const qtyVal = parseInt(document.getElementById('transferQtyInput').value.trim(), 10);
+    const responsibleStockman = document.getElementById('transferResponsibleStockman')?.value.trim() || '';
 
     if (!destLoc) {
       showTransferFormError(CURRENT_LANG === 'en'
@@ -6253,6 +6277,10 @@ if (confirmTransferBtn) {
         ? 'Quantity is required. Enter a valid quantity of at least 1.'
         : '数量为必填项。请输入至少为 1 的有效数量。');
       showToast(CURRENT_LANG === 'en' ? 'Please enter a valid transfer quantity.' : '请输入有效的转移数量。', 'error');
+      return;
+    }
+    if (!responsibleStockman) {
+      showTransferFormError('Please select a Responsible Stockman.');
       return;
     }
     if (qtyVal > (parseInt(currentTransferItem.qty, 10) || 0)) {
@@ -6274,7 +6302,7 @@ if (confirmTransferBtn) {
           sourceId: currentTransferItem.id,
           destLocation: destLoc,
           transferQty: qtyVal,
-          modifiedBy: currentUser ? currentUser.full_name : 'Stockman Transfer'
+          modifiedBy: responsibleStockman
         })
       }).then(r => r.json());
 
