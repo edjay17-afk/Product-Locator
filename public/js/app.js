@@ -2284,6 +2284,12 @@ if (recentNextBtn) {
 // --- SCANNER LOGIC ---
 let html5QrCode = null;
 let scanTarget = 'search';
+let scannerResultCallback = null;
+
+function openScanner(callback) {
+  scannerResultCallback = typeof callback === 'function' ? callback : null;
+  startScanner('callback_location_qr');
+}
 
 const scanBtnEl = document.getElementById('scanBtn');
 if (scanBtnEl) scanBtnEl.addEventListener('click', () => startScanner('search'));
@@ -2642,6 +2648,10 @@ function onScanSuccess(code) {
     handleEditLocationQRScan(code);
   } else if (scanTarget === 'add_location_qr') {
     handleAddLocationQRScan(code);
+  } else if (scanTarget === 'callback_location_qr') {
+    const callback = scannerResultCallback;
+    scannerResultCallback = null;
+    if (callback) callback(code);
   } else if (scanTarget === 'checker_location_qr') {
     handleCheckerLocationScan(code);
   } else if (scanTarget === 'rapid_barcode') {
@@ -3308,7 +3318,8 @@ function openEditForm() {
   const hint = document.getElementById('efQtyMathHint');
   if (hint) hint.style.display = 'none';
 
-  document.getElementById('efStockman').value = activeProduct.last_modified_by || activeProduct.modifiedBy || (currentUser ? currentUser.full_name : '');
+  document.getElementById('efStockman').value = currentUser?.username || '';
+  renderEditQuantityAudit(activeProduct);
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
   document.getElementById('efCategoryDropdown').innerHTML = '';
@@ -3320,6 +3331,34 @@ function openEditForm() {
 
 function closeEditForm() {
   editOverlay.classList.remove('show');
+}
+
+function renderEditQuantityAudit(product) {
+  const auditInfo = document.getElementById('editQtyAuditInfo');
+  if (!auditInfo) return;
+  const modifiedAt = product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt;
+  if (!modifiedAt) {
+    auditInfo.style.display = 'none';
+    auditInfo.textContent = '';
+    return;
+  }
+
+  const parsedDate = new Date(modifiedAt);
+  if (Number.isNaN(parsedDate.getTime())) {
+    auditInfo.style.display = 'none';
+    auditInfo.textContent = '';
+    return;
+  }
+
+  const stockman = product?.last_modified_by || product?.modifiedBy || 'Unknown stockman';
+  const locale = CURRENT_LANG === 'en' ? 'en-PH' : 'zh-CN';
+  const formattedDate = parsedDate.toLocaleString(locale, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+  });
+  auditInfo.textContent = CURRENT_LANG === 'en'
+    ? `Last quantity update: ${stockman} · ${formattedDate}`
+    : `最后数量更新：${stockman} · ${formattedDate}`;
+  auditInfo.style.display = 'block';
 }
 
 async function saveEditProduct() {
@@ -3352,6 +3391,9 @@ async function saveEditProduct() {
     showToast('Invalid quantity.', 'error');
     return;
   }
+  const previousQty = Number(window.currentEditBaseQty ?? activeProduct?.qty ?? 0);
+  const quantityChanged = validQty !== previousQty;
+  const quantityModifiedAt = quantityChanged ? new Date().toISOString() : null;
 
   const btn = document.getElementById('saveEditBtn');
   if (btn && btn.disabled) return;
@@ -3375,6 +3417,7 @@ async function saveEditProduct() {
       custom: true,
       last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
     };
+    if (quantityChanged) payload.system_on_hand_updated_at = quantityModifiedAt;
 
     const currentName = activeProduct?.product_name || activeProduct?.name || activeProduct?.n || '';
     const currentBarcode = activeProduct?.barcode || activeProduct?.b || '';
@@ -3423,7 +3466,8 @@ async function saveEditProduct() {
       qty: validQty,
       status: 'MAPPED',
       custom: true,
-      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
+      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman'),
+      system_on_hand_updated_at: quantityModifiedAt || baseProduct.system_on_hand_updated_at || baseProduct.systemOnHandUpdatedAt || null
     };
 
     // Update the visible card immediately. The server request continues in
@@ -4574,7 +4618,8 @@ window.openEditFormForProductIndex = function(index) {
   const efHint = document.getElementById('efQtyMathHint');
   if (efHint) efHint.style.display = 'none';
 
-  document.getElementById('efStockman').value = p.last_modified_by || p.modifiedBy || (currentUser ? currentUser.full_name : '');
+  document.getElementById('efStockman').value = currentUser?.username || '';
+  renderEditQuantityAudit(p);
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
   document.getElementById('efCategoryDropdown').innerHTML = '';

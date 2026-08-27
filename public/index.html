@@ -567,8 +567,10 @@
 
     <div class="field field-required">
       <label data-i18n="stockmanLabel">Responsible Stockman</label>
-      <input id="efStockman" type="text" autocomplete="off" placeholder="e.g. Juan Dela Cruz" required>
+      <input id="efStockman" type="text" autocomplete="off" placeholder="Sign in to assign responsibility" readonly aria-readonly="true" required style="background:#f1f5f9; color:#334155; cursor:not-allowed;">
     </div>
+
+    <div id="editQtyAuditInfo" style="display:none; margin:-4px 0 14px; padding:10px 12px; border:1px solid #dbeafe; border-radius:9px; background:#eff6ff; color:#475569; font-size:12px; line-height:1.45;" aria-live="polite"></div>
 
     <div id="editFormError" class="form-error" data-i18n="editFormErrorRequired">Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, On Hand Quantity, and Responsible Stockman.</div>
 
