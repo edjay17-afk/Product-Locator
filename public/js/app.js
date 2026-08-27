@@ -1395,6 +1395,7 @@ async function loadInventorySummary(product) {
 const inventoryQuickAdjustOverlay = document.getElementById('inventoryQuickAdjustOverlay');
 const inventoryQuickAdjustSave = document.getElementById('inventoryQuickAdjustSave');
 const inventoryQuickAdjustCancel = document.getElementById('inventoryQuickAdjustCancel');
+const closeInventoryQuickAdjustBtn = document.getElementById('closeInventoryQuickAdjustBtn');
 const inventoryQuickAdjustBucket = document.getElementById('inventoryQuickAdjustBucket');
 const inventoryQuickAdjustQty = document.getElementById('inventoryQuickAdjustQty');
 const inventoryQuickAdjustReason = document.getElementById('inventoryQuickAdjustReason');
@@ -1500,6 +1501,7 @@ if (inventorySummaryCard) {
 }
 
 if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
+if (closeInventoryQuickAdjustBtn) closeInventoryQuickAdjustBtn.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
 if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click', async () => {
   const product = currentInventorySummaryProduct;
   const qtyRaw = inventoryQuickAdjustQty.value.trim();
@@ -3015,6 +3017,7 @@ const editFormError = document.getElementById('editFormError');
 
 document.getElementById('editProductBtn').addEventListener('click', openEditForm);
 document.getElementById('cancelEditBtn').addEventListener('click', closeEditForm);
+document.getElementById('closeEditModalBtn')?.addEventListener('click', closeEditForm);
 document.getElementById('saveEditBtn').addEventListener('click', saveEditProduct);
 
 const efAddQtyEl = document.getElementById('efAddQty');

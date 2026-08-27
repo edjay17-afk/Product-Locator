@@ -485,7 +485,10 @@
 <!-- EDIT PRODUCT MODAL OVERLAY -->
 <div id="editOverlay" class="modal-overlay">
   <div class="form-panel">
-    <h2 data-i18n="detailsTitle">Product Details & Location</h2>
+    <div class="edit-modal-header">
+      <h2 data-i18n="detailsTitle">Product Details & Location</h2>
+      <button id="closeEditModalBtn" class="edit-modal-close" type="button" aria-label="Close Product Details & Location" title="Close">&times;</button>
+    </div>
     <div class="form-sub" data-i18n="detailsSub">View details or update shelf position for this item in the database.</div>
     <input id="efId" type="hidden">
 
@@ -630,7 +633,10 @@
 <!-- QUICK INVENTORY COUNT MODAL -->
 <div id="inventoryQuickAdjustOverlay" class="modal-overlay">
   <div class="form-panel" style="max-width:420px;">
-    <h2>Quick Inventory Count</h2>
+    <div class="edit-modal-header">
+      <h2>Quick Inventory Count</h2>
+      <button id="closeInventoryQuickAdjustBtn" class="edit-modal-close" type="button" aria-label="Close Quick Inventory Count" title="Close">&times;</button>
+    </div>
     <div class="form-sub">Correct a physical count with an audit record. This updates the selected ledger bucket.</div>
     <div class="field" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;">
       <div id="inventoryQuickAdjustProductName" style="font-weight:700;color:#0f172a;">Product</div>
@@ -649,7 +655,10 @@
 <!-- ADD STOCK TO EXISTING LOCATION MODAL OVERLAY -->
 <div id="addStockModal" class="modal-overlay">
   <div class="form-panel" style="max-width: 440px;">
-    <h2 data-i18n="addStockTitle">Add Stock to Location</h2>
+    <div class="edit-modal-header">
+      <h2 data-i18n="addStockTitle">Add Stock to Location</h2>
+      <button id="closeAddStockModalBtn" class="edit-modal-close" type="button" aria-label="Close Add Stock to Location" title="Close">&times;</button>
+    </div>
     <div class="form-sub" data-i18n="addStockSub">Sum incoming stock to existing location quantity</div>
 
     <div style="background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
