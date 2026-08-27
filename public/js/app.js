@@ -1368,7 +1368,7 @@ async function loadInventorySummary(product) {
   const requestId = ++inventorySummaryRequestId;
   card.style.display = 'block';
   const cachedSummary = readInventorySummaryCache(key);
-  const localSummary = bestAvailableInventorySummary(product, cachedSummary);
+  const localSummary = useLocationTotalForOnHand(product, bestAvailableInventorySummary(product, cachedSummary));
   renderInventorySummary(localSummary, cachedSummary ? 'Updating live balance...' : 'Syncing live balance...');
   const controller = typeof AbortController === 'undefined' ? null : new AbortController();
   const timeout = controller ? setTimeout(() => controller.abort(), INVENTORY_SUMMARY_REQUEST_TIMEOUT_MS) : null;
@@ -1389,7 +1389,7 @@ async function loadInventorySummary(product) {
     if (inventoryQuickAdjustOverlay?.classList.contains('show') && inventoryQuickAdjustBucket?.value === 'ON_HAND') {
       updateQuickInventoryOnHandFields(false);
     }
-    const summary = bestAvailableInventorySummary(product, data.summary || {});
+    const summary = useLocationTotalForOnHand(product, bestAvailableInventorySummary(product, data.summary || {}));
     saveInventorySummaryCache(key, summary);
     renderInventorySummary(summary, 'Ledger balance');
   } catch (err) {
@@ -1450,6 +1450,18 @@ function inventorySummaryValue(bucket) {
   return Number.parseInt((document.getElementById(ids[bucket])?.textContent || '0').replace(/,/g, ''), 10) || 0;
 }
 
+function totalLocationQuantity(product) {
+  const locations = Array.isArray(window.currentLocs) && window.currentLocs.length ? window.currentLocs : getLocationsForProduct(product);
+  if (!locations.length) return null;
+  return locations.reduce((total, location) => total + (Number.parseInt(location.qty, 10) || 0), 0);
+}
+
+function useLocationTotalForOnHand(product, summary) {
+  const total = totalLocationQuantity(product);
+  if (total === null) return summary;
+  return { ...summary, onHand: total, available: Math.max(0, total - Number(summary.reserved || 0)) };
+}
+
 function updateInventoryCardImmediately(bucket, targetQty) {
   const current = {
     onHand: inventorySummaryValue('ON_HAND'),
@@ -1479,7 +1491,8 @@ function openInventoryQuickAdjust(bucket) {
   document.getElementById('inventoryQuickAdjustProductName').textContent = name;
   document.getElementById('inventoryQuickAdjustMeta').textContent = `Barcode: ${barcode} | Stock No: ${stock}`;
   inventoryQuickAdjustBucket.value = bucket;
-  inventoryQuickAdjustQty.value = String(inventorySummaryValue(bucket));
+  const locationTotal = bucket === 'ON_HAND' ? totalLocationQuantity(product) : null;
+  inventoryQuickAdjustQty.value = String(locationTotal !== null ? locationTotal : inventorySummaryValue(bucket));
   inventoryQuickAdjustReason.value = 'Physical count correction';
   updateQuickInventoryOnHandFields();
   inventoryQuickAdjustError.textContent = '';
@@ -1537,7 +1550,9 @@ if (inventorySummaryCard) {
 if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
 if (closeInventoryQuickAdjustBtn) closeInventoryQuickAdjustBtn.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
 if (inventoryQuickAdjustBucket) inventoryQuickAdjustBucket.addEventListener('change', () => {
-  inventoryQuickAdjustQty.value = String(inventorySummaryValue(inventoryQuickAdjustBucket.value));
+  const bucket = inventoryQuickAdjustBucket.value;
+  const locationTotal = bucket === 'ON_HAND' ? totalLocationQuantity(currentInventorySummaryProduct) : null;
+  inventoryQuickAdjustQty.value = String(locationTotal !== null ? locationTotal : inventorySummaryValue(bucket));
   updateQuickInventoryOnHandFields();
   inventoryQuickAdjustError.classList.remove('show');
 });
@@ -4217,6 +4232,8 @@ function showAddStockFormError(message) {
   if (!error) return;
   error.textContent = message;
   error.classList.add('show');
+  error.style.display = 'block';
+  error.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function clearAddStockFormError() {
@@ -4224,6 +4241,7 @@ function clearAddStockFormError() {
   if (!error) return;
   error.textContent = '';
   error.classList.remove('show');
+  error.style.display = 'none';
 }
 
 async function saveAddStockToLocation() {
@@ -4232,6 +4250,10 @@ async function saveAddStockToLocation() {
   const addQtyRaw = document.getElementById('addStockNewInput').value.trim();
   const addQty = Number(addQtyRaw);
   const stockman = document.getElementById('addStockmanInput').value.trim();
+  const onHandQty = Number.parseInt(
+    currentInventorySummaryProduct?.qty ?? activeProduct?.qty ??
+    document.getElementById('inventoryOnHand')?.textContent?.replace(/,/g, ''), 10
+  );
 
   if (!addQtyRaw || !Number.isInteger(addQty) || addQty < 1) {
     showAddStockFormError(CURRENT_LANG === 'en' ? 'Add New Qty is required. Enter a whole quantity of at least 1.' : '新增数量为必填项。请输入至少为 1 的整数。');
@@ -4310,7 +4332,9 @@ async function saveAddStockToLocation() {
     }
   } catch (err) {
     console.error("Error saving added stock:", err);
-    showToast("Network error updating stock.", 'error');
+    showAddStockFormError(err instanceof TypeError
+      ? 'Network error updating stock. Please check the connection and try again.'
+      : (err.message || 'Could not update stock.'));
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -4788,6 +4812,12 @@ document.addEventListener('click', event => {
   const index = Number.parseInt(editButton.dataset.editLocationIndex, 10);
   if (!Number.isInteger(index) || !window.currentLocs?.[index]) {
     showToast('Could not open Product Details & Location. Please search for the product again.', 'error');
+    return;
+  }
+  if (Number.isInteger(onHandQty) && onHandQty === existingQty) {
+    showAddStockFormError(CURRENT_LANG === 'en'
+      ? 'The On Hand quantity already matches this location quantity. No new quantity can be added here.'
+      : '现有库存数量已与此库位数量相同，无法在此添加新数量。');
     return;
   }
   window.openEditFormForProductIndex(index);
