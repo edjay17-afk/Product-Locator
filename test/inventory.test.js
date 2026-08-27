@@ -27,7 +27,12 @@ test('inventory summary uses the catalog on-hand quantity and keeps ledger bucke
   const originalSummary = inventory.summary;
   const originalProductLookup = db.getProductByBarcodeOrStock;
   inventory.summary = async sku => ({ skuKey: sku, onHand: 0, available: 0, reserved: 0, receiving: 0, bulk: 0, shelf: 0, picked: 0 });
-  db.getProductByBarcodeOrStock = async () => ({ barcode: '100480800919', qty: 707 });
+  db.getProductByBarcodeOrStock = async () => ({
+    barcode: '100480800919',
+    qty: 707,
+    last_modified_by: 'Test Stockman',
+    system_on_hand_updated_at: '2026-08-27T03:15:00.000Z'
+  });
   const server = app.listen(0);
   try {
     const address = server.address();
@@ -41,6 +46,8 @@ test('inventory summary uses the catalog on-hand quantity and keeps ledger bucke
     assert.equal(body.summary.onHand, 707);
     assert.equal(body.summary.available, 707);
     assert.equal(body.summary.shelf, 0);
+    assert.equal(body.summary.lastModifiedBy, 'Test Stockman');
+    assert.equal(body.summary.systemOnHandUpdatedAt, '2026-08-27T03:15:00.000Z');
     assert.match(response.headers.get('cache-control'), /no-store/);
   } finally {
     inventory.summary = originalSummary;
@@ -68,7 +75,10 @@ test('on-hand corrections update the catalog quantity rather than a physical loc
     assert.equal(response.status, 200);
     assert.equal(body.success, true);
     assert.equal(body.adjustment.source, 'CATALOG_ON_HAND');
-    assert.deepEqual(updateCall, { id: 77, values: { qty: 0, last_modified_by: 'Test Stockman' } });
+    assert.equal(updateCall.id, 77);
+    assert.equal(updateCall.values.qty, 0);
+    assert.equal(updateCall.values.last_modified_by, 'Test Stockman');
+    assert.equal(Number.isNaN(Date.parse(updateCall.values.system_on_hand_updated_at)), false);
   } finally {
     db.getProductByBarcodeOrStock = originalLookup;
     db.updateProduct = originalUpdate;
@@ -99,11 +109,13 @@ test('physical bucket changes keep the catalog on-hand quantity in sync', async 
       assert.equal(body.success, true);
       assert.equal(body.product.qty, 807);
     }
-    assert.deepEqual(updateCalls, [
-      { id: 91, values: { qty: 807, last_modified_by: 'Test Stockman' } },
-      { id: 91, values: { qty: 807, last_modified_by: 'Test Stockman' } },
-      { id: 91, values: { qty: 807, last_modified_by: 'Test Stockman' } }
-    ]);
+    assert.equal(updateCalls.length, 3);
+    updateCalls.forEach(call => {
+      assert.equal(call.id, 91);
+      assert.equal(call.values.qty, 807);
+      assert.equal(call.values.last_modified_by, 'Test Stockman');
+      assert.equal(Number.isNaN(Date.parse(call.values.system_on_hand_updated_at)), false);
+    });
   } finally {
     db.getProductByBarcodeOrStock = originalLookup;
     db.updateProduct = originalUpdate;

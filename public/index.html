@@ -560,19 +560,31 @@
       </div>
     </div>
 
-    <div class="field field-required">
+    <div class="field">
       <label data-i18n="qtyLabel">How many are on hand?</label>
-      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" required>
+      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" readonly aria-readonly="true">
+      <span class="hint">Use Inventory Control &rarr; On Hand to correct this quantity.</span>
     </div>
 
     <div class="field field-required">
       <label data-i18n="stockmanLabel">Responsible Stockman</label>
-      <input id="efStockman" type="text" autocomplete="off" placeholder="Sign in to assign responsibility" readonly aria-readonly="true" required style="background:#f1f5f9; color:#334155; cursor:not-allowed;">
+      <select id="efStockman" required>
+        <option value="">Select Responsible Stockman</option>
+      </select>
     </div>
 
-    <div id="editQtyAuditInfo" style="display:none; margin:-4px 0 14px; padding:10px 12px; border:1px solid #dbeafe; border-radius:9px; background:#eff6ff; color:#475569; font-size:12px; line-height:1.45;" aria-live="polite"></div>
+    <div id="editQtyAuditInfo" style="margin:-4px 0 14px; padding:10px 12px; border:1px solid #dbeafe; border-radius:9px; background:#eff6ff; color:#475569; font-size:12px; line-height:1.45;" aria-live="polite">
+      <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:4px;">
+        <span id="editQtyModifiedByLabel">Last Quantity Modified By</span>
+        <strong id="editQtyModifiedBy" style="color:#1e3a8a; text-align:right;">&mdash;</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; gap:12px;">
+        <span id="editQtyModifiedDateLabel">Last Modified Date</span>
+        <strong id="editQtyModifiedDate" style="color:#1e3a8a; text-align:right;">&mdash;</strong>
+      </div>
+    </div>
 
-    <div id="editFormError" class="form-error" data-i18n="editFormErrorRequired">Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, On Hand Quantity, and Responsible Stockman.</div>
+    <div id="editFormError" class="form-error" data-i18n="editFormErrorRequired">Please fill in Product Name, Stock No., Floor, Row, Shelf, Level, and Responsible Stockman.</div>
 
     <div class="form-actions">
       <button id="cancelEditBtn" class="btn-cancel" type="button" data-i18n="cancel">Cancel</button>
@@ -649,6 +661,13 @@
       <div class="field field-required"><label for="inventoryQuickAdjustQty">New quantity</label><input id="inventoryQuickAdjustQty" type="number" min="1" step="1" inputmode="numeric" required></div>
     </div>
     <div class="field field-required"><label for="inventoryQuickAdjustReason">Reason</label><input id="inventoryQuickAdjustReason" type="text" autocomplete="off" value="Physical count correction" placeholder="e.g. recount or damaged stock" required></div>
+    <div id="inventoryQuickOnHandAuditFields" hidden>
+      <div class="field field-required"><label for="inventoryQuickAdjustStockman">Responsible Stockman</label><select id="inventoryQuickAdjustStockman" required><option value="">Select Responsible Stockman</option></select></div>
+      <div style="margin:-4px 0 14px;padding:10px 12px;border:1px solid #dbeafe;border-radius:9px;background:#eff6ff;color:#475569;font-size:12px;line-height:1.45" aria-live="polite">
+        <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px"><span>Last Quantity Modified By</span><strong id="inventoryQuickModifiedBy">Not recorded</strong></div>
+        <div style="display:flex;justify-content:space-between;gap:12px"><span>Last Modified Date</span><strong id="inventoryQuickModifiedDate">Not recorded</strong></div>
+      </div>
+    </div>
     <div id="inventoryQuickAdjustError" class="form-error inline-card-error" role="alert" aria-live="polite"></div>
     <div class="form-actions"><button id="inventoryQuickAdjustCancel" type="button" class="btn-cancel">Cancel</button><button id="inventoryQuickAdjustSave" type="button" class="btn-save">Save Count</button></div>
   </div>
@@ -1372,6 +1391,6 @@
   <div class="scan-hint">Hold the item barcode steady inside the frame.</div>
 </div>
 
-<script src="js/app.js?v=7.8"></script>
+<script src="js/app.js?v=8.8"></script>
 </body>
 </html>

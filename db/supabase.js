@@ -19,7 +19,7 @@ const SEARCH_CACHE_TTL_MS = 15000;
 const STATS_CACHE_TTL_MS = 30000;
 const searchCache = new Map();
 let statsCache = { data: null, time: 0 };
-const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,system_on_hand_updated_at,status,custom';
+const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,system_on_hand_updated_at,status,custom,last_modified_by';
 const SEARCH_INDEX_TTL_MS = 300000;
 let searchIndexCache = { data: null, time: 0 };
 let searchIndexPromise = null;
@@ -158,13 +158,15 @@ module.exports = {
   loginUser: async (username, password) => {
     const cleanUser = (username || '').trim().toLowerCase();
     const cleanPass = (password || '').trim();
-    const testStockman = memoryUsers.find(user => user.username === 'stockman');
+    const fastLocalAccount = ['stockman', 'admin'].includes(cleanUser)
+      ? memoryUsers.find(user => user.username === cleanUser)
+      : null;
 
-    // Keep the dedicated low-privilege test login available even when the
-    // remote user store is temporarily unreachable.
-    if (cleanUser === 'stockman' && testStockman && verifyPassword(cleanPass, testStockman.password).valid) {
-      const { password: _password, ...safeTestStockman } = testStockman;
-      return safeTestStockman;
+    // These explicitly configured local accounts must remain fast and usable
+    // even when the remote user store is slow or temporarily unreachable.
+    if (fastLocalAccount && verifyPassword(cleanPass, fastLocalAccount.password).valid) {
+      const { password: _password, ...safeLocalAccount } = fastLocalAccount;
+      return safeLocalAccount;
     }
 
     if (isConnectedToSupabase && supabase) {
@@ -737,7 +739,9 @@ module.exports = {
     }
     if (data.status !== undefined) updatePayload.status = data.status;
     if (data.custom !== undefined) updatePayload.custom = Boolean(data.custom);
-    updatePayload.last_modified_by = data.last_modified_by || data.modifiedBy || 'Stockman';
+    if (data.last_modified_by !== undefined || data.modifiedBy !== undefined) {
+      updatePayload.last_modified_by = data.last_modified_by || data.modifiedBy || 'Stockman';
+    }
 
     if (isConnectedToSupabase && supabase) {
       // Update the location row and propagate shared product metadata in

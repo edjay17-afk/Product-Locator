@@ -525,7 +525,6 @@ async function notifySuperadmin(action, title, detail, product, actor, extra = {
 }
 
 async function applyCatalogOnHandDelta(sku, delta, actor) {
-  if (!delta) return null;
   const product = await db.getProductByBarcodeOrStock(sku);
   if (!product) throw new Error('Product not found.');
   const currentQty = Number.parseInt(product.qty, 10) || 0;
@@ -533,7 +532,8 @@ async function applyCatalogOnHandDelta(sku, delta, actor) {
   if (nextQty < 0) throw new Error('This change would make the on-hand quantity negative.');
   return db.updateProduct(product.id, {
     qty: nextQty,
-    last_modified_by: actor || 'Stockman'
+    last_modified_by: actor || 'Stockman',
+    system_on_hand_updated_at: new Date().toISOString()
   });
 }
 
@@ -552,7 +552,8 @@ app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
       ...ledgerSummary,
       onHand,
       available: Math.max(0, onHand - Number(ledgerSummary.reserved || 0)),
-      systemOnHandUpdatedAt: product?.system_on_hand_updated_at || null
+      systemOnHandUpdatedAt: product?.system_on_hand_updated_at || null,
+      lastModifiedBy: product?.last_modified_by || null
     };
     // Inventory cards are edited in-place. A cached response here can show a
     // value from before a successful save, so always return a fresh balance.
@@ -585,11 +586,13 @@ app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, as
       const product = await db.getProductByBarcodeOrStock(req.params.sku);
       if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
       const previousQty = Number.parseInt(product.qty, 10) || 0;
+      const modifiedBy = String(req.body?.responsible_stockman || '').trim() || req.user.full_name || req.user.username;
       const updatedProduct = await db.updateProduct(product.id, {
         qty: targetQty,
-        last_modified_by: req.user.full_name || req.user.username
+        last_modified_by: modifiedBy,
+        system_on_hand_updated_at: new Date().toISOString()
       });
-      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed from ${previousQty.toLocaleString()} to ${targetQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, req.user.full_name || req.user.username, { qty: targetQty });
+      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed from ${previousQty.toLocaleString()} to ${targetQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, modifiedBy, { qty: targetQty });
       return res.json({
         success: true,
         adjustment: { skuKey: req.params.sku, storageType, targetQty, source: 'CATALOG_ON_HAND' },

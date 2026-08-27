@@ -1039,8 +1039,9 @@ function renderProductLocationsUI(p, locs) {
     (p.barcode || p.b || '') + '#' + (p.stock_no || p.stock_code || p.s || '') + '#' +
     (p.product_name || p.name || p.n || '') + '#' + (p.category || p.c || '') + '#' +
     (p.department || p.subcategory || p.sc || '') + '#' + (p.last_modified_by || p.modifiedBy || '') + '#' +
+    (p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || '') + '#' +
     (currentUser ? currentUser.username : 'guest') + '#' + CURRENT_LANG + '#' +
-    expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || ''].join('|')).join(';');
+    expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || '', l.system_on_hand_updated_at || l.systemOnHandUpdatedAt || ''].join('|')).join(';');
   if (renderSig === lastLocsRenderSig) return;
   lastLocsRenderSig = renderSig;
 
@@ -1090,6 +1091,7 @@ function renderProductLocationsUI(p, locs) {
     if (existing) {
       existing.qty = (parseInt(existing.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
       existing.is_carton = existing.is_carton || isCartonItem;
+      existing.system_on_hand_updated_at = item.system_on_hand_updated_at || item.systemOnHandUpdatedAt || existing.system_on_hand_updated_at || p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || null;
       if (isCartonItem) existing.loc_type = 'CARTON';
       if (item.id && (!existing.id || item.id > existing.id)) {
         existing.id = item.id;
@@ -1116,6 +1118,7 @@ function renderProductLocationsUI(p, locs) {
         location_storage: item.location_storage || item.storage_location || p.location_storage || p.storage_location || locText || '',
         storage_location: item.storage_location || item.location_storage || p.storage_location || p.location_storage || locText || '',
         status: item.status || (hasLoc ? 'MAPPED' : 'UNMAPPED'),
+        system_on_hand_updated_at: item.system_on_hand_updated_at || item.systemOnHandUpdatedAt || p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || null,
         last_modified_by: ((item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) &&
           (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) !== 'System Import')
           ? (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy)
@@ -1200,7 +1203,7 @@ function renderProductLocationsUI(p, locs) {
         <div class="tagcard-bottom-actions">
           ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer stock to another shelf">Transfer</button>` : ''}
           <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">Add Stock</button>
-          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit product details">Edit</button>
+          <button class="card-btn btn-edit" type="button" data-edit-location-index="${index}" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit product details">Edit</button>
           ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">Delete</button>` : ''}
         </div>
       </div>
@@ -1319,7 +1322,7 @@ function productInventoryFallback(product) {
   const productQty = Number.parseInt(product?.qty, 10);
   const displayedQty = Number.parseInt((document.getElementById('pQty')?.textContent || '').replace(/,/g, ''), 10);
   const qty = Math.max(0, Number.isInteger(productQty) ? productQty : (Number.isInteger(displayedQty) ? displayedQty : 0));
-  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0, systemOnHandUpdatedAt: product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt || null };
+  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0, systemOnHandUpdatedAt: product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt || null, lastModifiedBy: product?.last_modified_by || product?.modifiedBy || null };
 }
 
 function bestAvailableInventorySummary(product, cachedSummary) {
@@ -1377,7 +1380,16 @@ async function loadInventorySummary(product) {
     const data = await response.json();
     if (!response.ok || !data.success) throw new Error(data.error || 'The live inventory service did not return a balance.');
     if (requestId !== inventorySummaryRequestId) return;
-    const summary = data.summary || {};
+    const liveAudit = data.summary || {};
+    currentInventorySummaryProduct = {
+      ...product,
+      last_modified_by: liveAudit.lastModifiedBy || product.last_modified_by || product.modifiedBy || null,
+      system_on_hand_updated_at: liveAudit.systemOnHandUpdatedAt || product.system_on_hand_updated_at || product.systemOnHandUpdatedAt || null
+    };
+    if (inventoryQuickAdjustOverlay?.classList.contains('show') && inventoryQuickAdjustBucket?.value === 'ON_HAND') {
+      updateQuickInventoryOnHandFields(false);
+    }
+    const summary = bestAvailableInventorySummary(product, data.summary || {});
     saveInventorySummaryCache(key, summary);
     renderInventorySummary(summary, 'Ledger balance');
   } catch (err) {
@@ -1399,6 +1411,8 @@ const closeInventoryQuickAdjustBtn = document.getElementById('closeInventoryQuic
 const inventoryQuickAdjustBucket = document.getElementById('inventoryQuickAdjustBucket');
 const inventoryQuickAdjustQty = document.getElementById('inventoryQuickAdjustQty');
 const inventoryQuickAdjustReason = document.getElementById('inventoryQuickAdjustReason');
+const inventoryQuickAdjustStockman = document.getElementById('inventoryQuickAdjustStockman');
+const inventoryQuickOnHandAuditFields = document.getElementById('inventoryQuickOnHandAuditFields');
 const inventoryQuickAdjustError = document.getElementById('inventoryQuickAdjustError');
 const inventoryDirectDeliveryBtn = document.getElementById('inventoryDirectDeliveryBtn');
 const inventoryDirectDeliveryOverlay = document.getElementById('inventoryDirectDeliveryOverlay');
@@ -1410,6 +1424,25 @@ const inventoryDirectDeliveryCancel = document.getElementById('inventoryDirectDe
 
 function canQuickAdjustInventory() {
   return Boolean(currentUser && ['stockman', 'carton_handler', 'admin', 'superadmin'].includes(currentUser.role));
+}
+
+function updateQuickInventoryOnHandFields(resetSelection = true) {
+  const isOnHand = inventoryQuickAdjustBucket?.value === 'ON_HAND';
+  if (inventoryQuickOnHandAuditFields) inventoryQuickOnHandAuditFields.hidden = !isOnHand;
+  if (!isOnHand || !inventoryQuickAdjustStockman) return;
+  const displayName = currentUser?.full_name || currentUser?.username || '';
+  if (resetSelection) {
+    inventoryQuickAdjustStockman.innerHTML = '<option value="">Select Responsible Stockman</option>';
+    if (displayName) inventoryQuickAdjustStockman.add(new Option(displayName, displayName));
+    inventoryQuickAdjustStockman.value = '';
+  }
+  const product = currentInventorySummaryProduct;
+  document.getElementById('inventoryQuickModifiedBy').textContent = product?.last_modified_by || product?.modifiedBy || 'Not recorded';
+  const rawDate = product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt;
+  const parsedDate = rawDate ? new Date(rawDate) : null;
+  document.getElementById('inventoryQuickModifiedDate').textContent = parsedDate && !Number.isNaN(parsedDate.getTime())
+    ? parsedDate.toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : 'Not recorded';
 }
 
 function inventorySummaryValue(bucket) {
@@ -1448,6 +1481,7 @@ function openInventoryQuickAdjust(bucket) {
   inventoryQuickAdjustBucket.value = bucket;
   inventoryQuickAdjustQty.value = String(inventorySummaryValue(bucket));
   inventoryQuickAdjustReason.value = 'Physical count correction';
+  updateQuickInventoryOnHandFields();
   inventoryQuickAdjustError.textContent = '';
   inventoryQuickAdjustError.classList.remove('show');
   inventoryQuickAdjustOverlay.classList.add('show');
@@ -1502,11 +1536,18 @@ if (inventorySummaryCard) {
 
 if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
 if (closeInventoryQuickAdjustBtn) closeInventoryQuickAdjustBtn.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
+if (inventoryQuickAdjustBucket) inventoryQuickAdjustBucket.addEventListener('change', () => {
+  inventoryQuickAdjustQty.value = String(inventorySummaryValue(inventoryQuickAdjustBucket.value));
+  updateQuickInventoryOnHandFields();
+  inventoryQuickAdjustError.classList.remove('show');
+});
 if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click', async () => {
   const product = currentInventorySummaryProduct;
   const qtyRaw = inventoryQuickAdjustQty.value.trim();
   const targetQty = Number(qtyRaw);
   const reason = inventoryQuickAdjustReason.value.trim();
+  const isOnHand = inventoryQuickAdjustBucket.value === 'ON_HAND';
+  const responsibleStockman = inventoryQuickAdjustStockman?.value.trim() || '';
   if (!product || !qtyRaw || !Number.isInteger(targetQty) || targetQty < 1) {
     inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
       ? 'New Quantity is required. Enter a whole number of at least 1.'
@@ -1518,6 +1559,11 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
     inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
       ? 'Reason is required. Enter a reason for the count correction.'
       : '原因为必填项。请输入盘点更正原因。';
+    inventoryQuickAdjustError.classList.add('show');
+    return;
+  }
+  if (isOnHand && !responsibleStockman) {
+    inventoryQuickAdjustError.textContent = 'Please select a Responsible Stockman.';
     inventoryQuickAdjustError.classList.add('show');
     return;
   }
@@ -1534,7 +1580,8 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
         product_name: product.product_name || product.name || product.n,
         storage_type: inventoryQuickAdjustBucket.value,
         target_qty: targetQty,
-        reason
+        reason,
+        responsible_stockman: isOnHand ? responsibleStockman : undefined
       })
     });
     const data = await response.json();
@@ -1543,15 +1590,42 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
     updateInventoryCardImmediately(bucket, targetQty);
     if (data.product) {
       const nextOnHand = Number.parseInt(data.product.qty, 10);
-      currentInventorySummaryProduct = { ...product, ...data.product };
+      currentInventorySummaryProduct = {
+        ...product,
+        ...data.product,
+        ...(bucket === 'ON_HAND' ? {
+          last_modified_by: data.product.last_modified_by || responsibleStockman,
+          system_on_hand_updated_at: data.product.system_on_hand_updated_at || new Date().toISOString()
+        } : {})
+      };
       if (Number.isInteger(nextOnHand) && bucket !== 'ON_HAND') {
         updateInventoryCardImmediately('ON_HAND', nextOnHand);
       }
+    } else if (bucket === 'ON_HAND') {
+      currentInventorySummaryProduct = {
+        ...product,
+        qty: targetQty,
+        last_modified_by: responsibleStockman,
+        system_on_hand_updated_at: new Date().toISOString()
+      };
     }
+    if (bucket === 'ON_HAND') updateQuickInventoryOnHandFields(false);
     inventoryQuickAdjustOverlay.classList.remove('show');
     showToast(`Inventory count updated to ${targetQty.toLocaleString()} units.`);
     invalidateInventorySummaryCache(key);
     loadInventorySummary(currentInventorySummaryProduct || product);
+    // Refresh the visible Product Details & Location card after a successful
+    // on-hand correction so its quantity and audit information stay current.
+    if (activeProduct && String(key).toLowerCase() === String(activeProduct.barcode || activeProduct.b || activeProduct.stock_no || activeProduct.stock_code || activeProduct.s).toLowerCase()) {
+      activeProduct = { ...activeProduct, ...currentInventorySummaryProduct };
+      const productIndex = PRODUCTS.findIndex(item => String(item.id) === String(activeProduct.id));
+      if (productIndex !== -1) PRODUCTS[productIndex] = { ...PRODUCTS[productIndex], ...activeProduct };
+      // Paint the saved state immediately; reconcile with the server in the background.
+      renderProductLocationsUI(activeProduct, getLocationsForProduct(activeProduct));
+      void fetchLocationsForProduct(activeProduct).then(refreshedLocations => {
+        if (refreshedLocations) renderProductLocationsUI(activeProduct, refreshedLocations);
+      }).catch(refreshError => console.warn('Could not refresh Product Details & Location:', refreshError));
+    }
   } catch (err) {
     if (isNetworkFailure(err)) {
       const bucket = inventoryQuickAdjustBucket.value;
@@ -1559,7 +1633,8 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
         barcode: product.barcode || product.b,
         stock_no: product.stock_no || product.stock_code || product.s,
         product_name: product.product_name || product.name || product.n,
-        storage_type: bucket, target_qty: targetQty, reason
+        storage_type: bucket, target_qty: targetQty, reason,
+        responsible_stockman: bucket === 'ON_HAND' ? responsibleStockman : undefined
       }, 'inventory correction');
       updateInventoryCardImmediately(bucket, targetQty);
       inventoryQuickAdjustOverlay.classList.remove('show');
@@ -1573,7 +1648,7 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
   }
 });
 
-[inventoryQuickAdjustQty, inventoryQuickAdjustReason].forEach(field => {
+[inventoryQuickAdjustQty, inventoryQuickAdjustReason, inventoryQuickAdjustStockman].forEach(field => {
   field?.addEventListener('input', () => {
     inventoryQuickAdjustError.textContent = '';
     inventoryQuickAdjustError.classList.remove('show');
@@ -2800,7 +2875,7 @@ function handleEditLocationQRScan(code) {
     if (typeof updateEditLocationSuggestions === 'function') {
       updateEditLocationSuggestions();
     }
-    document.getElementById('efQty').focus();
+    document.getElementById('efStockman').focus();
     showToast(`Location set: Floor ${parsed.floor}, Row ${parsed.row}, Shelf ${parsed.shelf}, Level ${parsed.level}`);
   } else {
     showToast("Invalid location QR format. Expected format like '1-02-01-03'.", 'error');
@@ -3311,14 +3386,18 @@ function openEditForm() {
   document.getElementById('efShelf').value = s || '';
   document.getElementById('efLevel').value = l || '0';
   
-  const currentQty = activeProduct.qty !== undefined ? activeProduct.qty : 0;
+  const productQty = Number.parseInt(activeProduct.qty, 10);
+  const inventoryOnHandQty = inventorySummaryValue('ON_HAND');
+  const currentQty = Number.isInteger(productQty) && productQty > 0
+    ? productQty
+    : (inventoryOnHandQty > 0 ? inventoryOnHandQty : Math.max(0, Number.isInteger(productQty) ? productQty : 0));
   window.currentEditBaseQty = currentQty;
   document.getElementById('efQty').value = currentQty;
   if (efAddQtyEl) efAddQtyEl.value = '';
   const hint = document.getElementById('efQtyMathHint');
   if (hint) hint.style.display = 'none';
 
-  document.getElementById('efStockman').value = currentUser?.username || '';
+  populateEditResponsibleStockman();
   renderEditQuantityAudit(activeProduct);
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
@@ -3333,31 +3412,57 @@ function closeEditForm() {
   editOverlay.classList.remove('show');
 }
 
+function populateEditResponsibleStockman() {
+  const select = document.getElementById('efStockman');
+  if (!select) return;
+  const displayName = currentUser?.full_name || currentUser?.username || '';
+  select.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = CURRENT_LANG === 'en' ? 'Select Responsible Stockman' : '选择负责理货员';
+  select.appendChild(placeholder);
+
+  if (displayName) {
+    const currentUserOption = document.createElement('option');
+    currentUserOption.value = displayName;
+    currentUserOption.textContent = displayName;
+    select.appendChild(currentUserOption);
+  }
+  select.value = '';
+}
+
 function renderEditQuantityAudit(product) {
   const auditInfo = document.getElementById('editQtyAuditInfo');
-  if (!auditInfo) return;
+  const modifiedByLabel = document.getElementById('editQtyModifiedByLabel');
+  const modifiedDateLabel = document.getElementById('editQtyModifiedDateLabel');
+  const modifiedByValue = document.getElementById('editQtyModifiedBy');
+  const modifiedDateValue = document.getElementById('editQtyModifiedDate');
+  if (!auditInfo || !modifiedByLabel || !modifiedDateLabel || !modifiedByValue || !modifiedDateValue) return;
+
+  const isEn = CURRENT_LANG === 'en';
+  modifiedByLabel.textContent = isEn ? 'Last Quantity Modified By' : '最后修改数量的人员';
+  modifiedDateLabel.textContent = isEn ? 'Last Modified Date' : '最后修改日期';
+  modifiedByValue.textContent = product?.last_modified_by || product?.modifiedBy || (isEn ? 'Not recorded' : '未记录');
+
   const modifiedAt = product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt;
   if (!modifiedAt) {
-    auditInfo.style.display = 'none';
-    auditInfo.textContent = '';
+    modifiedDateValue.textContent = isEn ? 'Not recorded' : '未记录';
+    auditInfo.style.display = 'block';
     return;
   }
-
   const parsedDate = new Date(modifiedAt);
   if (Number.isNaN(parsedDate.getTime())) {
-    auditInfo.style.display = 'none';
-    auditInfo.textContent = '';
+    modifiedDateValue.textContent = isEn ? 'Not recorded' : '未记录';
+    auditInfo.style.display = 'block';
     return;
   }
 
-  const stockman = product?.last_modified_by || product?.modifiedBy || 'Unknown stockman';
-  const locale = CURRENT_LANG === 'en' ? 'en-PH' : 'zh-CN';
+  const locale = isEn ? 'en-PH' : 'zh-CN';
   const formattedDate = parsedDate.toLocaleString(locale, {
     year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
   });
-  auditInfo.textContent = CURRENT_LANG === 'en'
-    ? `Last quantity update: ${stockman} · ${formattedDate}`
-    : `最后数量更新：${stockman} · ${formattedDate}`;
+  modifiedDateValue.textContent = formattedDate;
   auditInfo.style.display = 'block';
 }
 
@@ -3369,14 +3474,33 @@ async function saveEditProduct() {
   const category = document.getElementById('efCategory').value.trim();
   const department = document.getElementById('efSubcategory').value.trim();
   const floor = document.getElementById('efFloor').value;
-  const row = pad2(document.getElementById('efRow').value);
-  const shelf = pad2(document.getElementById('efShelf').value);
+  const rowRaw = document.getElementById('efRow').value.trim();
+  const shelfRaw = document.getElementById('efShelf').value.trim();
+  const row = pad2(rowRaw);
+  const shelf = pad2(shelfRaw);
   const levelRaw = document.getElementById('efLevel').value.trim();
   const level = pad2(levelRaw);
   const qtyRaw = document.getElementById('efQty').value.trim();
   const stockmanRaw = document.getElementById('efStockman').value.trim();
 
-  if (!name || !stock_no || !floor || !row || !shelf || levelRaw === '' || qtyRaw === '' || !stockmanRaw) {
+  if (!name || !stock_no || !floor || !rowRaw || !shelfRaw || levelRaw === '') {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Product Name, Stock No., Floor, Row, Shelf, Level, and a Responsible Stockman are required.'
+      : '商品名称、货号、楼层、排号、货架号、层数、现有库存数量和已登录的负责理货员均为必填项。';
+    editFormError.classList.add('show');
+    return;
+  }
+  if (!stockmanRaw) {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Please select a Responsible Stockman.'
+      : '请选择负责理货员。';
+    editFormError.classList.add('show');
+    return;
+  }
+  if (!/^\d+$/.test(rowRaw) || !/^\d+$/.test(shelfRaw) || !/^\d+$/.test(levelRaw)) {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Row, Shelf, and Level must be valid whole numbers.'
+      : '排号、货架号和层数必须是有效整数。';
     editFormError.classList.add('show');
     return;
   }
@@ -3388,13 +3512,12 @@ async function saveEditProduct() {
 
   const validQty = validateQty(qtyRaw);
   if (validQty === null) {
-    showToast('Invalid quantity.', 'error');
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'On Hand Quantity must be a non-negative whole number.'
+      : '现有库存数量必须是非负整数。';
+    editFormError.classList.add('show');
     return;
   }
-  const previousQty = Number(window.currentEditBaseQty ?? activeProduct?.qty ?? 0);
-  const quantityChanged = validQty !== previousQty;
-  const quantityModifiedAt = quantityChanged ? new Date().toISOString() : null;
-
   const btn = document.getElementById('saveEditBtn');
   if (btn && btn.disabled) return;
   if (btn) btn.disabled = true;
@@ -3412,12 +3535,14 @@ async function saveEditProduct() {
       level,
       loc,
       loc_full: storage_location,
-      qty: validQty,
       status: 'MAPPED',
-      custom: true,
-      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
+      custom: true
     };
-    if (quantityChanged) payload.system_on_hand_updated_at = quantityModifiedAt;
+    if (!id) {
+      payload.qty = validQty;
+      payload.last_modified_by = stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman');
+      payload.system_on_hand_updated_at = new Date().toISOString();
+    }
 
     const currentName = activeProduct?.product_name || activeProduct?.name || activeProduct?.n || '';
     const currentBarcode = activeProduct?.barcode || activeProduct?.b || '';
@@ -3463,11 +3588,11 @@ async function saveEditProduct() {
       location_storage: storage_location,
       storage_location,
       loc_full: storage_location,
-      qty: validQty,
+      qty: baseProduct.qty ?? validQty,
       status: 'MAPPED',
       custom: true,
-      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman'),
-      system_on_hand_updated_at: quantityModifiedAt || baseProduct.system_on_hand_updated_at || baseProduct.systemOnHandUpdatedAt || null
+      last_modified_by: baseProduct.last_modified_by || baseProduct.modifiedBy || null,
+      system_on_hand_updated_at: baseProduct.system_on_hand_updated_at || baseProduct.systemOnHandUpdatedAt || null
     };
 
     // Update the visible card immediately. The server request continues in
@@ -3477,12 +3602,11 @@ async function saveEditProduct() {
     activeProduct = optimisticProduct;
     rebuildIndex();
     persistSearchIndexSoon();
-    closeEditForm();
     renderProduct(optimisticProduct);
     showToast(`Saving "${name}"...`, 'info');
 
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await authFetch(`/api/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -3500,11 +3624,19 @@ async function saveEditProduct() {
         if (currentIsEdited) activeProduct = res.product;
         rebuildIndex();
         persistSearchIndexSoon();
-        if (currentIsEdited) renderProduct(res.product);
+        if (currentIsEdited) {
+          const inventoryKey = res.product.barcode || res.product.stock_no || res.product.stock_code;
+          if (inventoryKey) invalidateInventorySummaryCache(inventoryKey);
+          renderProduct(res.product);
+          const refreshedLocations = await fetchLocationsForProduct(res.product);
+          renderProductLocationsUI(res.product, refreshedLocations);
+          loadInventorySummary(res.product);
+        }
         if (typeof renderPortalDataTable === 'function') {
           void renderPortalDataTable({ refreshStats: true });
         }
       }
+      closeEditForm();
       showToast(`Updated in Database! "${name}" location is now Floor ${floor}, Row ${row}, Shelf ${shelf}.`);
     } catch (err) {
       const optimisticIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
@@ -3525,7 +3657,11 @@ async function saveEditProduct() {
     }
   } catch (err) {
     console.error('Failed to update product:', err);
-    showToast('Server error updating product.', 'error');
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? `Could not save changes: ${err.message || 'Server error.'}`
+      : `无法保存更改：${err.message || '服务器错误。'}`;
+    editFormError.classList.add('show');
+    showToast('Could not save Product Details & Location.', 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -4610,7 +4746,11 @@ window.openEditFormForProductIndex = function(index) {
   document.getElementById('efShelf').value = p.shelf || '';
   document.getElementById('efLevel').value = p.level || '0';
 
-  const currentQty = p.qty !== undefined && p.qty !== null ? p.qty : 0;
+  const productQty = Number.parseInt(p.qty, 10);
+  const inventoryOnHandQty = inventorySummaryValue('ON_HAND');
+  const currentQty = Number.isInteger(productQty) && productQty > 0
+    ? productQty
+    : (inventoryOnHandQty > 0 ? inventoryOnHandQty : Math.max(0, Number.isInteger(productQty) ? productQty : 0));
   window.currentEditBaseQty = currentQty;
   document.getElementById('efQty').value = currentQty;
   const efAddQty = document.getElementById('efAddQty');
@@ -4618,7 +4758,7 @@ window.openEditFormForProductIndex = function(index) {
   const efHint = document.getElementById('efQtyMathHint');
   if (efHint) efHint.style.display = 'none';
 
-  document.getElementById('efStockman').value = currentUser?.username || '';
+  populateEditResponsibleStockman();
   renderEditQuantityAudit(p);
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
@@ -4628,6 +4768,22 @@ window.openEditFormForProductIndex = function(index) {
   document.getElementById('editOverlay').classList.add('show');
   updateEditLocationSuggestions();
 };
+
+document.addEventListener('click', event => {
+  const clickTarget = event.target instanceof Element
+    ? event.target
+    : event.target?.parentElement;
+  const editButton = clickTarget?.closest('.btn-edit[data-edit-location-index]');
+  if (!editButton) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const index = Number.parseInt(editButton.dataset.editLocationIndex, 10);
+  if (!Number.isInteger(index) || !window.currentLocs?.[index]) {
+    showToast('Could not open Product Details & Location. Please search for the product again.', 'error');
+    return;
+  }
+  window.openEditFormForProductIndex(index);
+});
 
 function confirmResultCardLocationDelete(productName, locDisplay) {
   const overlay = document.getElementById('deleteLocationConfirmOverlay');
