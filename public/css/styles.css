@@ -2370,6 +2370,23 @@ body.guest-mode .tagcard-bottom button {
 
 .inventory-summary-cell[data-inventory-edit="SHELF"] strong { color: #0f172a; }
 
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"] {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"] strong { color: #0f172a; }
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap {
+  border-color: #fecaca;
+  background: linear-gradient(145deg, #fef2f2, #fff);
+  opacity: 1;
+}
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap strong { color: #b91c1c; }
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap em { color: #b91c1c; }
+
 .inventory-direct-delivery {
   width: 100%;
   margin-top: 13px;

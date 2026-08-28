@@ -19,12 +19,12 @@ const SEARCH_CACHE_TTL_MS = 15000;
 const STATS_CACHE_TTL_MS = 30000;
 const searchCache = new Map();
 let statsCache = { data: null, time: 0 };
-const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,system_on_hand_updated_at,status,custom,last_modified_by';
+const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,system_on_hand_updated_at,status,custom,last_modified_by';
 const SEARCH_INDEX_TTL_MS = 300000;
 let searchIndexCache = { data: null, time: 0 };
 let searchIndexPromise = null;
 // Only the columns the app actually uses — keeps the Supabase transfer small.
-const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
+const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
 function invalidateAllProductsCache() {
   allProductsCache.time = 0;
   searchIndexCache.time = 0;
@@ -70,6 +70,9 @@ function normalizeProduct(p) {
   const is_carton = Boolean(p.is_carton || p.loc_type === 'CARTON' || (storage_location && (storage_location.includes('Carton') || storage_location.includes('Big Item'))));
   const loc_type = is_carton ? 'CARTON' : (p.loc_type || 'SHELF');
   const system_on_hand_updated_at = p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || null;
+  const onHandRaw = p.on_hand_qty !== undefined ? p.on_hand_qty : p.onHandQty;
+  const onHandParsed = Number.parseInt(onHandRaw, 10);
+  const on_hand_qty = Number.isInteger(onHandParsed) ? onHandParsed : null;
   return {
     ...p,
     product_name,
@@ -85,7 +88,8 @@ function normalizeProduct(p) {
     loc_full: storage_location,
     is_carton,
     loc_type,
-    system_on_hand_updated_at
+    system_on_hand_updated_at,
+    on_hand_qty
   };
 }
 
@@ -734,6 +738,10 @@ module.exports = {
       updatePayload.location_storage = data.location_storage || data.storage_location || data.loc_full;
     }
     if (data.qty !== undefined) updatePayload.qty = parseInt(data.qty, 10);
+    if (data.on_hand_qty !== undefined || data.onHandQty !== undefined) {
+      const rawOnHand = data.on_hand_qty !== undefined ? data.on_hand_qty : data.onHandQty;
+      updatePayload.on_hand_qty = rawOnHand === null ? null : parseInt(rawOnHand, 10);
+    }
     if (data.system_on_hand_updated_at !== undefined || data.systemOnHandUpdatedAt !== undefined) {
       updatePayload.system_on_hand_updated_at = data.system_on_hand_updated_at || data.systemOnHandUpdatedAt || null;
     }
@@ -809,6 +817,94 @@ module.exports = {
         });
       }
     }
+    return normalizeProduct(item);
+  },
+  // Adjusts the SKU-level on-hand total independently of any shelf's qty.
+  // Resolves one anchor row (by id, or by barcode/stock text search), applies
+  // either a delta or an absolute targetQty to it, then syncs the resulting
+  // on_hand_qty to every other row sharing that barcode/stock_no so the total
+  // reads the same no matter which of the product's locations is displayed.
+  adjustOnHandQuantity: async ({ id, sku, delta, targetQty, modifiedBy, timestamp }) => {
+    invalidateAllProductsCache();
+    const anchor = id
+      ? await module.exports.getProductById(id)
+      : await module.exports.getProductByBarcodeOrStock(sku);
+    if (!anchor) throw new Error('Product not found.');
+
+    const barcode = (anchor.barcode || '').trim();
+    const stock_no = (anchor.stock_no || '').trim();
+    const updatedAt = timestamp || new Date().toISOString();
+    const modifier = modifiedBy || 'Stockman';
+
+    // A product can occupy more than one shelf row. Until on_hand_qty has
+    // been set (first-ever adjustment), the caller's baseline for "current"
+    // on-hand is the SUM of qty across every row for this SKU — not just
+    // this one row's qty — so the delta lands on the right total.
+    let currentOnHand;
+    if (Number.isInteger(anchor.on_hand_qty)) {
+      currentOnHand = anchor.on_hand_qty;
+    } else if (isConnectedToSupabase && supabase && (barcode || stock_no)) {
+      const safeBar = escapePostgrestValue(barcode);
+      const safeStock = escapePostgrestValue(stock_no);
+      let siblingQuery = supabase.from('products').select('qty');
+      siblingQuery = safeBar && safeStock
+        ? siblingQuery.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`)
+        : (safeBar ? siblingQuery.eq('barcode', safeBar) : siblingQuery.eq('stock_no', safeStock));
+      const { data: siblingRows, error: siblingErr } = await siblingQuery;
+      if (siblingErr) throw new Error(siblingErr.message);
+      currentOnHand = (siblingRows || []).reduce((sum, row) => sum + (Number.parseInt(row.qty, 10) || 0), 0);
+    } else if (!isConnectedToSupabase) {
+      currentOnHand = memoryProducts
+        .filter(p => String(p.id) === String(anchor.id) || (barcode && p.barcode === barcode) || (stock_no && p.stock_no === stock_no))
+        .reduce((sum, p) => sum + (Number.parseInt(p.qty, 10) || 0), 0);
+    } else {
+      currentOnHand = Number.parseInt(anchor.qty, 10) || 0;
+    }
+
+    const nextOnHand = Number.isInteger(delta) ? currentOnHand + delta : Number.parseInt(targetQty, 10);
+    if (!Number.isInteger(nextOnHand) || nextOnHand < 0) {
+      throw new Error('On-hand quantity must be a non-negative whole number.');
+    }
+
+    if (isConnectedToSupabase && supabase) {
+      const primaryUpdate = supabase
+        .from('products')
+        .update({ on_hand_qty: nextOnHand, last_modified_by: modifier, system_on_hand_updated_at: updatedAt })
+        .eq('id', anchor.id)
+        .select(PRODUCT_COLUMNS)
+        .single();
+
+      let siblingSync = Promise.resolve({ error: null });
+      if (barcode || stock_no) {
+        const safeBar = escapePostgrestValue(barcode);
+        const safeStock = escapePostgrestValue(stock_no);
+        let query = supabase
+          .from('products')
+          .update({ on_hand_qty: nextOnHand, last_modified_by: modifier, system_on_hand_updated_at: updatedAt })
+          .neq('id', anchor.id);
+        query = safeBar && safeStock
+          ? query.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`)
+          : (safeBar ? query.eq('barcode', safeBar) : query.eq('stock_no', safeStock));
+        siblingSync = query;
+      }
+
+      const [{ data: updated, error }, { error: syncError }] = await Promise.all([primaryUpdate, siblingSync]);
+      if (error) throw new Error(error.message);
+      if (syncError) console.error('Failed to sync on-hand quantity to other locations:', syncError.message);
+      return normalizeProduct(updated);
+    }
+
+    memoryProducts.forEach(p => {
+      const matchesId = String(p.id) === String(anchor.id);
+      const matchesBarcode = barcode && p.barcode === barcode;
+      const matchesStock = stock_no && p.stock_no === stock_no;
+      if (matchesId || matchesBarcode || matchesStock) {
+        p.on_hand_qty = nextOnHand;
+        p.last_modified_by = modifier;
+        p.system_on_hand_updated_at = updatedAt;
+      }
+    });
+    const item = memoryProducts.find(p => String(p.id) === String(anchor.id));
     return normalizeProduct(item);
   },
   deleteProduct: async (id) => {

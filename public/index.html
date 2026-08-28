@@ -99,6 +99,7 @@
       <div class="inventory-summary-cell is-editable" data-inventory-edit="RECEIVING" role="button" tabindex="0" title="Click to correct receiving quantity"><span data-i18n="inventoryReceiving">Receiving</span><strong id="inventoryReceiving">—</strong></div>
       <div class="inventory-summary-cell is-editable" data-inventory-edit="BULK" role="button" tabindex="0" title="Click to correct bulk quantity"><span data-i18n="inventoryBulkCarton">Bulk / carton</span><strong id="inventoryBulk">—</strong></div>
       <div class="inventory-summary-cell is-editable" data-inventory-edit="SHELF" role="button" tabindex="0" title="Click to correct shelf quantity"><span data-i18n="inventoryShelf">Shelf</span><strong id="inventoryShelf">—</strong></div>
+      <div class="inventory-summary-cell is-derived" data-inventory-derived="NOT_LOCATED" role="button" tabindex="0" title="Units on hand that are not yet assigned to a shelf location"><span data-i18n="inventoryNotLocated">Not located</span><strong id="inventoryNotLocated">—</strong><em data-i18n="inventoryCalculated">Calculated</em></div>
     </div>
     <button id="inventoryDirectDeliveryBtn" class="inventory-direct-delivery" type="button" data-i18n="inventoryDirectDelivery">Direct Delivery</button>
   </div>
@@ -566,8 +567,8 @@
 
     <div class="field">
       <label data-i18n="qtyLabel">How many are on hand?</label>
-      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" readonly aria-readonly="true">
-      <span class="hint">Use Inventory Control &rarr; On Hand to correct this quantity.</span>
+      <input id="efQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off">
+      <span class="hint">Quantity at this shelf location. It can't exceed the total On Hand quantity in Inventory Control.</span>
     </div>
 
     <div class="field field-required">

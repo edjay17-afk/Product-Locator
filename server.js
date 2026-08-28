@@ -525,16 +525,10 @@ async function notifySuperadmin(action, title, detail, product, actor, extra = {
 }
 
 async function applyCatalogOnHandDelta(sku, delta, actor) {
-  const product = await db.getProductByBarcodeOrStock(sku);
-  if (!product) throw new Error('Product not found.');
-  const currentQty = Number.parseInt(product.qty, 10) || 0;
-  const nextQty = currentQty + Number(delta);
-  if (nextQty < 0) throw new Error('This change would make the on-hand quantity negative.');
-  return db.updateProduct(product.id, {
-    qty: nextQty,
-    last_modified_by: actor || 'Stockman',
-    system_on_hand_updated_at: new Date().toISOString()
-  });
+  // Adjusts the SKU-level on_hand_qty total, never a shelf's own qty — a
+  // Receiving/Bulk/Shelf bucket change should not silently rewrite what a
+  // specific location shows as physically present.
+  return db.adjustOnHandQuantity({ sku, delta: Number(delta), modifiedBy: actor || 'Stockman' });
 }
 
 app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
@@ -543,11 +537,16 @@ app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
       inventory.summary(req.params.sku),
       db.getProductByBarcodeOrStock(req.params.sku)
     ]);
+    const onHandField = product ? Number.parseInt(product.on_hand_qty, 10) : NaN;
     const catalogQty = product ? Number.parseInt(product.qty, 10) : NaN;
-    // The catalog quantity is the current on-hand source until the external
-    // stock integration is connected. Location buckets are counted separately
-    // and start at zero until staff records a receipt or putaway.
-    const onHand = Number.isInteger(catalogQty) && catalogQty >= 0 ? catalogQty : Number(ledgerSummary.onHand || 0);
+    // on_hand_qty is the dedicated, independently-tracked on-hand total for
+    // this SKU. Older rows that predate it fall back to the legacy catalog
+    // qty (summed shelf quantity), and finally to the ledger balance.
+    // Location buckets are counted separately and start at zero until staff
+    // records a receipt or putaway.
+    const onHand = Number.isInteger(onHandField) && onHandField >= 0
+      ? onHandField
+      : (Number.isInteger(catalogQty) && catalogQty >= 0 ? catalogQty : Number(ledgerSummary.onHand || 0));
     const summary = {
       ...ledgerSummary,
       onHand,
@@ -578,31 +577,37 @@ app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, as
     const storageType = String(req.body?.storage_type || req.body?.storageType || '').trim().toUpperCase();
     if (storageType === 'ON_HAND') {
       const targetQty = Number.parseInt(req.body?.target_qty ?? req.body?.targetQty, 10);
+      const qtyDelta = Number.parseInt(req.body?.qty_delta ?? req.body?.qtyDelta, 10);
       const reason = String(req.body?.reason || '').trim();
       if (!Number.isInteger(targetQty) || targetQty < 0) {
         return res.status(400).json({ success: false, error: 'On-hand quantity must be a non-negative whole number.' });
       }
       if (!reason) return res.status(400).json({ success: false, error: 'A reason is required for an on-hand correction.' });
-      const product = await db.getProductByBarcodeOrStock(req.params.sku);
-      if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
-      const previousQty = Number.parseInt(product.qty, 10) || 0;
       const modifiedBy = String(req.body?.responsible_stockman || '').trim() || req.user.full_name || req.user.username;
-      const updatedProduct = await db.updateProduct(product.id, {
-        qty: targetQty,
-        last_modified_by: modifiedBy,
-        system_on_hand_updated_at: new Date().toISOString()
+      // Applies to the dedicated on_hand_qty total, never a shelf's own qty —
+      // "New quantity" may be a count aggregated across every location this
+      // product occupies, so this is sent (and applied) as a delta against
+      // that total rather than an absolute overwrite of one row's qty.
+      const updatedProduct = await db.adjustOnHandQuantity({
+        id: req.body?.id || undefined,
+        sku: req.params.sku,
+        delta: Number.isInteger(qtyDelta) ? qtyDelta : undefined,
+        targetQty,
+        modifiedBy
       });
-      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed from ${previousQty.toLocaleString()} to ${targetQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, modifiedBy, { qty: targetQty });
+      const newQty = Number.isInteger(updatedProduct.on_hand_qty) ? updatedProduct.on_hand_qty : targetQty;
+      const previousQty = Number.isInteger(qtyDelta) ? newQty - qtyDelta : null;
+      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed${previousQty !== null ? ` from ${previousQty.toLocaleString()}` : ''} to ${newQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, modifiedBy, { qty: newQty });
       return res.json({
         success: true,
-        adjustment: { skuKey: req.params.sku, storageType, targetQty, source: 'CATALOG_ON_HAND' },
+        adjustment: { skuKey: req.params.sku, storageType, targetQty: newQty, source: 'CATALOG_ON_HAND' },
         product: updatedProduct
       });
     }
     const result = await inventory.quickAdjust({ ...(req.body || {}), sku_key: req.params.sku }, req.user.full_name || req.user.username);
-    // Until an external stock system is connected, the catalog quantity is
-    // the current on-hand total. A physical bucket change therefore changes
-    // that total by the same amount.
+    // Until an external stock system is connected, on_hand_qty is the current
+    // on-hand total. A physical bucket change therefore changes that total by
+    // the same amount — but never touches any shelf location's own qty.
     const product = await applyCatalogOnHandDelta(req.params.sku, Number(result?.delta || 0), req.user.full_name || req.user.username);
     await notifySuperadmin('QUANTITY_MODIFIED', 'Quantity changed', `${storageType} changed from ${Number(result?.previousQty || 0).toLocaleString()} to ${Number(result?.targetQty || 0).toLocaleString()}. Reason: ${String(req.body?.reason || '').trim()}`, product, req.user.full_name || req.user.username, { qty: Number(result?.targetQty || 0) });
     res.json({ success: true, adjustment: result, product });
