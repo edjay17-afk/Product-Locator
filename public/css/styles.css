@@ -452,6 +452,46 @@ h1 {
   color: var(--ink);
 }
 
+.edit-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.edit-modal-header h2 {
+  padding-top: 3px;
+}
+
+.edit-modal-close {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.edit-modal-close:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  transform: scale(1.05);
+}
+
+.edit-modal-close:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.25);
+  outline-offset: 2px;
+}
+
 .form-panel .form-sub {
   font-family: var(--mono);
   font-size: 12px;
@@ -497,6 +537,14 @@ h1 {
 .field input:focus, .field select:focus {
   border-color: var(--safety);
   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.12);
+}
+
+/* Keep the quantity/location number spinners visible in Product Details & Location. */
+#editOverlay input[type="number"]::-webkit-inner-spin-button,
+#editOverlay input[type="number"]::-webkit-outer-spin-button,
+#transferOverlay input[type="number"]::-webkit-inner-spin-button,
+#transferOverlay input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
 }
 
 .field-required label::after {
@@ -2329,6 +2377,47 @@ body.guest-mode .tagcard-bottom button {
 }
 
 .inventory-summary-cell[data-inventory-edit="SHELF"] strong { color: #0f172a; }
+
+.inventory-summary-cell[data-inventory-derived="ACTUAL_ON_HAND"] {
+  border-color: #bbf7d0;
+  background: linear-gradient(145deg, #f0fdf4, #fff);
+}
+
+.inventory-summary-cell[data-inventory-derived="ACTUAL_ON_HAND"] strong { color: #0f172a; }
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"] {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"] strong { color: #0f172a; }
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap {
+  border-color: #fecaca;
+  background: linear-gradient(145deg, #fef2f2, #fff);
+  opacity: 1;
+}
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap strong { color: #b91c1c; }
+
+.inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap em { color: #b91c1c; }
+
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"] {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"] strong { color: #0f172a; }
+
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"].has-gap {
+  border-color: #fde68a;
+  background: linear-gradient(145deg, #fffbeb, #fff);
+  opacity: 1;
+}
+
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"].has-gap strong { color: #b45309; }
+
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"].has-gap em { color: #b45309; }
 
 .inventory-direct-delivery {
   width: 100%;

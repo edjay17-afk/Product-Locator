@@ -525,16 +525,10 @@ async function notifySuperadmin(action, title, detail, product, actor, extra = {
 }
 
 async function applyCatalogOnHandDelta(sku, delta, actor) {
-  if (!delta) return null;
-  const product = await db.getProductByBarcodeOrStock(sku);
-  if (!product) throw new Error('Product not found.');
-  const currentQty = Number.parseInt(product.qty, 10) || 0;
-  const nextQty = currentQty + Number(delta);
-  if (nextQty < 0) throw new Error('This change would make the on-hand quantity negative.');
-  return db.updateProduct(product.id, {
-    qty: nextQty,
-    last_modified_by: actor || 'Stockman'
-  });
+  // Adjusts the SKU-level on_hand_qty total, never a shelf's own qty — a
+  // Receiving/Bulk/Shelf bucket change should not silently rewrite what a
+  // specific location shows as physically present.
+  return db.adjustOnHandQuantity({ sku, delta: Number(delta), modifiedBy: actor || 'Stockman' });
 }
 
 app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
@@ -543,16 +537,22 @@ app.get('/api/inventory/:sku/summary', requireAuth, async (req, res) => {
       inventory.summary(req.params.sku),
       db.getProductByBarcodeOrStock(req.params.sku)
     ]);
+    const onHandField = product ? Number.parseInt(product.on_hand_qty, 10) : NaN;
     const catalogQty = product ? Number.parseInt(product.qty, 10) : NaN;
-    // The catalog quantity is the current on-hand source until the external
-    // stock integration is connected. Location buckets are counted separately
-    // and start at zero until staff records a receipt or putaway.
-    const onHand = Number.isInteger(catalogQty) && catalogQty >= 0 ? catalogQty : Number(ledgerSummary.onHand || 0);
+    // on_hand_qty is the dedicated, independently-tracked on-hand total for
+    // this SKU. Older rows that predate it fall back to the legacy catalog
+    // qty (summed shelf quantity), and finally to the ledger balance.
+    // Location buckets are counted separately and start at zero until staff
+    // records a receipt or putaway.
+    const onHand = Number.isInteger(onHandField) && onHandField >= 0
+      ? onHandField
+      : (Number.isInteger(catalogQty) && catalogQty >= 0 ? catalogQty : Number(ledgerSummary.onHand || 0));
     const summary = {
       ...ledgerSummary,
       onHand,
       available: Math.max(0, onHand - Number(ledgerSummary.reserved || 0)),
-      systemOnHandUpdatedAt: product?.system_on_hand_updated_at || null
+      systemOnHandUpdatedAt: product?.system_on_hand_updated_at || null,
+      lastModifiedBy: product?.last_modified_by || null
     };
     // Inventory cards are edited in-place. A cached response here can show a
     // value from before a successful save, so always return a fresh balance.
@@ -577,29 +577,61 @@ app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, as
     const storageType = String(req.body?.storage_type || req.body?.storageType || '').trim().toUpperCase();
     if (storageType === 'ON_HAND') {
       const targetQty = Number.parseInt(req.body?.target_qty ?? req.body?.targetQty, 10);
+      const qtyDelta = Number.parseInt(req.body?.qty_delta ?? req.body?.qtyDelta, 10);
       const reason = String(req.body?.reason || '').trim();
       if (!Number.isInteger(targetQty) || targetQty < 0) {
         return res.status(400).json({ success: false, error: 'On-hand quantity must be a non-negative whole number.' });
       }
       if (!reason) return res.status(400).json({ success: false, error: 'A reason is required for an on-hand correction.' });
-      const product = await db.getProductByBarcodeOrStock(req.params.sku);
-      if (!product) return res.status(404).json({ success: false, error: 'Product not found.' });
-      const previousQty = Number.parseInt(product.qty, 10) || 0;
-      const updatedProduct = await db.updateProduct(product.id, {
-        qty: targetQty,
-        last_modified_by: req.user.full_name || req.user.username
+      const modifiedBy = String(req.body?.responsible_stockman || '').trim() || req.user.full_name || req.user.username;
+      // Applies to the dedicated on_hand_qty total, never a shelf's own qty —
+      // "New quantity" may be a count aggregated across every location this
+      // product occupies, so this is sent (and applied) as a delta against
+      // that total rather than an absolute overwrite of one row's qty.
+      const updatedProduct = await db.adjustOnHandQuantity({
+        id: req.body?.id || undefined,
+        sku: req.params.sku,
+        delta: Number.isInteger(qtyDelta) ? qtyDelta : undefined,
+        targetQty,
+        modifiedBy
       });
-      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed from ${previousQty.toLocaleString()} to ${targetQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, req.user.full_name || req.user.username, { qty: targetQty });
+      const newQty = Number.isInteger(updatedProduct.on_hand_qty) ? updatedProduct.on_hand_qty : targetQty;
+      // Use the actual before/after values from the database. The browser's
+      // delta is only a compatibility fallback for older clients.
+      const previousQty = Number.isInteger(updatedProduct.previous_on_hand_qty)
+        ? updatedProduct.previous_on_hand_qty
+        : (Number.isInteger(qtyDelta) ? newQty - qtyDelta : null);
+      const actualIncrease = previousQty !== null ? newQty - previousQty : qtyDelta;
+
+      // The count just went up — that increase is stock the system now knows
+      // about but hasn't been assigned a shelf location yet. Log it to the
+      // Not Located audit trail. See db.recordNotLocatedIncrease.
+      if (Number.isInteger(actualIncrease) && actualIncrease > 0) {
+        try {
+          const notLocated = await db.recordNotLocatedIncrease({
+            barcode: updatedProduct.barcode,
+            stockNo: updatedProduct.stock_no,
+            delta: actualIncrease,
+            modifiedBy,
+            timestamp: new Date().toISOString()
+          });
+          if (notLocated) updatedProduct.not_located_qty = notLocated.not_located_qty;
+        } catch (notLocatedErr) {
+          console.error('Failed to log not-located increase:', notLocatedErr.message);
+        }
+      }
+
+      await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed${previousQty !== null ? ` from ${previousQty.toLocaleString()}` : ''} to ${newQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, modifiedBy, { qty: newQty });
       return res.json({
         success: true,
-        adjustment: { skuKey: req.params.sku, storageType, targetQty, source: 'CATALOG_ON_HAND' },
+        adjustment: { skuKey: req.params.sku, storageType, targetQty: newQty, source: 'CATALOG_ON_HAND' },
         product: updatedProduct
       });
     }
     const result = await inventory.quickAdjust({ ...(req.body || {}), sku_key: req.params.sku }, req.user.full_name || req.user.username);
-    // Until an external stock system is connected, the catalog quantity is
-    // the current on-hand total. A physical bucket change therefore changes
-    // that total by the same amount.
+    // Until an external stock system is connected, on_hand_qty is the current
+    // on-hand total. A physical bucket change therefore changes that total by
+    // the same amount — but never touches any shelf location's own qty.
     const product = await applyCatalogOnHandDelta(req.params.sku, Number(result?.delta || 0), req.user.full_name || req.user.username);
     await notifySuperadmin('QUANTITY_MODIFIED', 'Quantity changed', `${storageType} changed from ${Number(result?.previousQty || 0).toLocaleString()} to ${Number(result?.targetQty || 0).toLocaleString()}. Reason: ${String(req.body?.reason || '').trim()}`, product, req.user.full_name || req.user.username, { qty: Number(result?.targetQty || 0) });
     res.json({ success: true, adjustment: result, product });
@@ -850,6 +882,55 @@ app.put('/api/products/:id', async (req, res) => {
     const locationChanged = oldLocation !== newLocation;
     const quantityChanged = previous && Number(previous.qty || 0) !== Number(updated.qty || 0);
     await notifySuperadmin(locationChanged ? 'LOCATION_MODIFIED' : (quantityChanged ? 'QUANTITY_MODIFIED' : 'PRODUCT_MODIFIED'), locationChanged ? 'Product location changed' : (quantityChanged ? 'Product quantity modified' : 'Product details modified'), locationChanged ? `Location changed to ${newLocation}.` : (quantityChanged ? `Quantity changed from ${Number(previous.qty || 0).toLocaleString()} to ${Number(updated.qty || 0).toLocaleString()}.` : 'Product details were updated.'), updated, req.body.last_modified_by || 'Warehouse staff', { location: newLocation, qty: Number(updated.qty || 0) });
+
+    // A shelf location's qty was lowered in place in the Edit form (still
+    // mapped before and after — not cleared/deleted). Log the drop to the
+    // Unaccounted audit trail so it stays visible even after On Hand and
+    // Actual On Hand reconcile to the new lower total. See
+    // db.recordUnaccountedIncrease.
+    const wasMapped = Boolean(previous && (previous.row || previous.batch) && previous.shelf);
+    const stillMapped = Boolean((updated.row || updated.batch) && updated.shelf);
+    if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) < Number(previous.qty || 0)) {
+      const drop = Number(previous.qty || 0) - Number(updated.qty || 0);
+      try {
+        const unaccounted = await db.recordUnaccountedIncrease({
+          barcode: updated.barcode || previous.barcode,
+          stockNo: updated.stock_no || previous.stock_no,
+          delta: drop,
+          modifiedBy: req.body.last_modified_by || req.user?.full_name || req.user?.username || 'Warehouse staff',
+          timestamp: new Date().toISOString()
+        });
+        if (unaccounted) {
+          // Overwrite, don't add a new field — `updated` was fetched before
+          // this increment ran, so its own unaccounted_qty/on_hand_qty are
+          // already stale.
+          updated.unaccounted_qty = unaccounted.unaccounted_qty;
+          if (unaccounted.on_hand_qty !== null) updated.on_hand_qty = unaccounted.on_hand_qty;
+        }
+      } catch (unaccountedErr) {
+        console.error('Failed to log unaccounted quantity:', unaccountedErr.message);
+      }
+    }
+
+    // A mapped location's qty went up (Edit or Add Stock). That's stock
+    // finally getting a shelf address, so drain it out of the Not Located
+    // total. See db.drainNotLocated.
+    if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) > Number(previous.qty || 0)) {
+      const rise = Number(updated.qty || 0) - Number(previous.qty || 0);
+      try {
+        const drained = await db.drainNotLocated({
+          barcode: updated.barcode || previous.barcode,
+          stockNo: updated.stock_no || previous.stock_no,
+          delta: rise,
+          modifiedBy: req.body.last_modified_by || req.user?.full_name || req.user?.username || 'Warehouse staff',
+          timestamp: new Date().toISOString()
+        });
+        if (drained) updated.not_located_qty = drained.not_located_qty;
+      } catch (drainErr) {
+        console.error('Failed to drain not-located total:', drainErr.message);
+      }
+    }
+
     res.json({ success: true, product: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

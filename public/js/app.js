@@ -69,6 +69,9 @@ const TRANSLATIONS = {
     inventoryReceiving: "Receiving",
     inventoryBulkCarton: "Bulk / carton",
     inventoryShelf: "Shelf",
+    inventoryActualOnHand: "Actual On Hand",
+    inventoryNotLocated: "Not located",
+    inventoryUnaccounted: "Unaccounted",
     inventoryCalculated: "Calculated",
     inventoryDirectDelivery: "Direct Delivery",
     editLocDetails: "Edit Location / Details",
@@ -243,6 +246,9 @@ const TRANSLATIONS = {
     inventoryReceiving: "收货区",
     inventoryBulkCarton: "散装 / 整箱",
     inventoryShelf: "货架",
+    inventoryActualOnHand: "实际现有库存",
+    inventoryNotLocated: "未定位",
+    inventoryUnaccounted: "未清对账",
     inventoryCalculated: "系统计算",
     inventoryDirectDelivery: "直接配送",
     editLocDetails: "编辑库位 / 详情",
@@ -1039,8 +1045,9 @@ function renderProductLocationsUI(p, locs) {
     (p.barcode || p.b || '') + '#' + (p.stock_no || p.stock_code || p.s || '') + '#' +
     (p.product_name || p.name || p.n || '') + '#' + (p.category || p.c || '') + '#' +
     (p.department || p.subcategory || p.sc || '') + '#' + (p.last_modified_by || p.modifiedBy || '') + '#' +
+    (p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || '') + '#' +
     (currentUser ? currentUser.username : 'guest') + '#' + CURRENT_LANG + '#' +
-    expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || ''].join('|')).join(';');
+    expandedLocs.map(l => [l.id || '', l.floor, l.batch || l.row || '', l.shelf, l.level, l.qty, l.status, l.last_modified_by || '', l.system_on_hand_updated_at || l.systemOnHandUpdatedAt || ''].join('|')).join(';');
   if (renderSig === lastLocsRenderSig) return;
   lastLocsRenderSig = renderSig;
 
@@ -1090,6 +1097,7 @@ function renderProductLocationsUI(p, locs) {
     if (existing) {
       existing.qty = (parseInt(existing.qty, 10) || 0) + (parseInt(item.qty, 10) || 0);
       existing.is_carton = existing.is_carton || isCartonItem;
+      existing.system_on_hand_updated_at = item.system_on_hand_updated_at || item.systemOnHandUpdatedAt || existing.system_on_hand_updated_at || p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || null;
       if (isCartonItem) existing.loc_type = 'CARTON';
       if (item.id && (!existing.id || item.id > existing.id)) {
         existing.id = item.id;
@@ -1116,6 +1124,7 @@ function renderProductLocationsUI(p, locs) {
         location_storage: item.location_storage || item.storage_location || p.location_storage || p.storage_location || locText || '',
         storage_location: item.storage_location || item.location_storage || p.storage_location || p.location_storage || locText || '',
         status: item.status || (hasLoc ? 'MAPPED' : 'UNMAPPED'),
+        system_on_hand_updated_at: item.system_on_hand_updated_at || item.systemOnHandUpdatedAt || p.system_on_hand_updated_at || p.systemOnHandUpdatedAt || null,
         last_modified_by: ((item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) &&
           (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy) !== 'System Import')
           ? (item.last_modified_by || item.modifiedBy || p.last_modified_by || p.modifiedBy)
@@ -1200,7 +1209,7 @@ function renderProductLocationsUI(p, locs) {
         <div class="tagcard-bottom-actions">
           ${currentUser && item.id ? `<button class="card-btn btn-transfer" type="button" onclick="event.stopPropagation(); openTransferModalForProductIndex(${index})" title="Transfer stock to another shelf">Transfer</button>` : ''}
           <button class="card-btn btn-addstock" type="button" onclick="event.stopPropagation(); openAddQtyForLocation(${index})">Add Stock</button>
-          <button class="card-btn btn-edit" type="button" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit product details">Edit</button>
+          <button class="card-btn btn-edit" type="button" data-edit-location-index="${index}" onclick="event.stopPropagation(); openEditFormForProductIndex(${index})" title="Edit product details">Edit</button>
           ${currentUser ? `<button class="card-btn btn-delete-loc" type="button" onclick="event.stopPropagation(); deleteProductLocation(${index})" title="Delete this shelf location">Delete</button>` : ''}
         </div>
       </div>
@@ -1316,10 +1325,14 @@ function invalidateInventorySummaryCache(key) {
 }
 
 function productInventoryFallback(product) {
+  // on_hand_qty is the dedicated, independently-tracked SKU total. Only fall
+  // back to the legacy per-location qty (and, failing that, whatever total is
+  // already on screen) for products that predate that field.
+  const onHandField = Number.parseInt(product?.on_hand_qty, 10);
   const productQty = Number.parseInt(product?.qty, 10);
   const displayedQty = Number.parseInt((document.getElementById('pQty')?.textContent || '').replace(/,/g, ''), 10);
-  const qty = Math.max(0, Number.isInteger(productQty) ? productQty : (Number.isInteger(displayedQty) ? displayedQty : 0));
-  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0, systemOnHandUpdatedAt: product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt || null };
+  const qty = Math.max(0, Number.isInteger(onHandField) ? onHandField : (Number.isInteger(productQty) ? productQty : (Number.isInteger(displayedQty) ? displayedQty : 0)));
+  return { onHand: qty, available: qty, reserved: 0, receiving: 0, bulk: 0, shelf: 0, systemOnHandUpdatedAt: product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt || null, lastModifiedBy: product?.last_modified_by || product?.modifiedBy || null };
 }
 
 function bestAvailableInventorySummary(product, cachedSummary) {
@@ -1341,6 +1354,13 @@ function renderInventorySummary(summary, statusText) {
   set('inventoryReceiving', summary.receiving);
   set('inventoryBulk', summary.bulk);
   set('inventoryShelf', summary.shelf);
+  set('inventoryActualOnHand', summary.actualOnHand);
+  set('inventoryNotLocated', summary.notLocated);
+  set('inventoryUnaccounted', summary.unaccounted);
+  const notLocatedCell = document.querySelector('[data-inventory-derived="NOT_LOCATED"]');
+  if (notLocatedCell) notLocatedCell.classList.toggle('has-gap', Number(summary.notLocated || 0) > 0);
+  const unaccountedCell = document.querySelector('[data-inventory-derived="UNACCOUNTED"]');
+  if (unaccountedCell) unaccountedCell.classList.toggle('has-gap', Number(summary.unaccounted || 0) > 0);
   const systemUpdatedAt = document.getElementById('inventorySystemUpdatedAt');
   if (systemUpdatedAt) {
     const date = summary.systemOnHandUpdatedAt ? new Date(summary.systemOnHandUpdatedAt) : null;
@@ -1365,7 +1385,7 @@ async function loadInventorySummary(product) {
   const requestId = ++inventorySummaryRequestId;
   card.style.display = 'block';
   const cachedSummary = readInventorySummaryCache(key);
-  const localSummary = bestAvailableInventorySummary(product, cachedSummary);
+  const localSummary = withNotLocated(product, useLocationTotalForOnHand(product, bestAvailableInventorySummary(product, cachedSummary)));
   renderInventorySummary(localSummary, cachedSummary ? 'Updating live balance...' : 'Syncing live balance...');
   const controller = typeof AbortController === 'undefined' ? null : new AbortController();
   const timeout = controller ? setTimeout(() => controller.abort(), INVENTORY_SUMMARY_REQUEST_TIMEOUT_MS) : null;
@@ -1377,7 +1397,16 @@ async function loadInventorySummary(product) {
     const data = await response.json();
     if (!response.ok || !data.success) throw new Error(data.error || 'The live inventory service did not return a balance.');
     if (requestId !== inventorySummaryRequestId) return;
-    const summary = data.summary || {};
+    const liveAudit = data.summary || {};
+    currentInventorySummaryProduct = {
+      ...product,
+      last_modified_by: liveAudit.lastModifiedBy || product.last_modified_by || product.modifiedBy || null,
+      system_on_hand_updated_at: liveAudit.systemOnHandUpdatedAt || product.system_on_hand_updated_at || product.systemOnHandUpdatedAt || null
+    };
+    if (inventoryQuickAdjustOverlay?.classList.contains('show') && inventoryQuickAdjustBucket?.value === 'ON_HAND') {
+      updateQuickInventoryOnHandFields(false);
+    }
+    const summary = withNotLocated(product, useLocationTotalForOnHand(product, bestAvailableInventorySummary(product, data.summary || {})));
     saveInventorySummaryCache(key, summary);
     renderInventorySummary(summary, 'Ledger balance');
   } catch (err) {
@@ -1395,9 +1424,12 @@ async function loadInventorySummary(product) {
 const inventoryQuickAdjustOverlay = document.getElementById('inventoryQuickAdjustOverlay');
 const inventoryQuickAdjustSave = document.getElementById('inventoryQuickAdjustSave');
 const inventoryQuickAdjustCancel = document.getElementById('inventoryQuickAdjustCancel');
+const closeInventoryQuickAdjustBtn = document.getElementById('closeInventoryQuickAdjustBtn');
 const inventoryQuickAdjustBucket = document.getElementById('inventoryQuickAdjustBucket');
 const inventoryQuickAdjustQty = document.getElementById('inventoryQuickAdjustQty');
 const inventoryQuickAdjustReason = document.getElementById('inventoryQuickAdjustReason');
+const inventoryQuickAdjustStockman = document.getElementById('inventoryQuickAdjustStockman');
+const inventoryQuickOnHandAuditFields = document.getElementById('inventoryQuickOnHandAuditFields');
 const inventoryQuickAdjustError = document.getElementById('inventoryQuickAdjustError');
 const inventoryDirectDeliveryBtn = document.getElementById('inventoryDirectDeliveryBtn');
 const inventoryDirectDeliveryOverlay = document.getElementById('inventoryDirectDeliveryOverlay');
@@ -1411,9 +1443,104 @@ function canQuickAdjustInventory() {
   return Boolean(currentUser && ['stockman', 'carton_handler', 'admin', 'superadmin'].includes(currentUser.role));
 }
 
+function updateQuickInventoryOnHandFields(resetSelection = true) {
+  const isOnHand = inventoryQuickAdjustBucket?.value === 'ON_HAND';
+  if (inventoryQuickOnHandAuditFields) inventoryQuickOnHandAuditFields.hidden = !isOnHand;
+  if (!isOnHand || !inventoryQuickAdjustStockman) return;
+  const displayName = currentUser?.full_name || currentUser?.username || '';
+  if (resetSelection) {
+    inventoryQuickAdjustStockman.innerHTML = '<option value="">Select Responsible Stockman</option>';
+    if (displayName) inventoryQuickAdjustStockman.add(new Option(displayName, displayName));
+    inventoryQuickAdjustStockman.value = '';
+  }
+  const product = currentInventorySummaryProduct;
+  document.getElementById('inventoryQuickModifiedBy').textContent = product?.last_modified_by || product?.modifiedBy || 'Not recorded';
+  const rawDate = product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt;
+  const parsedDate = rawDate ? new Date(rawDate) : null;
+  document.getElementById('inventoryQuickModifiedDate').textContent = parsedDate && !Number.isNaN(parsedDate.getTime())
+    ? parsedDate.toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : 'Not recorded';
+}
+
 function inventorySummaryValue(bucket) {
   const ids = { ON_HAND: 'inventoryOnHand', RECEIVING: 'inventoryReceiving', BULK: 'inventoryBulk', SHELF: 'inventoryShelf' };
   return Number.parseInt((document.getElementById(ids[bucket])?.textContent || '0').replace(/,/g, ''), 10) || 0;
+}
+
+function totalLocationQuantity(product) {
+  // window.currentLocs is a global cache of whatever was last rendered on
+  // screen. It's fast, but nothing guarantees it still belongs to `product`
+  // by the time this runs (a stale/different product's cache would silently
+  // produce the wrong total, including 0). Only trust it once we've checked
+  // it actually matches this product's barcode/stock; otherwise recompute
+  // fresh from PRODUCTS.
+  const cached = Array.isArray(window.currentLocs) ? window.currentLocs : [];
+  const key = product ? (product.barcode || product.b || product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase() : '';
+  const cacheMatchesProduct = key && cached.some(l => {
+    const lb = (l.barcode || l.b || '').toString().trim().toLowerCase();
+    const ls = (l.stock_no || l.stock_code || l.s || '').toString().trim().toLowerCase();
+    return lb === key || ls === key;
+  });
+  const locations = cacheMatchesProduct ? cached : (product ? getLocationsForProduct(product) : cached);
+  if (!locations.length) return null;
+  return locations.reduce((total, location) => total + (Number.parseInt(location.qty, 10) || 0), 0);
+}
+
+// The current SKU-level On Hand total. Trusts the dedicated on_hand_qty field
+// once a product has one; only pre-migration products (never adjusted since
+// this field existed) fall back to summing their shelf quantities.
+function currentOnHandTotal(product) {
+  const onHandField = Number.parseInt(product?.on_hand_qty, 10);
+  if (Number.isInteger(onHandField)) return onHandField;
+  const total = totalLocationQuantity(product);
+  return total !== null ? total : inventorySummaryValue('ON_HAND');
+}
+
+// Highest qty a single shelf location can hold without pushing the sum of
+// every location for this product past the SKU's On Hand total. Assumes
+// window.currentEditBaseQty holds the location's own qty before this edit
+// (set when the Edit Location form is opened), since that amount is already
+// counted in totalLocationQuantity and shouldn't be double-subtracted.
+function locationQtyCeiling(product) {
+  const onHand = currentOnHandTotal(product);
+  const total = totalLocationQuantity(product);
+  const base = Number(window.currentEditBaseQty || 0);
+  const locatedElsewhere = Math.max(0, (total === null ? 0 : total) - base);
+  return Math.max(0, onHand - locatedElsewhere);
+}
+
+function useLocationTotalForOnHand(product, summary) {
+  // Once a product has its own on_hand_qty, trust it — On Hand is tracked
+  // independently of any shelf's qty and must not be overwritten by the sum
+  // of location quantities. Only pre-migration products (on_hand_qty never
+  // set) fall back to that sum, matching their previous behavior.
+  if (Number.isInteger(Number.parseInt(product?.on_hand_qty, 10))) return summary;
+  const total = totalLocationQuantity(product);
+  if (total === null) return summary;
+  return { ...summary, onHand: total, available: Math.max(0, total - Number(summary.reserved || 0)) };
+}
+
+// On Hand and shelf Location Qty are tracked independently now, so a product
+// can have units on hand that were never actually assigned to a shelf. Both
+// figures below are persisted audit counters (see db.recordNotLocatedIncrease
+// / db.drainNotLocated and db.recordUnaccountedIncrease) rather than
+// something derived live from location rows, so they read the same for
+// every staff member and survive a page refresh:
+// - notLocated: units added via a Quick Inventory Count "New Quantity" that
+//   exceeded the prior On Hand — counted into the total but not yet given a
+//   shelf address — draining back down as that stock gets shelved.
+// - unaccounted: units removed from a shelf location's count in the Edit
+//   form (Product Details & Location), without being moved anywhere. Shown
+//   for visibility only — never subtracted from actualOnHand or notLocated.
+// actualOnHand = shelf qty + notLocated: everything currently accounted for,
+// whether shelved or just not yet given a shelf.
+function withNotLocated(product, summary) {
+  const located = totalLocationQuantity(product);
+  const shelfQty = located === null ? 0 : located;
+  const notLocated = Number.parseInt(product?.not_located_qty, 10) || 0;
+  const actualOnHand = shelfQty + notLocated;
+  const unaccounted = Number.parseInt(product?.unaccounted_qty, 10) || 0;
+  return { ...summary, actualOnHand, notLocated, unaccounted };
 }
 
 function updateInventoryCardImmediately(bucket, targetQty) {
@@ -1429,7 +1556,7 @@ function updateInventoryCardImmediately(bucket, targetQty) {
   if (!field) return;
   current[field] = targetQty;
   if (bucket === 'ON_HAND') current.available = Math.max(0, targetQty - current.reserved);
-  renderInventorySummary(current, '');
+  renderInventorySummary(withNotLocated(currentInventorySummaryProduct, current), '');
 }
 
 function openInventoryQuickAdjust(bucket) {
@@ -1445,8 +1572,9 @@ function openInventoryQuickAdjust(bucket) {
   document.getElementById('inventoryQuickAdjustProductName').textContent = name;
   document.getElementById('inventoryQuickAdjustMeta').textContent = `Barcode: ${barcode} | Stock No: ${stock}`;
   inventoryQuickAdjustBucket.value = bucket;
-  inventoryQuickAdjustQty.value = String(inventorySummaryValue(bucket));
+  inventoryQuickAdjustQty.value = String(bucket === 'ON_HAND' ? currentOnHandTotal(product) : inventorySummaryValue(bucket));
   inventoryQuickAdjustReason.value = 'Physical count correction';
+  updateQuickInventoryOnHandFields();
   inventoryQuickAdjustError.textContent = '';
   inventoryQuickAdjustError.classList.remove('show');
   inventoryQuickAdjustOverlay.classList.add('show');
@@ -1487,7 +1615,16 @@ if (inventorySummaryCard) {
       return;
     }
     const derived = event.target.closest('[data-inventory-derived]');
-    if (derived) showToast('This balance is calculated from the inventory ledger.');
+    if (derived) {
+      const kind = derived.dataset.inventoryDerived;
+      showToast(kind === 'NOT_LOCATED'
+        ? 'Units added via a Quick Inventory Count that raised On Hand above what was previously tracked, not yet assigned a shelf location.'
+        : (kind === 'ACTUAL_ON_HAND'
+          ? "Everything currently accounted for: what's on a shelf, plus what's counted in On Hand but not yet located. Doesn't include the Unaccounted total below."
+          : (kind === 'UNACCOUNTED'
+            ? 'A running record of units removed from a shelf by lowering its quantity in Edit (Product Details & Location), without being moved anywhere. For visibility only — it does not change any total above.'
+            : 'This balance is calculated from the inventory ledger.')));
+    }
   });
   inventorySummaryCard.addEventListener('keydown', event => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -1500,11 +1637,20 @@ if (inventorySummaryCard) {
 }
 
 if (inventoryQuickAdjustCancel) inventoryQuickAdjustCancel.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
+if (closeInventoryQuickAdjustBtn) closeInventoryQuickAdjustBtn.addEventListener('click', () => inventoryQuickAdjustOverlay?.classList.remove('show'));
+if (inventoryQuickAdjustBucket) inventoryQuickAdjustBucket.addEventListener('change', () => {
+  const bucket = inventoryQuickAdjustBucket.value;
+  inventoryQuickAdjustQty.value = String(bucket === 'ON_HAND' ? currentOnHandTotal(currentInventorySummaryProduct) : inventorySummaryValue(bucket));
+  updateQuickInventoryOnHandFields();
+  inventoryQuickAdjustError.classList.remove('show');
+});
 if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click', async () => {
   const product = currentInventorySummaryProduct;
   const qtyRaw = inventoryQuickAdjustQty.value.trim();
   const targetQty = Number(qtyRaw);
   const reason = inventoryQuickAdjustReason.value.trim();
+  const isOnHand = inventoryQuickAdjustBucket.value === 'ON_HAND';
+  const responsibleStockman = inventoryQuickAdjustStockman?.value.trim() || '';
   if (!product || !qtyRaw || !Number.isInteger(targetQty) || targetQty < 1) {
     inventoryQuickAdjustError.textContent = CURRENT_LANG === 'en'
       ? 'New Quantity is required. Enter a whole number of at least 1.'
@@ -1519,20 +1665,32 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
     inventoryQuickAdjustError.classList.add('show');
     return;
   }
+  if (isOnHand && !responsibleStockman) {
+    inventoryQuickAdjustError.textContent = 'Please select a Responsible Stockman.';
+    inventoryQuickAdjustError.classList.add('show');
+    return;
+  }
   inventoryQuickAdjustSave.disabled = true;
   inventoryQuickAdjustError.classList.remove('show');
   const key = product.barcode || product.b || product.stock_no || product.stock_code || product.s;
+  // "New quantity" is the current On Hand total (independent of any shelf's
+  // qty). Send the delta, not the raw total, so the server applies exactly
+  // the intended change to on_hand_qty rather than re-deriving it.
+  const onHandDelta = isOnHand ? targetQty - currentOnHandTotal(product) : null;
   try {
     const response = await authFetch(`/api/inventory/${encodeURIComponent(key)}/quick-adjustment`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        id: product.id,
         barcode: product.barcode || product.b,
         stock_no: product.stock_no || product.stock_code || product.s,
         product_name: product.product_name || product.name || product.n,
         storage_type: inventoryQuickAdjustBucket.value,
         target_qty: targetQty,
-        reason
+        qty_delta: isOnHand && Number.isInteger(onHandDelta) ? onHandDelta : undefined,
+        reason,
+        responsible_stockman: isOnHand ? responsibleStockman : undefined
       })
     });
     const data = await response.json();
@@ -1540,24 +1698,55 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
     const bucket = inventoryQuickAdjustBucket.value;
     updateInventoryCardImmediately(bucket, targetQty);
     if (data.product) {
-      const nextOnHand = Number.parseInt(data.product.qty, 10);
-      currentInventorySummaryProduct = { ...product, ...data.product };
+      const nextOnHand = Number.parseInt(data.product.on_hand_qty, 10);
+      currentInventorySummaryProduct = {
+        ...product,
+        ...data.product,
+        ...(bucket === 'ON_HAND' ? {
+          last_modified_by: data.product.last_modified_by || responsibleStockman,
+          system_on_hand_updated_at: data.product.system_on_hand_updated_at || new Date().toISOString()
+        } : {})
+      };
       if (Number.isInteger(nextOnHand) && bucket !== 'ON_HAND') {
         updateInventoryCardImmediately('ON_HAND', nextOnHand);
       }
+    } else if (bucket === 'ON_HAND') {
+      currentInventorySummaryProduct = {
+        ...product,
+        on_hand_qty: targetQty,
+        last_modified_by: responsibleStockman,
+        system_on_hand_updated_at: new Date().toISOString()
+      };
     }
+    if (bucket === 'ON_HAND') updateQuickInventoryOnHandFields(false);
     inventoryQuickAdjustOverlay.classList.remove('show');
     showToast(`Inventory count updated to ${targetQty.toLocaleString()} units.`);
     invalidateInventorySummaryCache(key);
     loadInventorySummary(currentInventorySummaryProduct || product);
+    // Refresh the visible Product Details & Location card after a successful
+    // on-hand correction so its quantity and audit information stay current.
+    if (activeProduct && String(key).toLowerCase() === String(activeProduct.barcode || activeProduct.b || activeProduct.stock_no || activeProduct.stock_code || activeProduct.s).toLowerCase()) {
+      activeProduct = { ...activeProduct, ...currentInventorySummaryProduct };
+      const productIndex = PRODUCTS.findIndex(item => String(item.id) === String(activeProduct.id));
+      if (productIndex !== -1) PRODUCTS[productIndex] = { ...PRODUCTS[productIndex], ...activeProduct };
+      // Paint the saved state immediately; reconcile with the server in the background.
+      renderProductLocationsUI(activeProduct, getLocationsForProduct(activeProduct));
+      void fetchLocationsForProduct(activeProduct).then(refreshedLocations => {
+        if (refreshedLocations) renderProductLocationsUI(activeProduct, refreshedLocations);
+      }).catch(refreshError => console.warn('Could not refresh Product Details & Location:', refreshError));
+    }
   } catch (err) {
     if (isNetworkFailure(err)) {
       const bucket = inventoryQuickAdjustBucket.value;
       queueInventoryAction(`/api/inventory/${encodeURIComponent(key)}/quick-adjustment`, {
+        id: product.id,
         barcode: product.barcode || product.b,
         stock_no: product.stock_no || product.stock_code || product.s,
         product_name: product.product_name || product.name || product.n,
-        storage_type: bucket, target_qty: targetQty, reason
+        storage_type: bucket, target_qty: targetQty,
+        qty_delta: bucket === 'ON_HAND' && Number.isInteger(onHandDelta) ? onHandDelta : undefined,
+        reason,
+        responsible_stockman: bucket === 'ON_HAND' ? responsibleStockman : undefined
       }, 'inventory correction');
       updateInventoryCardImmediately(bucket, targetQty);
       inventoryQuickAdjustOverlay.classList.remove('show');
@@ -1571,7 +1760,7 @@ if (inventoryQuickAdjustSave) inventoryQuickAdjustSave.addEventListener('click',
   }
 });
 
-[inventoryQuickAdjustQty, inventoryQuickAdjustReason].forEach(field => {
+[inventoryQuickAdjustQty, inventoryQuickAdjustReason, inventoryQuickAdjustStockman].forEach(field => {
   field?.addEventListener('input', () => {
     inventoryQuickAdjustError.textContent = '';
     inventoryQuickAdjustError.classList.remove('show');
@@ -1606,10 +1795,11 @@ if (inventoryDirectDeliverySave) inventoryDirectDeliverySave.addEventListener('c
     });
     const data = await response.json();
     if (!response.ok || !data.success) throw new Error(data.error || 'Could not record the direct delivery.');
-    const nextOnHand = Math.max(0, inventorySummaryValue('ON_HAND') - qty);
+    const serverOnHand = Number.parseInt(data.product?.on_hand_qty, 10);
+    const nextOnHand = Number.isInteger(serverOnHand) ? serverOnHand : Math.max(0, inventorySummaryValue('ON_HAND') - qty);
     updateInventoryCardImmediately('RECEIVING', Math.max(0, receiving - qty));
     updateInventoryCardImmediately('ON_HAND', nextOnHand);
-    if (data.product) currentInventorySummaryProduct = { ...product, ...data.product, qty: nextOnHand };
+    if (data.product) currentInventorySummaryProduct = { ...product, ...data.product, on_hand_qty: nextOnHand };
     inventoryDirectDeliveryOverlay.classList.remove('show');
     showToast(`Direct delivery recorded: ${qty.toLocaleString()} unit(s) removed from Receiving.`);
     invalidateInventorySummaryCache(key);
@@ -2282,6 +2472,12 @@ if (recentNextBtn) {
 // --- SCANNER LOGIC ---
 let html5QrCode = null;
 let scanTarget = 'search';
+let scannerResultCallback = null;
+
+function openScanner(callback) {
+  scannerResultCallback = typeof callback === 'function' ? callback : null;
+  startScanner('callback_location_qr');
+}
 
 const scanBtnEl = document.getElementById('scanBtn');
 if (scanBtnEl) scanBtnEl.addEventListener('click', () => startScanner('search'));
@@ -2640,6 +2836,10 @@ function onScanSuccess(code) {
     handleEditLocationQRScan(code);
   } else if (scanTarget === 'add_location_qr') {
     handleAddLocationQRScan(code);
+  } else if (scanTarget === 'callback_location_qr') {
+    const callback = scannerResultCallback;
+    scannerResultCallback = null;
+    if (callback) callback(code);
   } else if (scanTarget === 'checker_location_qr') {
     handleCheckerLocationScan(code);
   } else if (scanTarget === 'rapid_barcode') {
@@ -2788,7 +2988,7 @@ function handleEditLocationQRScan(code) {
     if (typeof updateEditLocationSuggestions === 'function') {
       updateEditLocationSuggestions();
     }
-    document.getElementById('efQty').focus();
+    document.getElementById('efStockman').focus();
     showToast(`Location set: Floor ${parsed.floor}, Row ${parsed.row}, Shelf ${parsed.shelf}, Level ${parsed.level}`);
   } else {
     showToast("Invalid location QR format. Expected format like '1-02-01-03'.", 'error');
@@ -3015,7 +3215,29 @@ const editFormError = document.getElementById('editFormError');
 
 document.getElementById('editProductBtn').addEventListener('click', openEditForm);
 document.getElementById('cancelEditBtn').addEventListener('click', closeEditForm);
+document.getElementById('closeEditModalBtn')?.addEventListener('click', closeEditForm);
 document.getElementById('saveEditBtn').addEventListener('click', saveEditProduct);
+
+const efQtyEl = document.getElementById('efQty');
+if (efQtyEl) {
+  efQtyEl.addEventListener('input', () => {
+    const raw = efQtyEl.value.trim();
+    if (raw === '' || !/^\d+$/.test(raw)) {
+      editFormError.classList.remove('show');
+      return;
+    }
+    const val = Number.parseInt(raw, 10);
+    const ceiling = locationQtyCeiling(activeProduct);
+    if (val > ceiling) {
+      editFormError.textContent = CURRENT_LANG === 'en'
+        ? `Quantity can't exceed On Hand. This location can hold at most ${ceiling.toLocaleString()} unit(s) right now — the rest of the On Hand total is already assigned to other locations.`
+        : `数量不能超过现有库存。此库位目前最多可分配 ${ceiling.toLocaleString()} 件——现有库存的其余部分已分配到其他库位。`;
+      editFormError.classList.add('show');
+    } else {
+      editFormError.classList.remove('show');
+    }
+  });
+}
 
 const efAddQtyEl = document.getElementById('efAddQty');
 if (efAddQtyEl) {
@@ -3298,14 +3520,19 @@ function openEditForm() {
   document.getElementById('efShelf').value = s || '';
   document.getElementById('efLevel').value = l || '0';
   
-  const currentQty = activeProduct.qty !== undefined ? activeProduct.qty : 0;
+  const productQty = Number.parseInt(activeProduct.qty, 10);
+  const inventoryOnHandQty = inventorySummaryValue('ON_HAND');
+  const currentQty = Number.isInteger(productQty) && productQty > 0
+    ? productQty
+    : (inventoryOnHandQty > 0 ? inventoryOnHandQty : Math.max(0, Number.isInteger(productQty) ? productQty : 0));
   window.currentEditBaseQty = currentQty;
   document.getElementById('efQty').value = currentQty;
   if (efAddQtyEl) efAddQtyEl.value = '';
   const hint = document.getElementById('efQtyMathHint');
   if (hint) hint.style.display = 'none';
 
-  document.getElementById('efStockman').value = activeProduct.last_modified_by || activeProduct.modifiedBy || (currentUser ? currentUser.full_name : '');
+  populateEditResponsibleStockman();
+  renderEditQuantityAudit(activeProduct);
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
   document.getElementById('efCategoryDropdown').innerHTML = '';
@@ -3319,6 +3546,68 @@ function closeEditForm() {
   editOverlay.classList.remove('show');
 }
 
+function populateEditResponsibleStockman() {
+  const select = document.getElementById('efStockman');
+  if (!select) return;
+  const displayName = currentUser?.full_name || currentUser?.username || '';
+  select.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = CURRENT_LANG === 'en' ? 'Select Responsible Stockman' : '选择负责理货员';
+  select.appendChild(placeholder);
+
+  if (displayName) {
+    const currentUserOption = document.createElement('option');
+    currentUserOption.value = displayName;
+    currentUserOption.textContent = displayName;
+    select.appendChild(currentUserOption);
+  }
+  select.value = '';
+}
+
+function renderEditQuantityAudit(product) {
+  const auditInfo = document.getElementById('editQtyAuditInfo');
+  const modifiedByLabel = document.getElementById('editQtyModifiedByLabel');
+  const modifiedDateLabel = document.getElementById('editQtyModifiedDateLabel');
+  const modifiedByValue = document.getElementById('editQtyModifiedBy');
+  const modifiedDateValue = document.getElementById('editQtyModifiedDate');
+  const locationByValue = document.getElementById('editLocationModifiedBy');
+  const locationDateValue = document.getElementById('editLocationModifiedDate');
+  if (!auditInfo || !modifiedByLabel || !modifiedDateLabel || !modifiedByValue || !modifiedDateValue) return;
+
+  const isEn = CURRENT_LANG === 'en';
+  modifiedByLabel.textContent = isEn ? 'Last Quantity Modified By' : '最后修改数量的人员';
+  modifiedDateLabel.textContent = isEn ? 'Last Modified Date' : '最后修改日期';
+  modifiedByValue.textContent = product?.last_modified_by || product?.modifiedBy || (isEn ? 'Not recorded' : '未记录');
+  if (locationByValue) locationByValue.textContent = product?.location_last_modified_by || product?.last_modified_by || product?.modifiedBy || (isEn ? 'Not recorded' : '未记录');
+
+  const modifiedAt = product?.system_on_hand_updated_at || product?.systemOnHandUpdatedAt;
+  if (!modifiedAt) {
+    modifiedDateValue.textContent = isEn ? 'Not recorded' : '未记录';
+    auditInfo.style.display = 'block';
+    if (locationDateValue) locationDateValue.textContent = isEn ? 'Not recorded' : '未记录';
+    return;
+  }
+  const parsedDate = new Date(modifiedAt);
+  if (Number.isNaN(parsedDate.getTime())) {
+    modifiedDateValue.textContent = isEn ? 'Not recorded' : '未记录';
+    auditInfo.style.display = 'block';
+    if (locationDateValue) locationDateValue.textContent = isEn ? 'Not recorded' : '未记录';
+    return;
+  }
+
+  const locale = isEn ? 'en-PH' : 'zh-CN';
+  const formattedDate = parsedDate.toLocaleString(locale, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+  });
+  modifiedDateValue.textContent = formattedDate;
+  if (locationDateValue) locationDateValue.textContent = product?.location_last_modified_at
+    ? new Date(product.location_last_modified_at).toLocaleString(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : formattedDate;
+  auditInfo.style.display = 'block';
+}
+
 async function saveEditProduct() {
   const id = document.getElementById('efId').value;
   const name = document.getElementById('efName').value.trim();
@@ -3327,14 +3616,33 @@ async function saveEditProduct() {
   const category = document.getElementById('efCategory').value.trim();
   const department = document.getElementById('efSubcategory').value.trim();
   const floor = document.getElementById('efFloor').value;
-  const row = pad2(document.getElementById('efRow').value);
-  const shelf = pad2(document.getElementById('efShelf').value);
+  const rowRaw = document.getElementById('efRow').value.trim();
+  const shelfRaw = document.getElementById('efShelf').value.trim();
+  const row = pad2(rowRaw);
+  const shelf = pad2(shelfRaw);
   const levelRaw = document.getElementById('efLevel').value.trim();
   const level = pad2(levelRaw);
   const qtyRaw = document.getElementById('efQty').value.trim();
   const stockmanRaw = document.getElementById('efStockman').value.trim();
 
-  if (!name || !stock_no || !floor || !row || !shelf || levelRaw === '' || qtyRaw === '' || !stockmanRaw) {
+  if (!name || !stock_no || !floor || !rowRaw || !shelfRaw || levelRaw === '') {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Product Name, Stock No., Floor, Row, Shelf, Level, and a Responsible Stockman are required.'
+      : '商品名称、货号、楼层、排号、货架号、层数、现有库存数量和已登录的负责理货员均为必填项。';
+    editFormError.classList.add('show');
+    return;
+  }
+  if (!stockmanRaw) {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Please select a Responsible Stockman.'
+      : '请选择负责理货员。';
+    editFormError.classList.add('show');
+    return;
+  }
+  if (!/^\d+$/.test(rowRaw) || !/^\d+$/.test(shelfRaw) || !/^\d+$/.test(levelRaw)) {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'Row, Shelf, and Level must be valid whole numbers.'
+      : '排号、货架号和层数必须是有效整数。';
     editFormError.classList.add('show');
     return;
   }
@@ -3346,10 +3654,20 @@ async function saveEditProduct() {
 
   const validQty = validateQty(qtyRaw);
   if (validQty === null) {
-    showToast('Invalid quantity.', 'error');
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? 'On Hand Quantity must be a non-negative whole number.'
+      : '现有库存数量必须是非负整数。';
+    editFormError.classList.add('show');
     return;
   }
-
+  const qtyCeiling = locationQtyCeiling(activeProduct);
+  if (validQty > qtyCeiling) {
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? `Quantity can't exceed On Hand. This location can hold at most ${qtyCeiling.toLocaleString()} unit(s) right now.`
+      : `数量不能超过现有库存。此库位目前最多可分配 ${qtyCeiling.toLocaleString()} 件。`;
+    editFormError.classList.add('show');
+    return;
+  }
   const btn = document.getElementById('saveEditBtn');
   if (btn && btn.disabled) return;
   if (btn) btn.disabled = true;
@@ -3367,11 +3685,15 @@ async function saveEditProduct() {
       level,
       loc,
       loc_full: storage_location,
-      qty: validQty,
       status: 'MAPPED',
-      custom: true,
-      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
+      custom: true
     };
+    payload.qty = validQty;
+    const qtyChanged = id && validQty !== Number(window.currentEditBaseQty || 0);
+    if (!id || qtyChanged) {
+      payload.last_modified_by = stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman');
+      payload.system_on_hand_updated_at = new Date().toISOString();
+    }
 
     const currentName = activeProduct?.product_name || activeProduct?.name || activeProduct?.n || '';
     const currentBarcode = activeProduct?.barcode || activeProduct?.b || '';
@@ -3417,10 +3739,11 @@ async function saveEditProduct() {
       location_storage: storage_location,
       storage_location,
       loc_full: storage_location,
-      qty: validQty,
+      qty: baseProduct.qty ?? validQty,
       status: 'MAPPED',
       custom: true,
-      last_modified_by: stockmanRaw || (currentUser ? currentUser.full_name : 'Guest Stockman')
+      last_modified_by: baseProduct.last_modified_by || baseProduct.modifiedBy || null,
+      system_on_hand_updated_at: baseProduct.system_on_hand_updated_at || baseProduct.systemOnHandUpdatedAt || null
     };
 
     // Update the visible card immediately. The server request continues in
@@ -3430,12 +3753,11 @@ async function saveEditProduct() {
     activeProduct = optimisticProduct;
     rebuildIndex();
     persistSearchIndexSoon();
-    closeEditForm();
     renderProduct(optimisticProduct);
     showToast(`Saving "${name}"...`, 'info');
 
     try {
-      const res = await fetch(`/api/products/${id}`, {
+      const res = await authFetch(`/api/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -3453,11 +3775,19 @@ async function saveEditProduct() {
         if (currentIsEdited) activeProduct = res.product;
         rebuildIndex();
         persistSearchIndexSoon();
-        if (currentIsEdited) renderProduct(res.product);
+        if (currentIsEdited) {
+          const inventoryKey = res.product.barcode || res.product.stock_no || res.product.stock_code;
+          if (inventoryKey) invalidateInventorySummaryCache(inventoryKey);
+          renderProduct(res.product);
+          const refreshedLocations = await fetchLocationsForProduct(res.product);
+          renderProductLocationsUI(res.product, refreshedLocations);
+          loadInventorySummary(res.product);
+        }
         if (typeof renderPortalDataTable === 'function') {
           void renderPortalDataTable({ refreshStats: true });
         }
       }
+      closeEditForm();
       showToast(`Updated in Database! "${name}" location is now Floor ${floor}, Row ${row}, Shelf ${shelf}.`);
     } catch (err) {
       const optimisticIndex = PRODUCTS.findIndex(p => String(p.id) === String(id));
@@ -3478,7 +3808,11 @@ async function saveEditProduct() {
     }
   } catch (err) {
     console.error('Failed to update product:', err);
-    showToast('Server error updating product.', 'error');
+    editFormError.textContent = CURRENT_LANG === 'en'
+      ? `Could not save changes: ${err.message || 'Server error.'}`
+      : `无法保存更改：${err.message || '服务器错误。'}`;
+    editFormError.classList.add('show');
+    showToast('Could not save Product Details & Location.', 'error');
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -4026,6 +4360,8 @@ function showAddStockFormError(message) {
   if (!error) return;
   error.textContent = message;
   error.classList.add('show');
+  error.style.display = 'block';
+  error.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function clearAddStockFormError() {
@@ -4033,6 +4369,7 @@ function clearAddStockFormError() {
   if (!error) return;
   error.textContent = '';
   error.classList.remove('show');
+  error.style.display = 'none';
 }
 
 async function saveAddStockToLocation() {
@@ -4041,6 +4378,13 @@ async function saveAddStockToLocation() {
   const addQtyRaw = document.getElementById('addStockNewInput').value.trim();
   const addQty = Number(addQtyRaw);
   const stockman = document.getElementById('addStockmanInput').value.trim();
+  // Each receipt must have a unique reference. A fixed reference makes the
+  // second Add Stock action look like a duplicate receiving transaction.
+  const receiptReference = `Add Stock to Location ${id || 'new'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const onHandQty = Number.parseInt(
+    currentInventorySummaryProduct?.qty ?? activeProduct?.qty ??
+    document.getElementById('inventoryOnHand')?.textContent?.replace(/,/g, ''), 10
+  );
 
   if (!addQtyRaw || !Number.isInteger(addQty) || addQty < 1) {
     showAddStockFormError(CURRENT_LANG === 'en' ? 'Add New Qty is required. Enter a whole quantity of at least 1.' : '新增数量为必填项。请输入至少为 1 的整数。');
@@ -4083,7 +4427,7 @@ async function saveAddStockToLocation() {
             qty: addQty,
             location_code: loc,
             package_type: 'EACH',
-            source_reference: 'Add Stock to Location'
+            source_reference: receiptReference
           })
         });
         const receiptData = await receiptResponse.json();
@@ -4119,7 +4463,9 @@ async function saveAddStockToLocation() {
     }
   } catch (err) {
     console.error("Error saving added stock:", err);
-    showToast("Network error updating stock.", 'error');
+    showAddStockFormError(err instanceof TypeError
+      ? 'Network error updating stock. Please check the connection and try again.'
+      : (err.message || 'Could not update stock.'));
   } finally {
     if (btn) btn.disabled = false;
   }
@@ -4563,7 +4909,11 @@ window.openEditFormForProductIndex = function(index) {
   document.getElementById('efShelf').value = p.shelf || '';
   document.getElementById('efLevel').value = p.level || '0';
 
-  const currentQty = p.qty !== undefined && p.qty !== null ? p.qty : 0;
+  const productQty = Number.parseInt(p.qty, 10);
+  const inventoryOnHandQty = inventorySummaryValue('ON_HAND');
+  const currentQty = Number.isInteger(productQty) && productQty > 0
+    ? productQty
+    : (inventoryOnHandQty > 0 ? inventoryOnHandQty : Math.max(0, Number.isInteger(productQty) ? productQty : 0));
   window.currentEditBaseQty = currentQty;
   document.getElementById('efQty').value = currentQty;
   const efAddQty = document.getElementById('efAddQty');
@@ -4571,7 +4921,8 @@ window.openEditFormForProductIndex = function(index) {
   const efHint = document.getElementById('efQtyMathHint');
   if (efHint) efHint.style.display = 'none';
 
-  document.getElementById('efStockman').value = p.last_modified_by || p.modifiedBy || (currentUser ? currentUser.full_name : '');
+  populateEditResponsibleStockman();
+  renderEditQuantityAudit(p);
 
   document.getElementById('efCategoryDropdown').style.display = 'none';
   document.getElementById('efCategoryDropdown').innerHTML = '';
@@ -4580,6 +4931,28 @@ window.openEditFormForProductIndex = function(index) {
   document.getElementById('editOverlay').classList.add('show');
   updateEditLocationSuggestions();
 };
+
+document.addEventListener('click', event => {
+  const clickTarget = event.target instanceof Element
+    ? event.target
+    : event.target?.parentElement;
+  const editButton = clickTarget?.closest('.btn-edit[data-edit-location-index]');
+  if (!editButton) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const index = Number.parseInt(editButton.dataset.editLocationIndex, 10);
+  if (!Number.isInteger(index) || !window.currentLocs?.[index]) {
+    showToast('Could not open Product Details & Location. Please search for the product again.', 'error');
+    return;
+  }
+  if (Number.isInteger(onHandQty) && onHandQty === existingQty) {
+    showAddStockFormError(CURRENT_LANG === 'en'
+      ? 'The On Hand quantity already matches this location quantity. No new quantity can be added here.'
+      : '现有库存数量已与此库位数量相同，无法在此添加新数量。');
+    return;
+  }
+  window.openEditFormForProductIndex(index);
+});
 
 function confirmResultCardLocationDelete(productName, locDisplay) {
   const overlay = document.getElementById('deleteLocationConfirmOverlay');
@@ -4655,9 +5028,9 @@ window.deleteProductLocation = async function(index) {
   // Resolve target product ID accurately
   let targetId = item.id;
   if (!targetId) {
-    const b1 = (item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '')).toString().trim().toLowerCase();
-    const b2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '')).toString().trim().toLowerCase();
-    const s = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '')).toString().trim().toLowerCase();
+    const b1 = (item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '') || '').toString().trim().toLowerCase();
+    const b2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '') || '').toString().trim().toLowerCase();
+    const s = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '') || '').toString().trim().toLowerCase();
 
     const matched = PRODUCTS.find(p => {
       const pb1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
@@ -4680,9 +5053,9 @@ window.deleteProductLocation = async function(index) {
   showToast(isEn ? 'Removing shelf location...' : '正在清除货架位置...');
 
   try {
-    const barcode = (item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '')).toString().trim().toLowerCase();
-    const barcode2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '')).toString().trim().toLowerCase();
-    const stockCode = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '')).toString().trim().toLowerCase();
+    const barcode = (item.barcode || (activeProduct ? activeProduct.barcode || activeProduct.b : '') || '').toString().trim().toLowerCase();
+    const barcode2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '') || '').toString().trim().toLowerCase();
+    const stockCode = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '') || '').toString().trim().toLowerCase();
 
     // Check if there are other matching rows in PRODUCTS for this product
     const matchingRows = PRODUCTS.filter(p => {
@@ -5980,6 +6353,21 @@ window.openTransferModalForProductIndex = function(index) {
   document.getElementById('transferProductMeta').textContent = `Barcode: ${item.barcode || '—'} | Stock No: ${item.stock_no || '—'}`;
   document.getElementById('transferSourceLoc').textContent = item.loc || `${item.floor}-${item.row}-${item.shelf}-${item.level}`;
   document.getElementById('transferSourceMaxQty').textContent = item.qty || 0;
+  const transferStockman = document.getElementById('transferResponsibleStockman');
+  if (transferStockman) {
+    const displayName = currentUser?.full_name || currentUser?.username || '';
+    transferStockman.innerHTML = '<option value="">Select Responsible Stockman</option>';
+    if (displayName) transferStockman.add(new Option(displayName, displayName));
+    transferStockman.value = '';
+  }
+  const transferModifiedBy = document.getElementById('transferLastLocationModifiedBy');
+  if (transferModifiedBy) transferModifiedBy.textContent = item.last_modified_by || item.modifiedBy || 'Not recorded';
+  const transferModifiedDate = document.getElementById('transferLastLocationModifiedDate');
+  const transferRawDate = item.location_last_modified_at || item.system_on_hand_updated_at || item.systemOnHandUpdatedAt;
+  const transferDate = transferRawDate ? new Date(transferRawDate) : null;
+  if (transferModifiedDate) transferModifiedDate.textContent = transferDate && !Number.isNaN(transferDate.getTime())
+    ? transferDate.toLocaleString('en-PH', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : 'Not recorded';
   
   const qtyInput = document.getElementById('transferQtyInput');
   Object.values(transferDestinationFields).forEach(field => { if (field) field.value = ''; });
@@ -5987,10 +6375,10 @@ window.openTransferModalForProductIndex = function(index) {
     transferDestinationFields.floor.value = String(item.floor);
   }
   updateTransferDestinationPreview();
-  if (qtyInput) {
-    qtyInput.value = item.qty || 1;
-    qtyInput.max = item.qty || 1;
-  }
+  // No native `max` here on purpose — it silently stops the spinner with no
+  // explanation once reached, which reads as broken. The input listener below
+  // shows an actual validation message instead so the limit is explained.
+  if (qtyInput) qtyInput.value = item.qty || 1;
 
   const overlay = document.getElementById('transferOverlay');
   if (overlay) overlay.classList.add('show');
@@ -6008,7 +6396,27 @@ const confirmTransferBtn = document.getElementById('confirmTransferBtn');
 const scanDestLocBtn = document.getElementById('scanDestLocBtn');
 const transferQtyInput = document.getElementById('transferQtyInput');
 
-transferQtyInput?.addEventListener('input', clearTransferFormError);
+transferQtyInput?.addEventListener('input', () => {
+  const raw = transferQtyInput.value.trim();
+  if (raw === '' || !/^\d+$/.test(raw) || !currentTransferItem) {
+    clearTransferFormError();
+    return;
+  }
+  const val = Number.parseInt(raw, 10);
+  const sourceQty = Number.parseInt(currentTransferItem.qty, 10) || 0;
+  const onHandCeiling = currentOnHandTotal(currentTransferItem);
+  if (val > sourceQty) {
+    showTransferFormError(CURRENT_LANG === 'en'
+      ? `Transfer quantity can't exceed the available stock at this location (${sourceQty.toLocaleString()}).`
+      : `转移数量不能超过此库位的可用库存（${sourceQty.toLocaleString()}）。`);
+  } else if (val > onHandCeiling) {
+    showTransferFormError(CURRENT_LANG === 'en'
+      ? `Transfer quantity can't exceed the On Hand quantity (${onHandCeiling.toLocaleString()}) in Inventory Control.`
+      : `转移数量不能超过库存控制中的现有库存数量（${onHandCeiling.toLocaleString()}）。`);
+  } else {
+    clearTransferFormError();
+  }
+});
 
 if (closeTransferModalBtn) closeTransferModalBtn.addEventListener('click', window.closeTransferModal);
 if (cancelTransferBtn) cancelTransferBtn.addEventListener('click', window.closeTransferModal);
@@ -6036,6 +6444,7 @@ if (confirmTransferBtn) {
     }
     const destLoc = getTransferDestinationLocation();
     const qtyVal = parseInt(document.getElementById('transferQtyInput').value.trim(), 10);
+    const responsibleStockman = document.getElementById('transferResponsibleStockman')?.value.trim() || '';
 
     if (!destLoc) {
       showTransferFormError(CURRENT_LANG === 'en'
@@ -6051,11 +6460,23 @@ if (confirmTransferBtn) {
       showToast(CURRENT_LANG === 'en' ? 'Please enter a valid transfer quantity.' : '请输入有效的转移数量。', 'error');
       return;
     }
+    if (!responsibleStockman) {
+      showTransferFormError('Please select a Responsible Stockman.');
+      return;
+    }
     if (qtyVal > (parseInt(currentTransferItem.qty, 10) || 0)) {
       showTransferFormError(CURRENT_LANG === 'en'
         ? 'Transfer quantity cannot exceed the available stock.'
         : '转移数量不能超过可用库存。');
       showToast(CURRENT_LANG === 'en' ? 'Transfer quantity exceeds available stock.' : '转移数量超过现有库存。', 'error');
+      return;
+    }
+    const transferOnHandCeiling = currentOnHandTotal(currentTransferItem);
+    if (qtyVal > transferOnHandCeiling) {
+      showTransferFormError(CURRENT_LANG === 'en'
+        ? `Transfer quantity can't exceed the On Hand quantity (${transferOnHandCeiling.toLocaleString()}) in Inventory Control.`
+        : `转移数量不能超过库存控制中的现有库存数量（${transferOnHandCeiling.toLocaleString()}）。`);
+      showToast(CURRENT_LANG === 'en' ? 'Transfer quantity exceeds On Hand.' : '转移数量超过现有库存总量。', 'error');
       return;
     }
 
@@ -6070,7 +6491,7 @@ if (confirmTransferBtn) {
           sourceId: currentTransferItem.id,
           destLocation: destLoc,
           transferQty: qtyVal,
-          modifiedBy: currentUser ? currentUser.full_name : 'Stockman Transfer'
+          modifiedBy: responsibleStockman
         })
       }).then(r => r.json());
 
