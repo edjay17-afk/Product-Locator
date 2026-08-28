@@ -25,6 +25,12 @@ create table if not exists products (
   -- barcode/stock_no. Null means it has never been set and callers should
   -- fall back to summing qty across that SKU's locations.
   on_hand_qty integer check (on_hand_qty is null or on_hand_qty >= 0),
+  -- Running audit total of units added via a Quick Inventory Count "New
+  -- Quantity" that exceeded the prior On Hand total. Kept in sync across
+  -- every row sharing the same barcode/stock_no, same as on_hand_qty.
+  -- Counted but not yet given a shelf address; drains back down as that
+  -- stock gets shelved.
+  not_located_qty integer not null default 0 check (not_located_qty >= 0),
   -- Timestamp supplied by the external inventory system. It represents when
   -- that system says its on-hand number was true, not a shelf edit time.
   system_on_hand_updated_at timestamptz,
@@ -37,12 +43,18 @@ create table if not exists products (
 -- Safe for existing Supabase projects that already created the products table.
 alter table products add column if not exists system_on_hand_updated_at timestamptz;
 alter table products add column if not exists on_hand_qty integer;
+alter table products add column if not exists not_located_qty integer not null default 0;
 do $$
 begin
   if not exists (
     select 1 from pg_constraint where conname = 'products_on_hand_qty_check'
   ) then
     alter table products add constraint products_on_hand_qty_check check (on_hand_qty is null or on_hand_qty >= 0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'products_not_located_qty_check'
+  ) then
+    alter table products add constraint products_not_located_qty_check check (not_located_qty >= 0);
   end if;
 end $$;
 

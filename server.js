@@ -596,7 +596,31 @@ app.post('/api/inventory/:sku/quick-adjustment', requireAuth, inventoryStaff, as
         modifiedBy
       });
       const newQty = Number.isInteger(updatedProduct.on_hand_qty) ? updatedProduct.on_hand_qty : targetQty;
-      const previousQty = Number.isInteger(qtyDelta) ? newQty - qtyDelta : null;
+      // Use the actual before/after values from the database. The browser's
+      // delta is only a compatibility fallback for older clients.
+      const previousQty = Number.isInteger(updatedProduct.previous_on_hand_qty)
+        ? updatedProduct.previous_on_hand_qty
+        : (Number.isInteger(qtyDelta) ? newQty - qtyDelta : null);
+      const actualIncrease = previousQty !== null ? newQty - previousQty : qtyDelta;
+
+      // The count just went up — that increase is stock the system now knows
+      // about but hasn't been assigned a shelf location yet. Log it to the
+      // Not Located audit trail. See db.recordNotLocatedIncrease.
+      if (Number.isInteger(actualIncrease) && actualIncrease > 0) {
+        try {
+          const notLocated = await db.recordNotLocatedIncrease({
+            barcode: updatedProduct.barcode,
+            stockNo: updatedProduct.stock_no,
+            delta: actualIncrease,
+            modifiedBy,
+            timestamp: new Date().toISOString()
+          });
+          if (notLocated) updatedProduct.not_located_qty = notLocated.not_located_qty;
+        } catch (notLocatedErr) {
+          console.error('Failed to log not-located increase:', notLocatedErr.message);
+        }
+      }
+
       await notifySuperadmin('QUANTITY_MODIFIED', 'On-hand quantity changed', `On-hand changed${previousQty !== null ? ` from ${previousQty.toLocaleString()}` : ''} to ${newQty.toLocaleString()}. Reason: ${reason}`, updatedProduct, modifiedBy, { qty: newQty });
       return res.json({
         success: true,
@@ -858,6 +882,28 @@ app.put('/api/products/:id', async (req, res) => {
     const locationChanged = oldLocation !== newLocation;
     const quantityChanged = previous && Number(previous.qty || 0) !== Number(updated.qty || 0);
     await notifySuperadmin(locationChanged ? 'LOCATION_MODIFIED' : (quantityChanged ? 'QUANTITY_MODIFIED' : 'PRODUCT_MODIFIED'), locationChanged ? 'Product location changed' : (quantityChanged ? 'Product quantity modified' : 'Product details modified'), locationChanged ? `Location changed to ${newLocation}.` : (quantityChanged ? `Quantity changed from ${Number(previous.qty || 0).toLocaleString()} to ${Number(updated.qty || 0).toLocaleString()}.` : 'Product details were updated.'), updated, req.body.last_modified_by || 'Warehouse staff', { location: newLocation, qty: Number(updated.qty || 0) });
+
+    // A mapped location's qty went up (Edit or Add Stock). That's stock
+    // finally getting a shelf address, so drain it out of the Not Located
+    // total. See db.drainNotLocated.
+    const wasMapped = Boolean(previous && (previous.row || previous.batch) && previous.shelf);
+    const stillMapped = Boolean((updated.row || updated.batch) && updated.shelf);
+    if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) > Number(previous.qty || 0)) {
+      const rise = Number(updated.qty || 0) - Number(previous.qty || 0);
+      try {
+        const drained = await db.drainNotLocated({
+          barcode: updated.barcode || previous.barcode,
+          stockNo: updated.stock_no || previous.stock_no,
+          delta: rise,
+          modifiedBy: req.body.last_modified_by || req.user?.full_name || req.user?.username || 'Warehouse staff',
+          timestamp: new Date().toISOString()
+        });
+        if (drained) updated.not_located_qty = drained.not_located_qty;
+      } catch (drainErr) {
+        console.error('Failed to drain not-located total:', drainErr.message);
+      }
+    }
+
     res.json({ success: true, product: updated });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

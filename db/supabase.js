@@ -19,12 +19,12 @@ const SEARCH_CACHE_TTL_MS = 15000;
 const STATS_CACHE_TTL_MS = 30000;
 const searchCache = new Map();
 let statsCache = { data: null, time: 0 };
-const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,system_on_hand_updated_at,status,custom,last_modified_by';
+const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,not_located_qty,system_on_hand_updated_at,status,custom,last_modified_by';
 const SEARCH_INDEX_TTL_MS = 300000;
 let searchIndexCache = { data: null, time: 0 };
 let searchIndexPromise = null;
 // Only the columns the app actually uses — keeps the Supabase transfer small.
-const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
+const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,not_located_qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
 function invalidateAllProductsCache() {
   allProductsCache.time = 0;
   searchIndexCache.time = 0;
@@ -34,6 +34,72 @@ function invalidateAllProductsCache() {
 
 function escapePostgrestValue(value) {
   return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// Adds `signedDelta` (positive or negative, floored at 0) to a persisted
+// audit counter column for every row sharing a barcode/stock_no (same sync
+// convention as on_hand_qty), so the running total reads the same for any
+// staff member regardless of which of the product's locations they're
+// looking at. Shared by recordNotLocatedIncrease / drainNotLocated
+// (not_located_qty) via incrementSkuCounter and drainSkuCounter below.
+async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifiedBy, timestamp }) {
+  invalidateAllProductsCache();
+  const amount = Number.parseInt(signedDelta, 10);
+  if (!Number.isInteger(amount) || amount === 0) return null;
+  const barcodeTrim = (barcode || '').trim();
+  const stockTrim = (stockNo || '').trim();
+  if (!barcodeTrim && !stockTrim) return null;
+  const updatedAt = timestamp || new Date().toISOString();
+  const modifier = modifiedBy || 'Stockman';
+
+  if (isConnectedToSupabase && supabase) {
+    const safeBar = escapePostgrestValue(barcodeTrim);
+    const safeStock = escapePostgrestValue(stockTrim);
+    let siblingQuery = supabase.from('products').select(`id,${column}`);
+    siblingQuery = safeBar && safeStock
+      ? siblingQuery.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`)
+      : (safeBar ? siblingQuery.eq('barcode', safeBar) : siblingQuery.eq('stock_no', safeStock));
+    const { data: rows, error: rowsErr } = await siblingQuery;
+    if (rowsErr) throw new Error(rowsErr.message);
+    if (!rows || !rows.length) return null;
+
+    const current = Math.max(0, ...rows.map(r => Number.parseInt(r[column], 10) || 0));
+    const next = Math.max(0, current + amount);
+    const updatePayload = { [column]: next, last_modified_by: modifier, system_on_hand_updated_at: updatedAt };
+
+    let query = supabase.from('products').update(updatePayload);
+    query = safeBar && safeStock
+      ? query.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`)
+      : (safeBar ? query.eq('barcode', safeBar) : query.eq('stock_no', safeStock));
+    const { error } = await query;
+    if (error) throw new Error(error.message);
+    return { [column]: next };
+  }
+
+  const matches = memoryProducts.filter(p => (barcodeTrim && p.barcode === barcodeTrim) || (stockTrim && p.stock_no === stockTrim));
+  if (!matches.length) return null;
+  const current = Math.max(0, ...matches.map(p => Number.parseInt(p[column], 10) || 0));
+  const next = Math.max(0, current + amount);
+  matches.forEach(p => {
+    p[column] = next;
+    p.last_modified_by = modifier;
+    p.system_on_hand_updated_at = updatedAt;
+  });
+  return { [column]: next };
+}
+
+// amount must be positive — grows the counter.
+function incrementSkuCounter({ delta, ...rest }) {
+  const amount = Number.parseInt(delta, 10);
+  if (!Number.isInteger(amount) || amount <= 0) return null;
+  return adjustSkuCounter({ ...rest, signedDelta: amount });
+}
+
+// amount must be positive — shrinks the counter (floored at 0).
+function drainSkuCounter({ delta, ...rest }) {
+  const amount = Number.parseInt(delta, 10);
+  if (!Number.isInteger(amount) || amount <= 0) return null;
+  return adjustSkuCounter({ ...rest, signedDelta: -amount });
 }
 
 const SEARCHABLE_PRODUCT_FIELDS = [
@@ -73,6 +139,9 @@ function normalizeProduct(p) {
   const onHandRaw = p.on_hand_qty !== undefined ? p.on_hand_qty : p.onHandQty;
   const onHandParsed = Number.parseInt(onHandRaw, 10);
   const on_hand_qty = Number.isInteger(onHandParsed) ? onHandParsed : null;
+  const notLocatedRaw = p.not_located_qty !== undefined ? p.not_located_qty : p.notLocatedQty;
+  const notLocatedParsed = Number.parseInt(notLocatedRaw, 10);
+  const not_located_qty = Number.isInteger(notLocatedParsed) ? notLocatedParsed : 0;
   return {
     ...p,
     product_name,
@@ -89,7 +158,8 @@ function normalizeProduct(p) {
     is_carton,
     loc_type,
     system_on_hand_updated_at,
-    on_hand_qty
+    on_hand_qty,
+    not_located_qty
   };
 }
 
@@ -891,7 +961,12 @@ module.exports = {
       const [{ data: updated, error }, { error: syncError }] = await Promise.all([primaryUpdate, siblingSync]);
       if (error) throw new Error(error.message);
       if (syncError) console.error('Failed to sync on-hand quantity to other locations:', syncError.message);
-      return normalizeProduct(updated);
+      return {
+        ...normalizeProduct(updated),
+        // Keep the pre-adjustment total available to the API layer so audit
+        // counters are based on the value actually changed in the database.
+        previous_on_hand_qty: currentOnHand
+      };
     }
 
     memoryProducts.forEach(p => {
@@ -905,8 +980,29 @@ module.exports = {
       }
     });
     const item = memoryProducts.find(p => String(p.id) === String(anchor.id));
-    return normalizeProduct(item);
+    return {
+      ...normalizeProduct(item),
+      previous_on_hand_qty: currentOnHand
+    };
   },
+  // Logs units added to On Hand via a Quick Inventory Count "New Quantity"
+  // that exceeded the prior On Hand total (see the ON_HAND branch of
+  // POST /api/inventory/:sku/quick-adjustment). Persisted and synced across
+  // every row sharing barcode/stock_no so it reads the same for any staff
+  // member. Purely a record of what's been counted but not yet given a
+  // shelf address — never subtracted from any other total.
+  recordNotLocatedIncrease: async ({ barcode, stockNo, delta, modifiedBy, timestamp }) => incrementSkuCounter({
+    barcode, stockNo, delta, modifiedBy, timestamp,
+    column: 'not_located_qty'
+  }),
+  // Stock that was behind a Not Located total just got a shelf address (a
+  // mapped location's qty was raised via Edit or Add Stock). Drains
+  // not_located_qty by that same rise, floored at 0, so the figure tracks
+  // "still needs a home" rather than growing forever.
+  drainNotLocated: async ({ barcode, stockNo, delta, modifiedBy, timestamp }) => drainSkuCounter({
+    barcode, stockNo, delta, modifiedBy, timestamp,
+    column: 'not_located_qty'
+  }),
   deleteProduct: async (id) => {
     invalidateAllProductsCache();
     if (isConnectedToSupabase && supabase) {

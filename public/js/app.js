@@ -1516,14 +1516,20 @@ function useLocationTotalForOnHand(product, summary) {
 }
 
 // On Hand and shelf Location Qty are tracked independently now, so a product
-// can have units on hand that were never actually assigned to a shelf. This
-// surfaces that as two figures instead of letting it hide inside On Hand:
-// actualOnHand (live sum of every location's qty — what's really on a shelf
-// right now) and notLocated (the remaining gap against the On Hand total).
+// can have units on hand that were never actually assigned to a shelf.
+// notLocated is a persisted audit counter (see db.recordNotLocatedIncrease /
+// db.drainNotLocated) rather than something derived live from location rows,
+// so it reads the same for every staff member and survives a page refresh:
+// units added via a Quick Inventory Count "New Quantity" that exceeded the
+// prior On Hand — counted into the total but not yet given a shelf address —
+// draining back down as that stock gets shelved.
+// actualOnHand = shelf qty + notLocated: everything currently accounted for,
+// whether shelved or just not yet given a shelf.
 function withNotLocated(product, summary) {
   const located = totalLocationQuantity(product);
-  const actualOnHand = located === null ? 0 : located;
-  const notLocated = Math.max(0, Number(summary.onHand || 0) - actualOnHand);
+  const shelfQty = located === null ? 0 : located;
+  const notLocated = Number.parseInt(product?.not_located_qty, 10) || 0;
+  const actualOnHand = shelfQty + notLocated;
   return { ...summary, actualOnHand, notLocated };
 }
 
@@ -1602,9 +1608,9 @@ if (inventorySummaryCard) {
     if (derived) {
       const kind = derived.dataset.inventoryDerived;
       showToast(kind === 'NOT_LOCATED'
-        ? 'On hand minus what is currently assigned to a shelf location. Add or transfer a location to clear this.'
+        ? 'Units added via a Quick Inventory Count that raised On Hand above what was previously tracked, not yet assigned a shelf location.'
         : (kind === 'ACTUAL_ON_HAND'
-          ? "Live total of this product's quantity across every shelf location — what's actually placed right now, independent of the On Hand figure above."
+          ? "Everything currently accounted for: what's on a shelf, plus what's counted in On Hand but not yet located."
           : 'This balance is calculated from the inventory ledger.'));
     }
   });
