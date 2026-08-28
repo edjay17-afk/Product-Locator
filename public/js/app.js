@@ -69,6 +69,7 @@ const TRANSLATIONS = {
     inventoryReceiving: "Receiving",
     inventoryBulkCarton: "Bulk / carton",
     inventoryShelf: "Shelf",
+    inventoryActualOnHand: "Actual On Hand",
     inventoryNotLocated: "Not located",
     inventoryCalculated: "Calculated",
     inventoryDirectDelivery: "Direct Delivery",
@@ -244,6 +245,7 @@ const TRANSLATIONS = {
     inventoryReceiving: "收货区",
     inventoryBulkCarton: "散装 / 整箱",
     inventoryShelf: "货架",
+    inventoryActualOnHand: "实际现有库存",
     inventoryNotLocated: "未定位",
     inventoryCalculated: "系统计算",
     inventoryDirectDelivery: "直接配送",
@@ -1350,6 +1352,7 @@ function renderInventorySummary(summary, statusText) {
   set('inventoryReceiving', summary.receiving);
   set('inventoryBulk', summary.bulk);
   set('inventoryShelf', summary.shelf);
+  set('inventoryActualOnHand', summary.actualOnHand);
   set('inventoryNotLocated', summary.notLocated);
   const notLocatedCell = document.querySelector('[data-inventory-derived="NOT_LOCATED"]');
   if (notLocatedCell) notLocatedCell.classList.toggle('has-gap', Number(summary.notLocated || 0) > 0);
@@ -1460,7 +1463,20 @@ function inventorySummaryValue(bucket) {
 }
 
 function totalLocationQuantity(product) {
-  const locations = Array.isArray(window.currentLocs) && window.currentLocs.length ? window.currentLocs : getLocationsForProduct(product);
+  // window.currentLocs is a global cache of whatever was last rendered on
+  // screen. It's fast, but nothing guarantees it still belongs to `product`
+  // by the time this runs (a stale/different product's cache would silently
+  // produce the wrong total, including 0). Only trust it once we've checked
+  // it actually matches this product's barcode/stock; otherwise recompute
+  // fresh from PRODUCTS.
+  const cached = Array.isArray(window.currentLocs) ? window.currentLocs : [];
+  const key = product ? (product.barcode || product.b || product.stock_no || product.stock_code || product.s || '').toString().trim().toLowerCase() : '';
+  const cacheMatchesProduct = key && cached.some(l => {
+    const lb = (l.barcode || l.b || '').toString().trim().toLowerCase();
+    const ls = (l.stock_no || l.stock_code || l.s || '').toString().trim().toLowerCase();
+    return lb === key || ls === key;
+  });
+  const locations = cacheMatchesProduct ? cached : (product ? getLocationsForProduct(product) : cached);
   if (!locations.length) return null;
   return locations.reduce((total, location) => total + (Number.parseInt(location.qty, 10) || 0), 0);
 }
@@ -1501,11 +1517,14 @@ function useLocationTotalForOnHand(product, summary) {
 
 // On Hand and shelf Location Qty are tracked independently now, so a product
 // can have units on hand that were never actually assigned to a shelf. This
-// surfaces that gap as its own figure instead of letting it hide inside On Hand.
+// surfaces that as two figures instead of letting it hide inside On Hand:
+// actualOnHand (live sum of every location's qty — what's really on a shelf
+// right now) and notLocated (the remaining gap against the On Hand total).
 function withNotLocated(product, summary) {
   const located = totalLocationQuantity(product);
-  const notLocated = Math.max(0, Number(summary.onHand || 0) - (located === null ? 0 : located));
-  return { ...summary, notLocated };
+  const actualOnHand = located === null ? 0 : located;
+  const notLocated = Math.max(0, Number(summary.onHand || 0) - actualOnHand);
+  return { ...summary, actualOnHand, notLocated };
 }
 
 function updateInventoryCardImmediately(bucket, targetQty) {
@@ -1581,9 +1600,12 @@ if (inventorySummaryCard) {
     }
     const derived = event.target.closest('[data-inventory-derived]');
     if (derived) {
-      showToast(derived.dataset.inventoryDerived === 'NOT_LOCATED'
+      const kind = derived.dataset.inventoryDerived;
+      showToast(kind === 'NOT_LOCATED'
         ? 'On hand minus what is currently assigned to a shelf location. Add or transfer a location to clear this.'
-        : 'This balance is calculated from the inventory ledger.');
+        : (kind === 'ACTUAL_ON_HAND'
+          ? "Live total of this product's quantity across every shelf location — what's actually placed right now, independent of the On Hand figure above."
+          : 'This balance is calculated from the inventory ledger.'));
     }
   });
   inventorySummaryCard.addEventListener('keydown', event => {

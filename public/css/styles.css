@@ -2370,6 +2370,13 @@ body.guest-mode .tagcard-bottom button {
 
 .inventory-summary-cell[data-inventory-edit="SHELF"] strong { color: #0f172a; }
 
+.inventory-summary-cell[data-inventory-derived="ACTUAL_ON_HAND"] {
+  border-color: #bbf7d0;
+  background: linear-gradient(145deg, #f0fdf4, #fff);
+}
+
+.inventory-summary-cell[data-inventory-derived="ACTUAL_ON_HAND"] strong { color: #0f172a; }
+
 .inventory-summary-cell[data-inventory-derived="NOT_LOCATED"] {
   border-color: #e2e8f0;
   background: #f8fafc;
