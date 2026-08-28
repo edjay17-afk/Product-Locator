@@ -2394,6 +2394,23 @@ body.guest-mode .tagcard-bottom button {
 
 .inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap em { color: #b91c1c; }
 
+.inventory-summary-cell[data-inventory-derived="MISSING"] {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.inventory-summary-cell[data-inventory-derived="MISSING"] strong { color: #0f172a; }
+
+.inventory-summary-cell[data-inventory-derived="MISSING"].has-gap {
+  border-color: #fde68a;
+  background: linear-gradient(145deg, #fffbeb, #fff);
+  opacity: 1;
+}
+
+.inventory-summary-cell[data-inventory-derived="MISSING"].has-gap strong { color: #b45309; }
+
+.inventory-summary-cell[data-inventory-derived="MISSING"].has-gap em { color: #b45309; }
+
 .inventory-direct-delivery {
   width: 100%;
   margin-top: 13px;

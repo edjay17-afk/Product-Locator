@@ -71,6 +71,7 @@ const TRANSLATIONS = {
     inventoryShelf: "Shelf",
     inventoryActualOnHand: "Actual On Hand",
     inventoryNotLocated: "Not located",
+    inventoryMissing: "Missing",
     inventoryCalculated: "Calculated",
     inventoryDirectDelivery: "Direct Delivery",
     editLocDetails: "Edit Location / Details",
@@ -247,6 +248,7 @@ const TRANSLATIONS = {
     inventoryShelf: "货架",
     inventoryActualOnHand: "实际现有库存",
     inventoryNotLocated: "未定位",
+    inventoryMissing: "缺失",
     inventoryCalculated: "系统计算",
     inventoryDirectDelivery: "直接配送",
     editLocDetails: "编辑库位 / 详情",
@@ -1354,8 +1356,11 @@ function renderInventorySummary(summary, statusText) {
   set('inventoryShelf', summary.shelf);
   set('inventoryActualOnHand', summary.actualOnHand);
   set('inventoryNotLocated', summary.notLocated);
+  set('inventoryMissing', summary.missing);
   const notLocatedCell = document.querySelector('[data-inventory-derived="NOT_LOCATED"]');
   if (notLocatedCell) notLocatedCell.classList.toggle('has-gap', Number(summary.notLocated || 0) > 0);
+  const missingCell = document.querySelector('[data-inventory-derived="MISSING"]');
+  if (missingCell) missingCell.classList.toggle('has-gap', Number(summary.missing || 0) > 0);
   const systemUpdatedAt = document.getElementById('inventorySystemUpdatedAt');
   if (systemUpdatedAt) {
     const date = summary.systemOnHandUpdatedAt ? new Date(summary.systemOnHandUpdatedAt) : null;
@@ -1516,13 +1521,17 @@ function useLocationTotalForOnHand(product, summary) {
 }
 
 // On Hand and shelf Location Qty are tracked independently now, so a product
-// can have units on hand that were never actually assigned to a shelf.
-// notLocated is a persisted audit counter (see db.recordNotLocatedIncrease /
-// db.drainNotLocated) rather than something derived live from location rows,
-// so it reads the same for every staff member and survives a page refresh:
-// units added via a Quick Inventory Count "New Quantity" that exceeded the
-// prior On Hand — counted into the total but not yet given a shelf address —
-// draining back down as that stock gets shelved.
+// can have units on hand that were never actually assigned to a shelf. Both
+// figures below are persisted audit counters (see db.recordNotLocatedIncrease
+// / db.drainNotLocated and db.recordMissingIncrease) rather than something
+// derived live from location rows, so they read the same for every staff
+// member and survive a page refresh:
+// - notLocated: units added via a Quick Inventory Count "New Quantity" that
+//   exceeded the prior On Hand — counted into the total but not yet given a
+//   shelf address — draining back down as that stock gets shelved.
+// - missing: units removed from a shelf location's count in the Edit form
+//   (Product Details & Location), without being moved anywhere. Shown for
+//   visibility only — never subtracted from actualOnHand or notLocated.
 // actualOnHand = shelf qty + notLocated: everything currently accounted for,
 // whether shelved or just not yet given a shelf.
 function withNotLocated(product, summary) {
@@ -1530,7 +1539,8 @@ function withNotLocated(product, summary) {
   const shelfQty = located === null ? 0 : located;
   const notLocated = Number.parseInt(product?.not_located_qty, 10) || 0;
   const actualOnHand = shelfQty + notLocated;
-  return { ...summary, actualOnHand, notLocated };
+  const missing = Number.parseInt(product?.missing_qty, 10) || 0;
+  return { ...summary, actualOnHand, notLocated, missing };
 }
 
 function updateInventoryCardImmediately(bucket, targetQty) {
@@ -1610,8 +1620,10 @@ if (inventorySummaryCard) {
       showToast(kind === 'NOT_LOCATED'
         ? 'Units added via a Quick Inventory Count that raised On Hand above what was previously tracked, not yet assigned a shelf location.'
         : (kind === 'ACTUAL_ON_HAND'
-          ? "Everything currently accounted for: what's on a shelf, plus what's counted in On Hand but not yet located."
-          : 'This balance is calculated from the inventory ledger.'));
+          ? "Everything currently accounted for: what's on a shelf, plus what's counted in On Hand but not yet located. Doesn't include the Missing total below."
+          : (kind === 'MISSING'
+            ? 'A running record of units removed from a shelf by lowering its quantity in Edit (Product Details & Location), without being moved anywhere. For visibility only — it does not change any total above.'
+            : 'This balance is calculated from the inventory ledger.')));
     }
   });
   inventorySummaryCard.addEventListener('keydown', event => {
@@ -4366,6 +4378,9 @@ async function saveAddStockToLocation() {
   const addQtyRaw = document.getElementById('addStockNewInput').value.trim();
   const addQty = Number(addQtyRaw);
   const stockman = document.getElementById('addStockmanInput').value.trim();
+  // Each receipt must have a unique reference. A fixed reference makes the
+  // second Add Stock action look like a duplicate receiving transaction.
+  const receiptReference = `Add Stock to Location ${id || 'new'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const onHandQty = Number.parseInt(
     currentInventorySummaryProduct?.qty ?? activeProduct?.qty ??
     document.getElementById('inventoryOnHand')?.textContent?.replace(/,/g, ''), 10
@@ -4412,7 +4427,7 @@ async function saveAddStockToLocation() {
             qty: addQty,
             location_code: loc,
             package_type: 'EACH',
-            source_reference: 'Add Stock to Location'
+            source_reference: receiptReference
           })
         });
         const receiptData = await receiptResponse.json();

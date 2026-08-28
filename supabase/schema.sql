@@ -25,6 +25,14 @@ create table if not exists products (
   -- barcode/stock_no. Null means it has never been set and callers should
   -- fall back to summing qty across that SKU's locations.
   on_hand_qty integer check (on_hand_qty is null or on_hand_qty >= 0),
+  -- Running audit total of units removed from a mapped shelf location via a
+  -- manual qty decrease in the Edit form (Product Details & Location), e.g.
+  -- editing 1272 -> 1270. Kept in sync across every row sharing the same
+  -- barcode/stock_no, same as on_hand_qty. Purely a record for staff to
+  -- review — it is never subtracted from Actual On Hand or Not Located, so
+  -- it never double-counts against those totals. Shown to staff as
+  -- "Missing".
+  unaccounted_qty integer not null default 0 check (unaccounted_qty >= 0),
   -- Running audit total of units added via a Quick Inventory Count "New
   -- Quantity" that exceeded the prior On Hand total. Kept in sync across
   -- every row sharing the same barcode/stock_no, same as on_hand_qty.
@@ -43,6 +51,7 @@ create table if not exists products (
 -- Safe for existing Supabase projects that already created the products table.
 alter table products add column if not exists system_on_hand_updated_at timestamptz;
 alter table products add column if not exists on_hand_qty integer;
+alter table products add column if not exists unaccounted_qty integer not null default 0;
 alter table products add column if not exists not_located_qty integer not null default 0;
 do $$
 begin
@@ -50,6 +59,11 @@ begin
     select 1 from pg_constraint where conname = 'products_on_hand_qty_check'
   ) then
     alter table products add constraint products_on_hand_qty_check check (on_hand_qty is null or on_hand_qty >= 0);
+  end if;
+  if not exists (
+    select 1 from pg_constraint where conname = 'products_unaccounted_qty_check'
+  ) then
+    alter table products add constraint products_unaccounted_qty_check check (unaccounted_qty >= 0);
   end if;
   if not exists (
     select 1 from pg_constraint where conname = 'products_not_located_qty_check'

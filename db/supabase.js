@@ -19,12 +19,12 @@ const SEARCH_CACHE_TTL_MS = 15000;
 const STATS_CACHE_TTL_MS = 30000;
 const searchCache = new Map();
 let statsCache = { data: null, time: 0 };
-const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,not_located_qty,system_on_hand_updated_at,status,custom,last_modified_by';
+const SEARCH_INDEX_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,unaccounted_qty,not_located_qty,system_on_hand_updated_at,status,custom,last_modified_by';
 const SEARCH_INDEX_TTL_MS = 300000;
 let searchIndexCache = { data: null, time: 0 };
 let searchIndexPromise = null;
 // Only the columns the app actually uses — keeps the Supabase transfer small.
-const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,not_located_qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
+const PRODUCT_COLUMNS = 'id,barcode,barcode_2,stock_no,product_name,category,department,floor,row,shelf,level,loc,location_storage,qty,on_hand_qty,unaccounted_qty,not_located_qty,system_on_hand_updated_at,status,custom,last_modified_by,created_at';
 function invalidateAllProductsCache() {
   allProductsCache.time = 0;
   searchIndexCache.time = 0;
@@ -41,8 +41,12 @@ function escapePostgrestValue(value) {
 // convention as on_hand_qty), so the running total reads the same for any
 // staff member regardless of which of the product's locations they're
 // looking at. Shared by recordNotLocatedIncrease / drainNotLocated
-// (not_located_qty) via incrementSkuCounter and drainSkuCounter below.
-async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifiedBy, timestamp }) {
+// (not_located_qty) and recordMissingIncrease (unaccounted_qty, shown to
+// staff as "Missing") via incrementSkuCounter and drainSkuCounter below.
+// `extraFromRows(rows)`, when given, computes additional columns to set in
+// the same update from the fetched sibling rows (used to also decrement
+// on_hand_qty for Missing).
+async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifiedBy, timestamp, extraFromRows }) {
   invalidateAllProductsCache();
   const amount = Number.parseInt(signedDelta, 10);
   if (!Number.isInteger(amount) || amount === 0) return null;
@@ -55,7 +59,7 @@ async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifie
   if (isConnectedToSupabase && supabase) {
     const safeBar = escapePostgrestValue(barcodeTrim);
     const safeStock = escapePostgrestValue(stockTrim);
-    let siblingQuery = supabase.from('products').select(`id,${column}`);
+    let siblingQuery = supabase.from('products').select(`id,${column},on_hand_qty`);
     siblingQuery = safeBar && safeStock
       ? siblingQuery.or(`barcode.eq."${safeBar}",stock_no.eq."${safeStock}"`)
       : (safeBar ? siblingQuery.eq('barcode', safeBar) : siblingQuery.eq('stock_no', safeStock));
@@ -66,6 +70,7 @@ async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifie
     const current = Math.max(0, ...rows.map(r => Number.parseInt(r[column], 10) || 0));
     const next = Math.max(0, current + amount);
     const updatePayload = { [column]: next, last_modified_by: modifier, system_on_hand_updated_at: updatedAt };
+    if (extraFromRows) Object.assign(updatePayload, extraFromRows(rows));
 
     let query = supabase.from('products').update(updatePayload);
     query = safeBar && safeStock
@@ -73,19 +78,21 @@ async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifie
       : (safeBar ? query.eq('barcode', safeBar) : query.eq('stock_no', safeStock));
     const { error } = await query;
     if (error) throw new Error(error.message);
-    return { [column]: next };
+    return { [column]: next, on_hand_qty: 'on_hand_qty' in updatePayload ? updatePayload.on_hand_qty : null };
   }
 
   const matches = memoryProducts.filter(p => (barcodeTrim && p.barcode === barcodeTrim) || (stockTrim && p.stock_no === stockTrim));
   if (!matches.length) return null;
   const current = Math.max(0, ...matches.map(p => Number.parseInt(p[column], 10) || 0));
   const next = Math.max(0, current + amount);
+  const extra = extraFromRows ? extraFromRows(matches) : {};
   matches.forEach(p => {
     p[column] = next;
     p.last_modified_by = modifier;
     p.system_on_hand_updated_at = updatedAt;
+    Object.assign(p, extra);
   });
-  return { [column]: next };
+  return { [column]: next, on_hand_qty: 'on_hand_qty' in extra ? extra.on_hand_qty : null };
 }
 
 // amount must be positive — grows the counter.
@@ -142,6 +149,11 @@ function normalizeProduct(p) {
   const notLocatedRaw = p.not_located_qty !== undefined ? p.not_located_qty : p.notLocatedQty;
   const notLocatedParsed = Number.parseInt(notLocatedRaw, 10);
   const not_located_qty = Number.isInteger(notLocatedParsed) ? notLocatedParsed : 0;
+  // Stored in the unaccounted_qty column (kept from an earlier iteration of
+  // this feature); shown to staff as "Missing".
+  const missingRaw = p.unaccounted_qty !== undefined ? p.unaccounted_qty : p.missingQty;
+  const missingParsed = Number.parseInt(missingRaw, 10);
+  const missing_qty = Number.isInteger(missingParsed) ? missingParsed : 0;
   return {
     ...p,
     product_name,
@@ -159,7 +171,8 @@ function normalizeProduct(p) {
     loc_type,
     system_on_hand_updated_at,
     on_hand_qty,
-    not_located_qty
+    not_located_qty,
+    missing_qty
   };
 }
 
@@ -1002,6 +1015,26 @@ module.exports = {
   drainNotLocated: async ({ barcode, stockNo, delta, modifiedBy, timestamp }) => drainSkuCounter({
     barcode, stockNo, delta, modifiedBy, timestamp,
     column: 'not_located_qty'
+  }),
+  // Logs units removed from a mapped shelf location via a manual qty
+  // decrease in Product Details & Location's Edit form (e.g. editing
+  // 1272 -> 1270). Purely an audit trail, shown to staff as "Missing":
+  // increments unaccounted_qty by the drop amount for this SKU, synced
+  // across every row sharing barcode/stock_no, so staff can see cumulative
+  // shrinkage even after On Hand and Actual On Hand reconcile. Also
+  // decrements on_hand_qty by the same amount, but only when it was already
+  // independently tracked (non-null) — otherwise on_hand_qty stays null and
+  // keeps auto-following the live shelf sum, so the drop is never
+  // subtracted twice.
+  recordMissingIncrease: async ({ barcode, stockNo, delta, modifiedBy, timestamp }) => incrementSkuCounter({
+    barcode, stockNo, delta, modifiedBy, timestamp,
+    column: 'unaccounted_qty',
+    extraFromRows: rows => {
+      const onHandValues = rows.map(r => Number.parseInt(r.on_hand_qty, 10)).filter(Number.isInteger);
+      if (!onHandValues.length) return {};
+      const drop = Number.parseInt(delta, 10) || 0;
+      return { on_hand_qty: Math.max(0, Math.max(...onHandValues) - drop) };
+    }
   }),
   deleteProduct: async (id) => {
     invalidateAllProductsCache();

@@ -883,11 +883,34 @@ app.put('/api/products/:id', async (req, res) => {
     const quantityChanged = previous && Number(previous.qty || 0) !== Number(updated.qty || 0);
     await notifySuperadmin(locationChanged ? 'LOCATION_MODIFIED' : (quantityChanged ? 'QUANTITY_MODIFIED' : 'PRODUCT_MODIFIED'), locationChanged ? 'Product location changed' : (quantityChanged ? 'Product quantity modified' : 'Product details modified'), locationChanged ? `Location changed to ${newLocation}.` : (quantityChanged ? `Quantity changed from ${Number(previous.qty || 0).toLocaleString()} to ${Number(updated.qty || 0).toLocaleString()}.` : 'Product details were updated.'), updated, req.body.last_modified_by || 'Warehouse staff', { location: newLocation, qty: Number(updated.qty || 0) });
 
+    // A shelf location's qty was lowered in place in the Edit form (still
+    // mapped before and after — not cleared/deleted). Log the drop to the
+    // Missing audit trail so it stays visible even after On Hand and Actual
+    // On Hand reconcile to the new lower total. See db.recordMissingIncrease.
+    const wasMapped = Boolean(previous && (previous.row || previous.batch) && previous.shelf);
+    const stillMapped = Boolean((updated.row || updated.batch) && updated.shelf);
+    if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) < Number(previous.qty || 0)) {
+      const drop = Number(previous.qty || 0) - Number(updated.qty || 0);
+      try {
+        const missing = await db.recordMissingIncrease({
+          barcode: updated.barcode || previous.barcode,
+          stockNo: updated.stock_no || previous.stock_no,
+          delta: drop,
+          modifiedBy: req.body.last_modified_by || req.user?.full_name || req.user?.username || 'Warehouse staff',
+          timestamp: new Date().toISOString()
+        });
+        if (missing) {
+          updated.missing_qty = missing.unaccounted_qty;
+          if (missing.on_hand_qty !== null) updated.on_hand_qty = missing.on_hand_qty;
+        }
+      } catch (missingErr) {
+        console.error('Failed to log missing quantity:', missingErr.message);
+      }
+    }
+
     // A mapped location's qty went up (Edit or Add Stock). That's stock
     // finally getting a shelf address, so drain it out of the Not Located
     // total. See db.drainNotLocated.
-    const wasMapped = Boolean(previous && (previous.row || previous.batch) && previous.shelf);
-    const stillMapped = Boolean((updated.row || updated.batch) && updated.shelf);
     if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) > Number(previous.qty || 0)) {
       const rise = Number(updated.qty || 0) - Number(previous.qty || 0);
       try {
