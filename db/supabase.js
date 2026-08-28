@@ -41,11 +41,10 @@ function escapePostgrestValue(value) {
 // convention as on_hand_qty), so the running total reads the same for any
 // staff member regardless of which of the product's locations they're
 // looking at. Shared by recordNotLocatedIncrease / drainNotLocated
-// (not_located_qty) and recordMissingIncrease (unaccounted_qty, shown to
-// staff as "Missing") via incrementSkuCounter and drainSkuCounter below.
-// `extraFromRows(rows)`, when given, computes additional columns to set in
-// the same update from the fetched sibling rows (used to also decrement
-// on_hand_qty for Missing).
+// (not_located_qty) and recordUnaccountedIncrease (unaccounted_qty) via
+// incrementSkuCounter and drainSkuCounter below. `extraFromRows(rows)`, when
+// given, computes additional columns to set in the same update from the
+// fetched sibling rows (used to also decrement on_hand_qty for Unaccounted).
 async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifiedBy, timestamp, extraFromRows }) {
   invalidateAllProductsCache();
   const amount = Number.parseInt(signedDelta, 10);
@@ -149,11 +148,9 @@ function normalizeProduct(p) {
   const notLocatedRaw = p.not_located_qty !== undefined ? p.not_located_qty : p.notLocatedQty;
   const notLocatedParsed = Number.parseInt(notLocatedRaw, 10);
   const not_located_qty = Number.isInteger(notLocatedParsed) ? notLocatedParsed : 0;
-  // Stored in the unaccounted_qty column (kept from an earlier iteration of
-  // this feature); shown to staff as "Missing".
-  const missingRaw = p.unaccounted_qty !== undefined ? p.unaccounted_qty : p.missingQty;
-  const missingParsed = Number.parseInt(missingRaw, 10);
-  const missing_qty = Number.isInteger(missingParsed) ? missingParsed : 0;
+  const unaccountedRaw = p.unaccounted_qty !== undefined ? p.unaccounted_qty : p.unaccountedQty;
+  const unaccountedParsed = Number.parseInt(unaccountedRaw, 10);
+  const unaccounted_qty = Number.isInteger(unaccountedParsed) ? unaccountedParsed : 0;
   return {
     ...p,
     product_name,
@@ -172,7 +169,7 @@ function normalizeProduct(p) {
     system_on_hand_updated_at,
     on_hand_qty,
     not_located_qty,
-    missing_qty
+    unaccounted_qty
   };
 }
 
@@ -1018,7 +1015,7 @@ module.exports = {
   }),
   // Logs units removed from a mapped shelf location via a manual qty
   // decrease in Product Details & Location's Edit form (e.g. editing
-  // 1272 -> 1270). Purely an audit trail, shown to staff as "Missing":
+  // 1272 -> 1270). Purely an audit trail, shown to staff as "Unaccounted":
   // increments unaccounted_qty by the drop amount for this SKU, synced
   // across every row sharing barcode/stock_no, so staff can see cumulative
   // shrinkage even after On Hand and Actual On Hand reconcile. Also
@@ -1026,7 +1023,7 @@ module.exports = {
   // independently tracked (non-null) — otherwise on_hand_qty stays null and
   // keeps auto-following the live shelf sum, so the drop is never
   // subtracted twice.
-  recordMissingIncrease: async ({ barcode, stockNo, delta, modifiedBy, timestamp }) => incrementSkuCounter({
+  recordUnaccountedIncrease: async ({ barcode, stockNo, delta, modifiedBy, timestamp }) => incrementSkuCounter({
     barcode, stockNo, delta, modifiedBy, timestamp,
     column: 'unaccounted_qty',
     extraFromRows: rows => {

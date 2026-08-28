@@ -31,7 +31,7 @@ create table if not exists products (
   -- barcode/stock_no, same as on_hand_qty. Purely a record for staff to
   -- review — it is never subtracted from Actual On Hand or Not Located, so
   -- it never double-counts against those totals. Shown to staff as
-  -- "Missing".
+  -- "Unaccounted".
   unaccounted_qty integer not null default 0 check (unaccounted_qty >= 0),
   -- Running audit total of units added via a Quick Inventory Count "New
   -- Quantity" that exceeded the prior On Hand total. Kept in sync across

@@ -539,6 +539,14 @@ h1 {
   box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.12);
 }
 
+/* Keep the quantity/location number spinners visible in Product Details & Location. */
+#editOverlay input[type="number"]::-webkit-inner-spin-button,
+#editOverlay input[type="number"]::-webkit-outer-spin-button,
+#transferOverlay input[type="number"]::-webkit-inner-spin-button,
+#transferOverlay input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
 .field-required label::after {
   content: " *";
   color: var(--bad);
@@ -2394,22 +2402,22 @@ body.guest-mode .tagcard-bottom button {
 
 .inventory-summary-cell[data-inventory-derived="NOT_LOCATED"].has-gap em { color: #b91c1c; }
 
-.inventory-summary-cell[data-inventory-derived="MISSING"] {
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"] {
   border-color: #e2e8f0;
   background: #f8fafc;
 }
 
-.inventory-summary-cell[data-inventory-derived="MISSING"] strong { color: #0f172a; }
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"] strong { color: #0f172a; }
 
-.inventory-summary-cell[data-inventory-derived="MISSING"].has-gap {
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"].has-gap {
   border-color: #fde68a;
   background: linear-gradient(145deg, #fffbeb, #fff);
   opacity: 1;
 }
 
-.inventory-summary-cell[data-inventory-derived="MISSING"].has-gap strong { color: #b45309; }
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"].has-gap strong { color: #b45309; }
 
-.inventory-summary-cell[data-inventory-derived="MISSING"].has-gap em { color: #b45309; }
+.inventory-summary-cell[data-inventory-derived="UNACCOUNTED"].has-gap em { color: #b45309; }
 
 .inventory-direct-delivery {
   width: 100%;

@@ -885,26 +885,30 @@ app.put('/api/products/:id', async (req, res) => {
 
     // A shelf location's qty was lowered in place in the Edit form (still
     // mapped before and after — not cleared/deleted). Log the drop to the
-    // Missing audit trail so it stays visible even after On Hand and Actual
-    // On Hand reconcile to the new lower total. See db.recordMissingIncrease.
+    // Unaccounted audit trail so it stays visible even after On Hand and
+    // Actual On Hand reconcile to the new lower total. See
+    // db.recordUnaccountedIncrease.
     const wasMapped = Boolean(previous && (previous.row || previous.batch) && previous.shelf);
     const stillMapped = Boolean((updated.row || updated.batch) && updated.shelf);
     if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) < Number(previous.qty || 0)) {
       const drop = Number(previous.qty || 0) - Number(updated.qty || 0);
       try {
-        const missing = await db.recordMissingIncrease({
+        const unaccounted = await db.recordUnaccountedIncrease({
           barcode: updated.barcode || previous.barcode,
           stockNo: updated.stock_no || previous.stock_no,
           delta: drop,
           modifiedBy: req.body.last_modified_by || req.user?.full_name || req.user?.username || 'Warehouse staff',
           timestamp: new Date().toISOString()
         });
-        if (missing) {
-          updated.missing_qty = missing.unaccounted_qty;
-          if (missing.on_hand_qty !== null) updated.on_hand_qty = missing.on_hand_qty;
+        if (unaccounted) {
+          // Overwrite, don't add a new field — `updated` was fetched before
+          // this increment ran, so its own unaccounted_qty/on_hand_qty are
+          // already stale.
+          updated.unaccounted_qty = unaccounted.unaccounted_qty;
+          if (unaccounted.on_hand_qty !== null) updated.on_hand_qty = unaccounted.on_hand_qty;
         }
-      } catch (missingErr) {
-        console.error('Failed to log missing quantity:', missingErr.message);
+      } catch (unaccountedErr) {
+        console.error('Failed to log unaccounted quantity:', unaccountedErr.message);
       }
     }
 
