@@ -2464,18 +2464,31 @@ if (searchInput) {
   });
 }
 
-document.getElementById('clearRecent').addEventListener('click', () => {
-  recent = [];
-  recentPage = 1;
+// Clears whatever product/location is currently on screen. Used when
+// clearing Recent Lookups, and — critically — on every login/logout, so a
+// different account never lands on the previous session's product card,
+// Inventory Control panel, and its role-gated action buttons.
+function resetProductView() {
   activeProduct = null;
-  try {
-    localStorage.removeItem(recentKey());
-    localStorage.removeItem('wh_active_product');
-  } catch (e) {}
+  window.currentLocs = null;
+  currentInventorySummaryProduct = null;
+  inventorySummaryRequestId++; // cancels any in-flight summary fetch's render
   document.getElementById('tagCard').classList.remove('show');
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('skeletonState').style.display = 'none';
   document.getElementById('emptyPrompt').style.display = 'flex';
+  const summaryCard = document.getElementById('inventorySummaryCard');
+  if (summaryCard) summaryCard.style.display = 'none';
+}
+
+document.getElementById('clearRecent').addEventListener('click', () => {
+  recent = [];
+  recentPage = 1;
+  try {
+    localStorage.removeItem(recentKey());
+    localStorage.removeItem('wh_active_product');
+  } catch (e) {}
+  resetProductView();
   renderRecent();
 });
 
@@ -3881,6 +3894,7 @@ document.getElementById('authBtn').addEventListener('click', () => {
     localStorage.removeItem('wh_token');
     // Switch to guest recent list
     try { recent = JSON.parse(localStorage.getItem(recentKey()) || '[]'); } catch(e) { recent = []; }
+    resetProductView();
     updateUserUI();
     renderRecent();
     showToast('Logged out.');
@@ -3951,6 +3965,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
       localStorage.setItem('wh_current_user', JSON.stringify(currentUser));
       // Load this user's own recent lookups
       try { recent = JSON.parse(localStorage.getItem(recentKey()) || '[]'); } catch(e) { recent = []; }
+      resetProductView();
       updateUserUI();
       renderRecent();
       document.getElementById('loginOverlay').classList.remove('show');
@@ -8260,6 +8275,7 @@ const handleSuperAdminLogout = () => {
   localStorage.removeItem('wh_current_user');
   localStorage.removeItem('wh_token');
   window.forceUserAppMode = false;
+  resetProductView();
   updateUserUI();
   showToast('Super Admin Logged Out.');
 };
