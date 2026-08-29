@@ -912,11 +912,19 @@ app.put('/api/products/:id', async (req, res) => {
       }
     }
 
-    // A mapped location's qty went up (Edit or Add Stock). That's stock
-    // finally getting a shelf address, so drain it out of the Not Located
-    // total. See db.drainNotLocated.
-    if (wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) > Number(previous.qty || 0)) {
-      const rise = Number(updated.qty || 0) - Number(previous.qty || 0);
+    // Stock finally getting a shelf address drains it out of the Not Located
+    // total — either a mapped location's qty went up (Edit or Add Stock), or
+    // the product was unmapped before this edit and just received its first
+    // location. The latter is the common Quick Inventory Count follow-up
+    // (count first, shelve later) and used to be missed entirely because it
+    // requires wasMapped to already be true; without this branch, units
+    // stayed double-counted as both shelved and "not located" indefinitely,
+    // inflating Actual On Hand (shelf qty + Not Located) by the same amount
+    // twice. See db.drainNotLocated.
+    const newlyMapped = !wasMapped && stillMapped && Number(updated.qty || 0) > 0;
+    const risingWhileMapped = wasMapped && stillMapped && quantityChanged && Number(updated.qty || 0) > Number(previous.qty || 0);
+    if (newlyMapped || risingWhileMapped) {
+      const rise = newlyMapped ? Number(updated.qty || 0) : (Number(updated.qty || 0) - Number(previous.qty || 0));
       try {
         const drained = await db.drainNotLocated({
           barcode: updated.barcode || previous.barcode,

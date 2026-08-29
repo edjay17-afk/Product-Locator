@@ -675,11 +675,28 @@ async function warmSearchIndex() {
   if (searchIndexWarmupPromise) return searchIndexWarmupPromise;
   searchIndexWarmupPromise = (async () => {
     const cachedIndexPromise = readCachedSearchIndex();
-    const networkIndexPromise = fetch('/api/products/all?searchIndex=1&v=2', { cache: 'force-cache' })
-      .then(res => res.json());
+    // Plain (default) cache mode, not 'force-cache'. force-cache reuses ANY
+    // cached response for this URL — including a transient 500 — forever,
+    // with no revalidation; a hard refresh doesn't clear it either. Default
+    // mode still honors the server's Cache-Control (max-age=300) for the
+    // speed win, but actually revalidates once stale instead of pinning a
+    // stale success or a stale failure indefinitely.
+    const networkIndexPromise = fetch('/api/products/all?searchIndex=1&v=2')
+      .then(res => {
+        if (!res.ok) throw new Error(`Search index request failed: ${res.status}`);
+        return res.json();
+      });
 
     try {
-      const cachedProducts = await cachedIndexPromise;
+      // IndexedDB can hang indefinitely (no success/error/blocked event ever
+      // fires) rather than fail fast — e.g. a stuck deleteDatabase call
+      // elsewhere blocks every open() on the same database. Race it so a
+      // wedged cache read can never stall the network fallback below, which
+      // works fine on its own.
+      const cachedProducts = await Promise.race([
+        cachedIndexPromise,
+        new Promise(resolve => setTimeout(() => resolve(null), 2000))
+      ]);
       if (cachedProducts) applySearchIndex(cachedProducts);
     } catch (err) {
       console.warn('Cached search index load failed:', err);
@@ -1240,7 +1257,15 @@ function renderProduct(p) {
   loadInventorySummary(p);
 
   // push to persistent recent lookups
-  recent = recent.filter(r => (r.id ? r.id !== p.id : (r.barcode || r.b) !== (p.barcode || p.b)));
+  // Dedup by barcode/stock_no (the stable business key) rather than id first —
+  // a product's id can change across a delete+recreate (e.g. a backfilled
+  // record) even though it's the same physical item, which used to leave a
+  // stale duplicate entry behind under the old id.
+  const pKey = p.barcode || p.b || p.stock_no || p.stock_code || p.s;
+  recent = recent.filter(r => {
+    const rKey = r.barcode || r.b || r.stock_no || r.stock_code || r.s;
+    return pKey && rKey ? rKey !== pKey : r.id !== p.id;
+  });
   recent.unshift(p);
   recent = recent.slice(0, 100); // Store up to 100 recent items for data gathering sessions
   recentPage = 1; // Always jump to page 1 on new lookup
@@ -1414,7 +1439,12 @@ async function loadInventorySummary(product) {
       const message = err?.name === 'AbortError'
         ? 'Live balance timed out — showing saved quantity'
         : 'Live balance unavailable — showing saved quantity';
-      renderInventorySummary(bestAvailableInventorySummary(product, cachedSummary), message);
+      // Must go through withNotLocated like the success path above — Actual
+      // On Hand (shelf qty + Not Located) and Not Located/Unaccounted are
+      // computed here, not carried on bestAvailableInventorySummary's return
+      // value. Skipping it silently zeroed all three whenever this request
+      // failed or timed out, even with fully correct underlying data.
+      renderInventorySummary(withNotLocated(product, useLocationTotalForOnHand(product, bestAvailableInventorySummary(product, cachedSummary))), message);
     }
   } finally {
     if (timeout) clearTimeout(timeout);
@@ -4649,6 +4679,34 @@ function openAddQtyFromLocationModal(item, parsedLoc) {
   }, 300);
 }
 
+// "Remove shelf location" must NEVER delete a product's only database row —
+// it only deletes the row outright when a live, server-confirmed duplicate
+// row exists for the same SKU elsewhere. The local PRODUCTS cache can go
+// stale (e.g. a row was recreated under a new id while an old cached entry
+// lingered), which used to make a single-row product look like multi-row and
+// get its whole catalog record destroyed instead of just unmapped. On any
+// uncertainty (network failure, empty response) this fails safe toward "not
+// multi-row" so the non-destructive reset-location path is used.
+async function countLiveRowsForSku(barcode, barcode2, stockCode) {
+  const q = barcode || stockCode || barcode2;
+  if (!q) return 1;
+  try {
+    const res = await fetch(`/api/products?q=${encodeURIComponent(q)}&limit=50`).then(r => r.json());
+    if (!res || !res.success || !Array.isArray(res.products) || res.products.length === 0) return 1;
+    return res.products.filter(p => {
+      const b1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
+      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+      if (barcode && (b1 === barcode || b2 === barcode)) return true;
+      if (barcode2 && (b1 === barcode2 || b2 === barcode2)) return true;
+      if (stockCode && s === stockCode) return true;
+      return false;
+    }).length;
+  } catch (_) {
+    return 1;
+  }
+}
+
 async function deleteLocationForProduct(item, parsedLoc) {
   if (!item) return;
   const prodName = item.product_name || item.name || item.n || 'this product';
@@ -4698,18 +4756,10 @@ async function deleteLocationForProduct(item, parsedLoc) {
   showToast(isEn ? 'Removing shelf location...' : '正在清除货架位置...');
 
   try {
-    // Check if there are multiple database entries/rows for this SKU
-    const matchingRows = PRODUCTS.filter(p => {
-      const b1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
-      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
-      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-      if (barcode && (b1 === barcode || b2 === barcode)) return true;
-      if (barcode2 && (b1 === barcode2 || b2 === barcode2)) return true;
-      if (stockCode && s === stockCode) return true;
-      return false;
-    });
-
-    const isMultiRow = matchingRows.length > 1;
+    // Check if there are multiple database entries/rows for this SKU —
+    // confirmed live against the server, never the local cache (see
+    // countLiveRowsForSku).
+    const isMultiRow = (await countLiveRowsForSku(barcode, barcode2, stockCode)) > 1;
 
     let res = null;
     if (isMultiRow && targetId) {
@@ -5057,18 +5107,9 @@ window.deleteProductLocation = async function(index) {
     const barcode2 = (item.barcode_2 || (activeProduct ? activeProduct.barcode_2 || activeProduct.b2 : '') || '').toString().trim().toLowerCase();
     const stockCode = (item.stock_no || (activeProduct ? activeProduct.stock_no || activeProduct.s : '') || '').toString().trim().toLowerCase();
 
-    // Check if there are other matching rows in PRODUCTS for this product
-    const matchingRows = PRODUCTS.filter(p => {
-      const b1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
-      const b2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
-      const s = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
-      if (barcode && (b1 === barcode || b2 === barcode)) return true;
-      if (barcode2 && (b1 === barcode2 || b2 === barcode2)) return true;
-      if (stockCode && s === stockCode) return true;
-      return false;
-    });
-
-    const isMultiRow = matchingRows.length > 1;
+    // Check if there are other matching rows for this product — confirmed
+    // live against the server, never the local cache (see countLiveRowsForSku).
+    const isMultiRow = (await countLiveRowsForSku(barcode, barcode2, stockCode)) > 1;
 
     let res;
     if (isMultiRow) {

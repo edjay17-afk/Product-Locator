@@ -906,9 +906,11 @@ module.exports = {
   // reads the same no matter which of the product's locations is displayed.
   adjustOnHandQuantity: async ({ id, sku, delta, targetQty, modifiedBy, timestamp }) => {
     invalidateAllProductsCache();
-    const anchor = id
-      ? await module.exports.getProductById(id)
-      : await module.exports.getProductByBarcodeOrStock(sku);
+    // A stale client cache can send an id from before the row was recreated
+    // (e.g. re-mapped/re-added). Fall back to barcode/stock lookup rather
+    // than failing outright when the id no longer matches any row.
+    const anchor = (id && await module.exports.getProductById(id))
+      || await module.exports.getProductByBarcodeOrStock(sku);
     if (!anchor) throw new Error('Product not found.');
 
     const barcode = (anchor.barcode || '').trim();
