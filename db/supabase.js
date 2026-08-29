@@ -45,15 +45,21 @@ function escapePostgrestValue(value) {
 // incrementSkuCounter and drainSkuCounter below. `extraFromRows(rows)`, when
 // given, computes additional columns to set in the same update from the
 // fetched sibling rows (used to also decrement on_hand_qty for Unaccounted).
-async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifiedBy, timestamp, extraFromRows }) {
+//
+// Deliberately does NOT touch last_modified_by / system_on_hand_updated_at.
+// Those are the "Responsible Stockman" shown per shelf location — editing
+// one location's qty (which is what triggers this counter sync as a side
+// effect) must not overwrite that field on every OTHER location sharing the
+// SKU. The row actually being edited already gets its own last_modified_by
+// set by updateProduct in the same request; only on_hand_qty has its own
+// dedicated, intentionally-SKU-wide "last modified" via adjustOnHandQuantity.
+async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, extraFromRows }) {
   invalidateAllProductsCache();
   const amount = Number.parseInt(signedDelta, 10);
   if (!Number.isInteger(amount) || amount === 0) return null;
   const barcodeTrim = (barcode || '').trim();
   const stockTrim = (stockNo || '').trim();
   if (!barcodeTrim && !stockTrim) return null;
-  const updatedAt = timestamp || new Date().toISOString();
-  const modifier = modifiedBy || 'Stockman';
 
   if (isConnectedToSupabase && supabase) {
     const safeBar = escapePostgrestValue(barcodeTrim);
@@ -68,7 +74,7 @@ async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifie
 
     const current = Math.max(0, ...rows.map(r => Number.parseInt(r[column], 10) || 0));
     const next = Math.max(0, current + amount);
-    const updatePayload = { [column]: next, last_modified_by: modifier, system_on_hand_updated_at: updatedAt };
+    const updatePayload = { [column]: next };
     if (extraFromRows) Object.assign(updatePayload, extraFromRows(rows));
 
     let query = supabase.from('products').update(updatePayload);
@@ -87,8 +93,6 @@ async function adjustSkuCounter({ barcode, stockNo, column, signedDelta, modifie
   const extra = extraFromRows ? extraFromRows(matches) : {};
   matches.forEach(p => {
     p[column] = next;
-    p.last_modified_by = modifier;
-    p.system_on_hand_updated_at = updatedAt;
     Object.assign(p, extra);
   });
   return { [column]: next, on_hand_qty: 'on_hand_qty' in extra ? extra.on_hand_qty : null };
