@@ -437,6 +437,7 @@ function updateUserUI() {
     userBadge.style.display = 'flex';
     const roleIcon = currentUser.role === 'superadmin' ? '🛡️ ' : (currentUser.role === 'carton_handler' ? '📦 ' : (currentUser.role === 'checker' ? '🔍 ' : '👤 '));
     userNameDisplay.textContent = `${roleIcon}${currentUser.full_name}`;
+    userNameDisplay.style.display = 'inline';
     authBtn.textContent = CURRENT_LANG === 'en' ? 'Logout' : '登出';
     authBtn.className = 'user-auth-btn logout';
     closeLoginModal.style.display = 'block';
@@ -488,6 +489,7 @@ function updateUserUI() {
     if (mainAppWrapper) mainAppWrapper.style.display = 'block';
     if (superAdminPortalView) superAdminPortalView.style.display = 'none';
     userBadge.style.display = 'none';
+    userNameDisplay.style.display = 'none';
     closeLoginModal.style.display = 'none';
     document.getElementById('loginFormError').style.display = 'none';
     loginOverlay.classList.add('show');
@@ -1887,9 +1889,9 @@ function renderRecent() {
     const div = document.createElement('div');
     div.className = 'recent-item';
     const name = p.product_name || p.name || p.n || 'Unnamed Product';
-    // Recent Lookups shows every location this product occupies (it can span
-    // more than one shelf row), not just the single row that happened to be
-    // cached when it was looked up — that undercounted multi-location items.
+    // Show just the one location a product was actually looked up at — not
+    // every location it occupies. Listing all of them per entry made a
+    // multi-location product's row noisy; one location keeps the list clean.
     const allLocs = getLocationsForProduct(p);
     const locStrings = allLocs.map(l => {
       const f = l.floor !== undefined && l.floor !== null ? String(l.floor).trim() : '';
@@ -1898,7 +1900,7 @@ function renderRecent() {
       const lv = l.level !== undefined && l.level !== null ? String(l.level).trim() : '';
       return (f !== '' || r !== '' || s !== '') ? `${f}-${r}-${s}-${lv || '0'}` : null;
     }).filter(Boolean);
-    const loc = locStrings.length ? locStrings.join(', ') : (CURRENT_LANG === 'en' ? 'no location' : '未分配库位');
+    const loc = locStrings.length ? locStrings[0] : (CURRENT_LANG === 'en' ? 'no location' : '未分配库位');
 
     const isCarton = Boolean(
       p.is_carton ||
@@ -1909,7 +1911,7 @@ function renderRecent() {
 
     const cartonTag = isCarton ? `<span style="font-size:10px; margin-left:4px;">📦</span>` : '';
 
-    div.innerHTML = `<span class="rin">${escapeHtml(name)} ${cartonTag}</span>`;
+    div.innerHTML = `<span class="rin">${escapeHtml(name)} ${cartonTag}</span><span class="riloc">${escapeHtml(loc)}</span>`;
     div.onclick = () => renderProduct(p);
     strip.appendChild(div);
   });

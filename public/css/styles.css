@@ -231,9 +231,28 @@ h1 {
     font-size: 11px !important;
     padding: 5px 8px !important;
   }
+  /* A `transform: scale()` can't prevent wrapping — the browser lays out
+     (and wraps) text at full size first, then scales the already-wrapped
+     result, so a longer display name still broke onto two cramped lines
+     right next to the Logout button. Stack title above the user pill
+     instead: that gives the pill the full row width to lay out icon + name
+     + logout on one line, rather than leaving flexbox to guess whether to
+     shrink both side-by-side or wrap. */
+  .header-row-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    row-gap: 8px;
+  }
   .user-pill-container {
-    transform: scale(0.9) !important;
-    transform-origin: right center !important;
+    align-self: flex-end;
+    max-width: 100%;
+  }
+  .user-name {
+    font-size: 12px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
   }
 }
 
