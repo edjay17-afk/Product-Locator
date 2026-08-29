@@ -1887,12 +1887,18 @@ function renderRecent() {
     const div = document.createElement('div');
     div.className = 'recent-item';
     const name = p.product_name || p.name || p.n || 'Unnamed Product';
-    const floor = p.floor !== undefined && p.floor !== null ? String(p.floor) : '';
-    const row = p.batch !== undefined && p.batch !== null ? String(p.batch) : (p.row !== undefined && p.row !== null ? String(p.row) : (p.row || ''));
-    const shelf = p.shelf !== undefined && p.shelf !== null ? String(p.shelf) : '';
-    const level = p.level !== undefined && p.level !== null ? String(p.level) : '';
-    const hasLoc = floor !== '' || row !== '' || shelf !== '';
-    const loc = hasLoc ? `${floor}-${row}-${shelf}-${level}` : (CURRENT_LANG === 'en' ? 'no location' : '未分配库位');
+    // Recent Lookups shows every location this product occupies (it can span
+    // more than one shelf row), not just the single row that happened to be
+    // cached when it was looked up — that undercounted multi-location items.
+    const allLocs = getLocationsForProduct(p);
+    const locStrings = allLocs.map(l => {
+      const f = l.floor !== undefined && l.floor !== null ? String(l.floor).trim() : '';
+      const r = l.batch !== undefined && l.batch !== null ? String(l.batch).trim() : (l.row !== undefined && l.row !== null ? String(l.row).trim() : '');
+      const s = l.shelf !== undefined && l.shelf !== null ? String(l.shelf).trim() : '';
+      const lv = l.level !== undefined && l.level !== null ? String(l.level).trim() : '';
+      return (f !== '' || r !== '' || s !== '') ? `${f}-${r}-${s}-${lv || '0'}` : null;
+    }).filter(Boolean);
+    const loc = locStrings.length ? locStrings.join(', ') : (CURRENT_LANG === 'en' ? 'no location' : '未分配库位');
 
     const isCarton = Boolean(
       p.is_carton ||
@@ -1903,7 +1909,7 @@ function renderRecent() {
 
     const cartonTag = isCarton ? `<span style="font-size:10px; margin-left:4px;">📦</span>` : '';
 
-    div.innerHTML = `<span class="rin">${escapeHtml(name)} ${cartonTag}</span><span class="riloc">${escapeHtml(loc)}</span>`;
+    div.innerHTML = `<span class="rin">${escapeHtml(name)} ${cartonTag}</span>`;
     div.onclick = () => renderProduct(p);
     strip.appendChild(div);
   });
@@ -2392,13 +2398,10 @@ function renderMatches(matches) {
       const mappedLoc = (b && skuToMappedLoc.get(b)) || (b2 && skuToMappedLoc.get(b2)) || (s && skuToMappedLoc.get(s));
       const itemToDisplay = mappedLoc || p;
 
-      const floor = itemToDisplay.floor !== undefined && itemToDisplay.floor !== null ? String(itemToDisplay.floor).trim() : '';
-      const row = itemToDisplay.batch !== undefined && itemToDisplay.batch !== null ? String(itemToDisplay.batch).trim() : (itemToDisplay.row !== undefined && itemToDisplay.row !== null ? String(itemToDisplay.row).trim() : (itemToDisplay.row || '').trim());
-      const shelf = itemToDisplay.shelf !== undefined && itemToDisplay.shelf !== null ? String(itemToDisplay.shelf).trim() : '';
-      const level = itemToDisplay.level !== undefined && itemToDisplay.level !== null ? String(itemToDisplay.level).trim() : '';
-      const loc = (floor !== '' && row !== '' && shelf !== '') ? `${floor}-${row}-${shelf}-${level || '00'}` : (itemToDisplay.loc || '—');
-
-      rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div><div class="rloc">${loc}</div>`;
+      // Search-bar results are a fast product lookup, not a location report —
+      // location is intentionally omitted here. It's shown once a product is
+      // opened, and Recent Lookups shows every location for a product.
+      rowEl.innerHTML = `<div><div class="rn">${escapeHtml(name)}</div><div class="rc">${escapeHtml(barcode || ('#' + stockCode))}</div></div>`;
       rowEl.onclick = () => {
         renderProduct(itemToDisplay);
         const inputEl = document.getElementById('searchInput');
@@ -5183,6 +5186,18 @@ window.deleteProductLocation = async function(index) {
 
       rebuildIndex();
 
+      // Any other row still on record for this SKU (PRODUCTS already had the
+      // deleted row spliced out above, so this is just the survivors) — pick
+      // one to display next when the just-deleted row wasn't the only one.
+      const matchingRows = PRODUCTS.filter(p => {
+        const pb1 = (p.barcode || p.b || '').toString().trim().toLowerCase();
+        const pb2 = (p.barcode_2 || p.b2 || '').toString().trim().toLowerCase();
+        const ps = (p.stock_no || p.stock_code || p.s || '').toString().trim().toLowerCase();
+        if (barcode && (pb1 === barcode || pb2 === barcode)) return true;
+        if (barcode2 && (pb1 === barcode2 || pb2 === barcode2)) return true;
+        if (stockCode && ps === stockCode) return true;
+        return false;
+      });
       let nextProd = matchingRows.find(p => String(p.id) !== String(targetId));
       if (!nextProd) {
         nextProd = PRODUCTS.find(p => String(p.id) === String(targetId)) || activeProduct;

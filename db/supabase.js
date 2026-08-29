@@ -1399,7 +1399,7 @@ module.exports = {
         .update(updatePayload)
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw new Error(error.message);
       if (updated) {
