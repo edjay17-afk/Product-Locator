@@ -842,8 +842,8 @@
       </div>
     </div>
 
-    <div class="field field-required">
-      <label>Location &amp; quantity</label>
+    <div class="field">
+      <label>Location</label>
       <div class="loc-grid">
         <div class="location-field-required">
           <div class="hint" style="margin-bottom:4px;" data-i18n="floorLabel">Floor</div>
@@ -866,9 +866,9 @@
           <input id="rfLevel" type="number" min="0" step="1" value="0" inputmode="numeric" autocomplete="off" required>
         </div>
       </div>
-      <div class="location-field-required" style="margin-top:10px;">
-        <div class="hint" style="margin-bottom:4px;" data-i18n="rapidQtyLabel">Quantity</div>
-        <input id="rfQty" type="number" min="1" step="1" inputmode="numeric" autocomplete="off" required>
+      <div style="margin-top:10px;">
+        <div class="hint" style="margin-bottom:4px;" data-i18n="rapidQtyLabel">Quantity (optional)</div>
+        <input id="rfQty" type="number" min="0" step="1" inputmode="numeric" autocomplete="off" placeholder="Leave blank if unknown">
       </div>
     </div>
 

@@ -81,7 +81,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. Scan / Search Product",
     rapidSearchPlaceholder: "Search product name, code, barcode...",
     rapidLocLabel: "2. Scan Location QR",
-    rapidQtyLabel: "Quantity",
+    rapidQtyLabel: "Quantity (optional)",
     rapidSubmit: "Add & Next",
     rapidSuccessLog: "Last Registered Items (This Session)",
     rapidLocError: "Invalid location format. Expected format like '1-02-01-03'.",
@@ -258,7 +258,7 @@ const TRANSLATIONS = {
     rapidBarcodeLabel: "1. 搜索或扫描商品",
     rapidSearchPlaceholder: "搜索商品名称、货号或条形码...",
     rapidLocLabel: "2. 扫描库位二维码",
-    rapidQtyLabel: "数量",
+    rapidQtyLabel: "数量（可选）",
     rapidSubmit: "添加 & 下一个",
     rapidSuccessLog: "本次登记记录（最近5条）",
     rapidLocError: "库位格式错误。应为 '楼层-排号-货架号-层数' 格式（如 1-02-01-03）。",
@@ -1172,7 +1172,6 @@ function renderProductLocationsUI(p, locs) {
     const barcodeVal = item.barcode || p.barcode || p.b || '—';
     const categoryVal = item.category || p.category || p.c || '—';
     const departmentVal = item.department || item.subcategory || p.department || p.subcategory || p.sc || '—';
-    const stockmanVal = item.last_modified_by || p.last_modified_by || p.modifiedBy || '—';
 
     const isCartonLocation = Boolean(
       item.is_carton ||
@@ -1210,7 +1209,6 @@ function renderProductLocationsUI(p, locs) {
       <div class="result-card-metadata">
         <div><span>Category</span><strong>${escapeHtml(categoryVal)}</strong></div>
         <div><span>Department</span><strong>${escapeHtml(departmentVal)}</strong></div>
-        <div class="result-card-stockman"><span>Responsible Stockman</span><strong>${escapeHtml(stockmanVal)}</strong></div>
       </div>
       <div class="grid4">
         <div class="cell"><div class="clabel">${cardTranslations.cardFloor}</div><div class="cval">${hasLoc ? floor : '–'}</div></div>
@@ -2884,7 +2882,12 @@ function onScanSuccess(code) {
   } else if (scanTarget === 'rapid_location_qr') {
     currentRapidLocation = code.trim();
     const parsedRapidLocation = parseLocationQR(currentRapidLocation);
-    if (parsedRapidLocation) setRapidLocationFields(parsedRapidLocation);
+    if (parsedRapidLocation) {
+      setRapidLocationFields(parsedRapidLocation);
+      // Keep the scanned value in the same format used by the save request,
+      // so the visible fields and the location record cannot disagree.
+      currentRapidLocation = `${parsedRapidLocation.floor}-${parsedRapidLocation.row}-${parsedRapidLocation.shelf}-${parsedRapidLocation.level}`;
+    }
     rapidLocationBadgeVal.textContent = currentRapidLocation;
     rapidLocationBadge.style.display = 'block';
     checkRapidExistingLocationProduct();
@@ -5912,19 +5915,19 @@ async function saveRapidEntry() {
   const shelfRaw = rfShelf ? rfShelf.value.trim() : '';
   const levelRaw = rfLevel ? rfLevel.value.trim() : '';
   const qtyRaw = rfQty ? rfQty.value.trim() : '';
-  const quantity = Number(qtyRaw);
+  const quantity = qtyRaw === '' ? 0 : Number(qtyRaw);
 
-  if (!floorRaw || !rowRaw || !shelfRaw || levelRaw === '' || !qtyRaw) {
+  if (!floorRaw || !rowRaw || !shelfRaw || levelRaw === '') {
     rapidFormError.textContent = CURRENT_LANG === 'en'
-      ? 'Floor, Row number, Shelf number, Level, and Quantity are required.'
-      : '楼层、排号、货架号、层数和数量均为必填项。';
+      ? 'Floor, Row number, Shelf number, and Level are required.'
+      : '楼层、排号、货架号和层数均为必填项。';
     rapidFormError.classList.add('show');
     return;
   }
-  if (!Number.isInteger(quantity) || quantity < 1) {
+  if (!Number.isInteger(quantity) || quantity < 0) {
     rapidFormError.textContent = CURRENT_LANG === 'en'
-      ? 'Quantity must be a whole number of at least 1.'
-      : '数量必须是至少为 1 的整数。';
+      ? 'Quantity must be a whole number of 0 or greater.'
+      : '数量必须是 0 或更大的整数。';
     rapidFormError.classList.add('show');
     return;
   }
@@ -6036,6 +6039,11 @@ async function saveRapidEntry() {
 
     const isUnmappedMaster = existingProduct && (!existingProduct.floor || String(existingProduct.floor).trim() === '' || !existingProduct.loc || String(existingProduct.loc).trim() === '');
     const targetRow = currentRapidExistingRow || (isUnmappedMaster ? existingProduct : null);
+
+    // A blank rapid quantity means “location only”. Never overwrite an
+    // existing catalog on-hand value with zero just because quantity was
+    // intentionally left blank.
+    if (targetRow && rapidLedgerQty === 0) delete payload.qty;
 
     const url = targetRow ? `/api/products/${targetRow.id}` : '/api/products';
     const method = targetRow ? 'PUT' : 'POST';
