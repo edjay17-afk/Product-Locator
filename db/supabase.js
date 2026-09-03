@@ -936,9 +936,14 @@ module.exports = {
       if (siblingErr) throw new Error(siblingErr.message);
       currentOnHand = (siblingRows || []).reduce((sum, row) => sum + (Number.parseInt(row.qty, 10) || 0), 0);
     } else if (!isConnectedToSupabase) {
-      currentOnHand = memoryProducts
-        .filter(p => String(p.id) === String(anchor.id) || (barcode && p.barcode === barcode) || (stock_no && p.stock_no === stock_no))
-        .reduce((sum, p) => sum + (Number.parseInt(p.qty, 10) || 0), 0);
+      const memoryMatches = memoryProducts.filter(p =>
+        (id !== undefined && id !== null && String(p.id) === String(anchor.id)) ||
+        (barcode && p.barcode === barcode) ||
+        (stock_no && p.stock_no === stock_no)
+      );
+      currentOnHand = memoryMatches.length
+        ? memoryMatches.reduce((sum, p) => sum + (Number.parseInt(p.qty, 10) || 0), 0)
+        : (Number.parseInt(anchor.qty, 10) || 0);
     } else {
       currentOnHand = Number.parseInt(anchor.qty, 10) || 0;
     }
@@ -981,19 +986,39 @@ module.exports = {
       };
     }
 
-    memoryProducts.forEach(p => {
-      const matchesId = String(p.id) === String(anchor.id);
+    const matches = memoryProducts.filter(p => {
+      const matchesId = id !== undefined && id !== null && String(p.id) === String(anchor.id);
       const matchesBarcode = barcode && p.barcode === barcode;
       const matchesStock = stock_no && p.stock_no === stock_no;
-      if (matchesId || matchesBarcode || matchesStock) {
+      return matchesId || matchesBarcode || matchesStock;
+    });
+
+    if (matches.length) {
+      matches.forEach(p => {
         p.on_hand_qty = nextOnHand;
         p.last_modified_by = modifier;
         p.system_on_hand_updated_at = updatedAt;
-      }
+      });
+      const item = matches.find(p => String(p.id) === String(anchor.id)) || matches[0];
+      return {
+        ...normalizeProduct(item),
+        previous_on_hand_qty: currentOnHand
+      };
+    }
+
+    // Preserve the adapter contract when a caller supplies a product lookup
+    // that is not backed by the local seed catalog (for example, tests or a
+    // transient fallback lookup). This also prevents returning undefined and
+    // makes the adjustment endpoint safe when the anchor is external.
+    const updated = await module.exports.updateProduct(anchor.id, {
+      qty: nextOnHand,
+      on_hand_qty: nextOnHand,
+      last_modified_by: modifier,
+      system_on_hand_updated_at: updatedAt
     });
-    const item = memoryProducts.find(p => String(p.id) === String(anchor.id));
+    if (!updated) throw new Error('Product not found.');
     return {
-      ...normalizeProduct(item),
+      ...normalizeProduct(updated),
       previous_on_hand_qty: currentOnHand
     };
   },
