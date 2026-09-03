@@ -30,6 +30,7 @@ const {
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3002', 10);
+const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '3443', 10);
 
 app.disable('x-powered-by');
 if (compression) app.use(compression());
@@ -38,6 +39,21 @@ app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : false,
   credentials: true
 }));
+
+// Phone browsers do not permit camera access from http://192.168.x.x (or
+// other warehouse-network IP addresses). When this local server has HTTPS
+// available, move LAN visitors to the secure version before serving the app.
+// Localhost remains unchanged for desktop development and automated tests.
+app.use((req, res, next) => {
+  const host = String(req.get('host') || '');
+  const hostname = host.replace(/^\[/, '').split(']')[0].split(':')[0];
+  const isLanIp = /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/.test(hostname);
+  const isSecure = Boolean(req.socket?.encrypted) || req.get('x-forwarded-proto') === 'https';
+  if (isLanIp && !isSecure) {
+    return res.redirect(308, `https://${hostname}:${HTTPS_PORT}${req.originalUrl}`);
+  }
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -1330,8 +1346,15 @@ async function getSslCertificates() {
   ];
 
   const pems = await selfsigned.generate(
-    [{ product_name: 'commonName', value: 'Warehouse Product Locator' }],
-    { days: 365, altNames }
+    [{ name: 'commonName', value: 'Warehouse Product Locator' }],
+    {
+      days: 365,
+      extensions: [
+        { name: 'basicConstraints', cA: false },
+        { name: 'keyUsage', digitalSignature: true, keyEncipherment: true },
+        { name: 'subjectAltName', altNames }
+      ]
+    }
   );
 
   fs.writeFileSync(keyPath, pems.private);
@@ -1340,12 +1363,12 @@ async function getSslCertificates() {
   return { key: pems.private, cert: pems.cert };
 }
 
-// Start Protocol-Multiplexed Server (Handles BOTH http:// and https:// on PORT 3002 seamlessly)
+// Start separate HTTP and HTTPS listeners. Using a dedicated HTTPS port avoids
+// unreliable TLS handshakes from trying to share one local port between both
+// protocols, while keeping the normal desktop URL unchanged.
 async function startServer() {
   // These are local-only modules — not needed in serverless environments
   const https = require('https');
-  const net = require('net');
-  const os = require('os');
 
   const httpServer = http.createServer(app);
   let httpsServer = null;
@@ -1357,36 +1380,23 @@ async function startServer() {
     console.warn('SSL initialization skipped:', err.message);
   }
 
-  // Multiplexing server socket router
-  const server = net.createServer((socket) => {
-    socket.on('error', (err) => {
-      // Cleanly handle client disconnects (ECONNRESET) without crashing
-    });
-
-    socket.once('data', (buffer) => {
-      socket.pause();
-      socket.unshift(buffer);
-      // 0x16 (22) is the first byte of TLS Record Header (Handshake)
-      if (buffer[0] === 22 && httpsServer) {
-        httpsServer.emit('connection', socket);
-      } else {
-        httpServer.emit('connection', socket);
-      }
-      socket.resume();
-    });
-  });
-
-  server.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     const localIps = getLocalIpAddresses();
     console.log(`=================================================`);
     console.log(`🚀 Warehouse Product Locator is LIVE!`);
     console.log(`🌐 HTTP Access:   http://localhost:${PORT}`);
-    console.log(`🔒 HTTPS Access:  https://localhost:${PORT}`);
+    console.log(`🔒 HTTPS Access:  https://localhost:${HTTPS_PORT}`);
     localIps.forEach(ip => {
-      console.log(`📱 Mobile Network: http://${ip}:${PORT}  or  https://${ip}:${PORT}`);
+      console.log(`📱 Mobile Network: https://${ip}:${HTTPS_PORT}`);
     });
     console.log(`=================================================`);
   });
+
+  if (httpsServer) {
+    httpsServer.listen(HTTPS_PORT, () => {
+      console.log(`🔐 Local HTTPS listener ready on port ${HTTPS_PORT}.`);
+    });
+  }
 }
 
 if (require.main === module) {

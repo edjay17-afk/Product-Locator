@@ -2742,6 +2742,41 @@ function playLocationSaveSound() {
 window.playScanBeep = playScanBeep;
 window.playScanBeepSound = playScanBeep;
 
+function showCameraAccessError(hintEl, error) {
+  if (!hintEl) return;
+  hintEl.style.color = '#dc2626';
+  const insecurePage = !window.isSecureContext
+    || (window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
+  if (insecurePage) {
+    hintEl.innerHTML = '🔒 <b>Open the secure HTTPS link on your phone.</b><br>Phone browsers cannot show a camera permission prompt from an HTTP warehouse-network address.';
+    return;
+  }
+  if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
+    hintEl.innerHTML = '⚠️ <b>Camera access is blocked.</b><br>Allow Camera access for this site in your phone browser settings, then tap Scan again.';
+    return;
+  }
+  if (error?.name === 'NotFoundError') {
+    hintEl.innerHTML = '⚠️ <b>No camera was found.</b><br>Please try this page on a phone or device with a camera.';
+    return;
+  }
+  hintEl.innerHTML = '⚠️ <b>Could not start the camera.</b><br>Please reload the page and tap Scan again.';
+}
+
+async function requestCameraPermission() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    const error = new Error('Camera access requires a secure HTTPS page.');
+    error.name = 'SecurityError';
+    throw error;
+  }
+  // Request access directly from the button action. This consistently triggers
+  // the phone browser permission prompt before the QR library selects a camera.
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { ideal: 'environment' } }
+  });
+  stream.getTracks().forEach(track => track.stop());
+}
+
 async function startScanner(target) {
   primeAudioEngine();
   scanTarget = target || 'search';
@@ -2754,6 +2789,19 @@ async function startScanner(target) {
     hintEl.textContent = (target.includes('location_qr') || target.includes('loc'))
       ? 'Point the camera at the location QR code (e.g. 1-02-01-03).'
       : 'Hold the item barcode steady inside the frame.';
+  }
+
+  if (!window.Html5Qrcode) {
+    showCameraAccessError(hintEl, new Error('Scanner library did not load.'));
+    return;
+  }
+
+  try {
+    await requestCameraPermission();
+  } catch (permissionError) {
+    console.warn('Camera permission request failed:', permissionError);
+    showCameraAccessError(hintEl, permissionError);
+    return;
   }
 
   if (html5QrCode) {
@@ -2837,12 +2885,7 @@ async function startScanner(target) {
     return;
   } catch (err3) {
     console.error('All camera initialization modes failed:', err3);
-    hintEl.style.color = '#ef4444';
-    if (window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      hintEl.innerHTML = `🔒 <b>HTTPS Required for Phone Camera</b><br>Mobile browsers (iOS Safari & Chrome) disable camera permissions over local HTTP.<br><br>Run <b>npm run share</b> in your terminal for a free trusted HTTPS link for your phone!`;
-    } else {
-      hintEl.innerHTML = `⚠️ <b>Camera Permission Denied</b><br>Please enable Camera access in your phone's browser site settings and reload.`;
-    }
+    showCameraAccessError(hintEl, err3);
   }
 }
 
@@ -8069,7 +8112,10 @@ function setSuperadminView(view) {
   if (notifications) notifications.style.display = isNotifications ? 'flex' : 'none';
   if (systemStock) systemStock.style.display = isSystemStock ? 'flex' : 'none';
   if (kpis) kpis.style.display = isOperations || isNotifications || isSystemStock ? 'none' : 'grid';
-  if (table) table.style.display = isOperations || isNotifications || isSystemStock ? 'none' : 'block';
+  // This panel is a vertical flex layout: its table wrapper needs the remaining
+  // height in order to scroll while the toolbar and pagination stay visible.
+  // Restoring it as a block disables that layout and traps rows below the fold.
+  if (table) table.style.display = isOperations || isNotifications || isSystemStock ? 'none' : 'flex';
   if (main) {
     main.classList.toggle('operations-active', isOperations || isNotifications || isSystemStock);
     main.classList.toggle('notifications-active', isNotifications);

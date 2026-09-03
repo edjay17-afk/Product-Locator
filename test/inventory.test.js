@@ -57,11 +57,23 @@ test('inventory summary uses the catalog on-hand quantity and keeps ledger bucke
 });
 
 test('on-hand corrections update the catalog quantity rather than a physical location bucket', async () => {
-  const originalLookup = db.getProductByBarcodeOrStock;
-  const originalUpdate = db.updateProduct;
-  let updateCall;
-  db.getProductByBarcodeOrStock = async () => ({ id: 77, barcode: 'TEST-SKU', qty: 10 });
-  db.updateProduct = async (id, values) => { updateCall = { id, values }; return { id, ...values }; };
+  const originalAdjustOnHand = db.adjustOnHandQuantity;
+  const originalCreateNotification = db.createAdminNotification;
+  let adjustmentInput;
+  const notifications = [];
+  db.adjustOnHandQuantity = async input => {
+    adjustmentInput = input;
+    return {
+      id: 77,
+      barcode: 'TEST-SKU',
+      qty: 10,
+      on_hand_qty: 0,
+      previous_on_hand_qty: 10,
+      last_modified_by: input.modifiedBy,
+      system_on_hand_updated_at: '2026-09-03T00:00:00.000Z'
+    };
+  };
+  db.createAdminNotification = async notification => { notifications.push(notification); return notification; };
   const server = app.listen(0);
   try {
     const address = server.address();
@@ -75,24 +87,30 @@ test('on-hand corrections update the catalog quantity rather than a physical loc
     assert.equal(response.status, 200);
     assert.equal(body.success, true);
     assert.equal(body.adjustment.source, 'CATALOG_ON_HAND');
-    assert.equal(updateCall.id, 77);
-    assert.equal(updateCall.values.qty, 0);
-    assert.equal(updateCall.values.last_modified_by, 'Test Stockman');
-    assert.equal(Number.isNaN(Date.parse(updateCall.values.system_on_hand_updated_at)), false);
+    assert.equal(adjustmentInput.sku, 'TEST-SKU');
+    assert.equal(adjustmentInput.targetQty, 0);
+    assert.equal(adjustmentInput.modifiedBy, 'Test Stockman');
+    assert.equal(body.product.on_hand_qty, 0);
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].action, 'QUANTITY_MODIFIED');
   } finally {
-    db.getProductByBarcodeOrStock = originalLookup;
-    db.updateProduct = originalUpdate;
+    db.adjustOnHandQuantity = originalAdjustOnHand;
+    db.createAdminNotification = originalCreateNotification;
     await new Promise(resolve => server.close(resolve));
   }
 });
 
 test('physical bucket changes keep the catalog on-hand quantity in sync', async () => {
-  const originalLookup = db.getProductByBarcodeOrStock;
-  const originalUpdate = db.updateProduct;
+  const originalAdjustOnHand = db.adjustOnHandQuantity;
+  const originalCreateNotification = db.createAdminNotification;
   const originalQuickAdjust = inventory.quickAdjust;
-  const updateCalls = [];
-  db.getProductByBarcodeOrStock = async () => ({ id: 91, barcode: 'TEST-SKU', qty: 707 });
-  db.updateProduct = async (id, values) => { updateCalls.push({ id, values }); return { id, ...values }; };
+  const adjustmentCalls = [];
+  const notifications = [];
+  db.adjustOnHandQuantity = async input => {
+    adjustmentCalls.push(input);
+    return { id: 91, barcode: 'TEST-SKU', qty: 707, on_hand_qty: 807, previous_on_hand_qty: 707 };
+  };
+  db.createAdminNotification = async notification => { notifications.push(notification); return notification; };
   inventory.quickAdjust = async input => ({ storageType: input.storage_type, previousQty: 0, targetQty: 100, delta: 100 });
   const server = app.listen(0);
   try {
@@ -107,18 +125,19 @@ test('physical bucket changes keep the catalog on-hand quantity in sync', async 
       const body = await response.json();
       assert.equal(response.status, 200);
       assert.equal(body.success, true);
-      assert.equal(body.product.qty, 807);
+      assert.equal(body.product.on_hand_qty, 807);
     }
-    assert.equal(updateCalls.length, 3);
-    updateCalls.forEach(call => {
-      assert.equal(call.id, 91);
-      assert.equal(call.values.qty, 807);
-      assert.equal(call.values.last_modified_by, 'Test Stockman');
-      assert.equal(Number.isNaN(Date.parse(call.values.system_on_hand_updated_at)), false);
+    assert.equal(adjustmentCalls.length, 3);
+    adjustmentCalls.forEach(call => {
+      assert.equal(call.sku, 'TEST-SKU');
+      assert.equal(call.delta, 100);
+      assert.equal(call.modifiedBy, 'Test Stockman');
     });
+    assert.equal(notifications.length, 3);
+    notifications.forEach(notification => assert.equal(notification.action, 'QUANTITY_MODIFIED'));
   } finally {
-    db.getProductByBarcodeOrStock = originalLookup;
-    db.updateProduct = originalUpdate;
+    db.adjustOnHandQuantity = originalAdjustOnHand;
+    db.createAdminNotification = originalCreateNotification;
     inventory.quickAdjust = originalQuickAdjust;
     await new Promise(resolve => server.close(resolve));
   }
@@ -126,15 +145,20 @@ test('physical bucket changes keep the catalog on-hand quantity in sync', async 
 
 test('direct delivery records an outbound movement from Receiving', async () => {
   const originalDirectDispatch = inventory.directDispatch;
-  const originalLookup = db.getProductByBarcodeOrStock;
-  const originalUpdate = db.updateProduct;
+  const originalAdjustOnHand = db.adjustOnHandQuantity;
+  const originalCreateNotification = db.createAdminNotification;
   let receivedInput;
+  let adjustmentInput;
+  const notifications = [];
   inventory.directDispatch = async (input, actor) => {
     receivedInput = { input, actor };
     return { skuKey: input.sku_key, dispatched: input.qty, deliveryReference: input.delivery_reference, source: 'RECEIVING' };
   };
-  db.getProductByBarcodeOrStock = async () => ({ id: 55, barcode: 'TEST-SKU', qty: 100 });
-  db.updateProduct = async (id, values) => ({ id, ...values });
+  db.adjustOnHandQuantity = async input => {
+    adjustmentInput = input;
+    return { id: 55, barcode: 'TEST-SKU', qty: 100, on_hand_qty: 80, previous_on_hand_qty: 100 };
+  };
+  db.createAdminNotification = async notification => { notifications.push(notification); return notification; };
   const server = app.listen(0);
   try {
     const address = server.address();
@@ -151,10 +175,15 @@ test('direct delivery records an outbound movement from Receiving', async () => 
     assert.equal(body.delivery.source, 'RECEIVING');
     assert.equal(receivedInput.input.sku_key, 'TEST-SKU');
     assert.equal(receivedInput.actor, 'Test Stockman');
+    assert.equal(adjustmentInput.sku, 'TEST-SKU');
+    assert.equal(adjustmentInput.delta, -20);
+    assert.equal(adjustmentInput.modifiedBy, 'Test Stockman');
+    assert.equal(notifications.length, 1);
+    assert.equal(notifications[0].action, 'DIRECT_DELIVERY');
   } finally {
     inventory.directDispatch = originalDirectDispatch;
-    db.getProductByBarcodeOrStock = originalLookup;
-    db.updateProduct = originalUpdate;
+    db.adjustOnHandQuantity = originalAdjustOnHand;
+    db.createAdminNotification = originalCreateNotification;
     await new Promise(resolve => server.close(resolve));
   }
 });
